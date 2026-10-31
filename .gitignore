@@ -30,3 +30,6 @@ coverage*.json
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local notes (not tracked)
+docs/

@@ -2,7 +2,7 @@
 
 An interactive publish wizard for .NET: `dotnet publish`, but you pick the projects and targets from a menu.
 
-> **Status:** early development. See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
+> **Status:** early development.
 
 Targets:
 - Folder or Zip file
