@@ -1,0 +1,52 @@
+namespace Pubwiz.Tool.Wizard;
+
+/// <summary>
+/// The last question before publishing. A batch picked in the wizard can also be saved as a preset here
+/// (a single project's profile is saved from its profile list instead).
+/// </summary>
+public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
+{
+    private enum Choice
+    {
+        Publish,
+        SaveAsPreset,
+        Cancel
+    }
+
+    /// <param name="batch">What would be published.</param>
+    /// <param name="cancelLabel">The cancel option, e.g. "Cancel" or "Back to projects".</param>
+    /// <returns><c>false</c> when the user cancels (with the cancel option or Esc).</returns>
+    public bool Confirm(PublishBatch batch, string cancelLabel)
+    {
+        console.WriteLine();
+        var canSavePreset = batch.PresetFilePath is not null && batch.Selections.Count > 1;
+        while (true)
+        {
+            List<Choice> choices = canSavePreset ? [Choice.Publish, Choice.SaveAsPreset, Choice.Cancel] : [Choice.Publish, Choice.Cancel];
+
+            Choice choice;
+            try
+            {
+                choice = console.Choose($"Publish {batch.Selections.Count} project(s)?", choices, c => c switch
+                {
+                    Choice.Publish => "Publish now",
+                    Choice.SaveAsPreset => "Save this selection as a preset",
+                    _ => cancelLabel
+                });
+            }
+            catch (PromptCancelledException)
+            {
+                return false;
+            }
+
+            if (choice != Choice.SaveAsPreset)
+            {
+                return choice == Choice.Publish;
+            }
+
+            presets.Save(batch.Selections, batch.PresetFilePath!);
+            canSavePreset = false;
+            console.WriteLine();
+        }
+    }
+}

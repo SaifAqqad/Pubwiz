@@ -16,6 +16,7 @@ public sealed class PublishCommand(
     IAnsiConsole console,
     PublishWizard wizard,
     PresetPage presets,
+    ConfirmPage confirmPage,
     ArgumentSelection argumentSelection,
     PasswordProvider passwords,
     PublishRunner runner,
@@ -106,15 +107,13 @@ public sealed class PublishCommand(
         // No terminal (output piped, CI): never prompt, fail with a clear message instead.
         var interactive = console.Profile.Capabilities.Interactive && !EnvironmentVariables.IsCi;
 
-        var batch = await ChooseBatchAsync(settings, interactive, cancellationToken);
-        var requests = await CreateRequestsAsync(batch, settings, interactive, cancellationToken);
-        var jobs = requests.Select(runner.CreateJob).ToList();
-
-        console.WriteLine();
-        if (interactive && !settings.Yes && !ConfirmPublish(batch, jobs.Count))
+        if (await ChooseBatchAsync(settings, interactive, cancellationToken) is not { } batch)
         {
             return ExitCodes.Cancelled;
         }
+
+        var requests = await CreateRequestsAsync(batch, settings, interactive, cancellationToken);
+        var jobs = requests.Select(runner.CreateJob).ToList();
 
         console.WriteLine();
         await RunWithCtrlCAsync(jobs, settings.Parallel ?? batch.Parallel ?? 1, settings);
@@ -129,56 +128,23 @@ public sealed class PublishCommand(
         return GetExitCode(jobs);
     }
 
-    /// <summary>The options before publishing starts.</summary>
-    private enum StartChoice
-    {
-        Publish,
-        SaveAsPreset,
-        Cancel
-    }
-
     /// <summary>
-    /// Asks before publishing. A batch picked in the wizard can also be saved as a preset here
-    /// (a single project's profile is saved from its profile list instead).
+    /// Chooses what to publish (a preset, the command line or the wizard) and asks before publishing.
     /// </summary>
-    /// <returns><c>false</c> when the user cancels.</returns>
-    private bool ConfirmPublish(PublishBatch batch, int jobCount)
-    {
-        var canSavePreset = batch.PresetFilePath is not null && batch.Selections.Count > 1;
-        while (true)
-        {
-            List<StartChoice> choices = canSavePreset ? [StartChoice.Publish, StartChoice.SaveAsPreset, StartChoice.Cancel] : [StartChoice.Publish, StartChoice.Cancel];
-            var choice = console.Choose($"Publish {jobCount} project(s)?", choices, c => c switch
-            {
-                StartChoice.Publish => "Publish now",
-                StartChoice.SaveAsPreset => "Save this selection as a preset",
-                _ => "Cancel"
-            });
-
-            if (choice != StartChoice.SaveAsPreset)
-            {
-                return choice == StartChoice.Publish;
-            }
-
-            presets.Save(batch.Selections, batch.PresetFilePath!);
-            canSavePreset = false;
-            console.WriteLine();
-        }
-    }
-
-    private async Task<PublishBatch> ChooseBatchAsync(Settings settings, bool interactive, CancellationToken cancellationToken)
+    /// <returns>The batch, or <c>null</c> when the user exits or cancels.</returns>
+    private async Task<PublishBatch?> ChooseBatchAsync(Settings settings, bool interactive, CancellationToken cancellationToken)
     {
         var path = settings.Path ?? Directory.GetCurrentDirectory();
         var startDirectory = Directory.Exists(path) ? path : System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!;
 
         if (settings.Preset is not null || settings.PresetFile is not null)
         {
-            return await presets.LoadAsync(settings.Preset, settings.PresetFile, startDirectory, cancellationToken);
+            return Confirm(await presets.LoadAsync(settings.Preset, settings.PresetFile, startDirectory, cancellationToken));
         }
 
         if (settings.Projects.Length > 0)
         {
-            return await argumentSelection.SelectAsync(path, settings.Projects, settings.Profile, cancellationToken);
+            return Confirm(await argumentSelection.SelectAsync(path, settings.Projects, settings.Profile, cancellationToken));
         }
 
         if (!interactive)
@@ -188,11 +154,13 @@ public sealed class PublishCommand(
 
         if (await presets.OfferAsync(startDirectory, cancellationToken) is { } preset)
         {
-            return preset;
+            return Confirm(preset);
         }
 
-        var result = await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll), cancellationToken);
-        return new PublishBatch(result.Selections, PresetFilePath: result.PresetFilePath);
+        // The wizard asks before publishing itself, since cancelling there goes back to its project list.
+        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes), cancellationToken);
+
+        PublishBatch? Confirm(PublishBatch batch) => !interactive || settings.Yes || confirmPage.Confirm(batch, "Cancel") ? batch : null;
     }
 
     private async Task<List<PublishRequest>> CreateRequestsAsync(PublishBatch batch, Settings settings, bool interactive, CancellationToken cancellationToken)

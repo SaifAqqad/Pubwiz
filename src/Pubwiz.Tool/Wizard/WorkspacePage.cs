@@ -44,9 +44,7 @@ public sealed class WorkspacePage(IAnsiConsole console, WorkspaceLoader loader)
     private string ChooseSolution(IReadOnlyList<string> solutions)
     {
         var baseFolder = Directory.GetCurrentDirectory();
-        return console.Prompt(new SelectionPrompt<string>()
-            .Title("Several solutions were found. Which one do you want to use?")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
+        return console.Prompt(Questions.Menu<string>("Several solutions were found. Which one do you want to use?")
             .AddChoices(solutions)
             .UseConverter(solution => Path.GetRelativePath(baseFolder, solution).EscapeMarkup()));
     }

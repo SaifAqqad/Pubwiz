@@ -50,13 +50,15 @@ Run it in a folder with a solution or project:
 dotnet pubwiz
 ```
 
-**1. Pick the projects.** Press <kbd>Space</kbd> to select several for a batch, or <kbd>Enter</kbd> to publish just the highlighted one.
+**1. Pick the projects.** Type to search, press <kbd>Space</kbd> to select several for a batch (<kbd>Ctrl</kbd>+<kbd>A</kbd> selects all), or <kbd>Enter</kbd> to publish just the highlighted one.
 
 <p align="center"><img src="assets/screenshots/select-projects.png" alt="Selecting three of the solution's projects"></p>
 
 **2. Pick a profile for each one**, or create one. New profiles start from a target, grouped by where the app is going:
 
 <p align="center"><img src="assets/screenshots/choose-target.png" alt="Choosing a publish target, grouped into Local, Servers, Azure and Containers" width="820"></p>
+
+Every list can be searched by typing. <kbd>Esc</kbd> or <kbd>Ctrl</kbd>+<kbd>C</kbd> in the later steps goes back to the project list.
 
 **3. Watch it publish**, then export the logs or a report if you need them:
 

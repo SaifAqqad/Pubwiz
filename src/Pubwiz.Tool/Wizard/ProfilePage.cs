@@ -22,9 +22,13 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
         public sealed record Import : Choice;
 
         public sealed record SaveAsPreset : Choice;
+
+        /// <summary>Back to the project list; Esc picks it too.</summary>
+        public sealed record Back : Choice;
     }
 
-    public async Task<PublishProfile> ChooseAsync(ProjectInfo project, ProfilePageOptions options, CancellationToken cancellationToken)
+    /// <returns>The profile to publish with, or <c>null</c> when the user went back.</returns>
+    public async Task<PublishProfile?> ChooseAsync(ProjectInfo project, ProfilePageOptions options, CancellationToken cancellationToken)
     {
         while (true)
         {
@@ -66,6 +70,9 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
                 case Choice.SaveAsPreset:
                     SaveAsPreset(project, profiles, options.PresetFilePath!);
                     break;
+
+                case Choice.Back:
+                    return null;
             }
         }
     }
@@ -84,11 +91,10 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
             ? $"Choose a publish profile for [{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/]:"
             : $"[{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/] has no publish profiles yet:";
 
-        var prompt = new SelectionPrompt<Choice>()
-            .Title(title)
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
+        var prompt = Questions.Menu<Choice>(title)
             .AddChoices(profiles.Select(p => new Choice.Existing(p)))
             .AddChoices(new Choice.Create(), new Choice.Import())
+            .AddCancelResult(new Choice.Back())
             .UseConverter(Describe);
 
         if (canSavePreset)
@@ -96,6 +102,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
             prompt.AddChoice(new Choice.SaveAsPreset());
         }
 
+        prompt.AddChoice(new Choice.Back());
         return prompt;
     }
 
@@ -105,6 +112,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
         Choice.Create => "[green]+[/] Create a new profile",
         Choice.Import => "[blue]↓[/] Import a profile (.publishsettings or .pubxml)",
         Choice.SaveAsPreset => "[yellow]★[/] Save a profile as a preset",
+        Choice.Back => "[dim]← Back to the projects[/]",
         _ => throw new ArgumentOutOfRangeException(nameof(choice))
     };
 }

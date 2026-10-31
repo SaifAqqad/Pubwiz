@@ -53,9 +53,7 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         }
 
         const string chooseProjects = "\0choose";
-        var choice = console.Prompt(new SelectionPrompt<string>()
-            .Title("Run a saved preset?")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
+        var choice = console.Prompt(Questions.Menu<string>("Run a saved preset?")
             .AddChoices(file.Presets.Keys.Order())
             .AddChoices(chooseProjects)
             .UseConverter(name => name == chooseProjects ? "[dim]No, choose projects[/]" : $"{name.EscapeMarkup()} [dim]({DescribeProjects(file.Presets[name])})[/]"));

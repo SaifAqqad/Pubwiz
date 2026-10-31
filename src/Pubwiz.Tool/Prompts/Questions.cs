@@ -87,10 +87,7 @@ public static class Questions
     {
         describe ??= item => item.ToString()!.EscapeMarkup();
 
-        var answer = console.Prompt(new SelectionPrompt<T>()
-            .Title($"[bold]{question.EscapeMarkup()}[/]")
-            .HighlightStyle(AnswerStyle)
-            .PageSize(15)
+        var answer = console.Prompt(Menu<T>($"[bold]{question.EscapeMarkup()}[/]")
             .AddChoices(choices)
             .UseConverter(describe));
 
@@ -98,6 +95,23 @@ public static class Questions
         var separator = question.EndsWith('?') ? " " : ": ";
         console.MarkupLine($"[bold]{question.EscapeMarkup()}[/]{separator}[{Widgets.PrimaryColorMarkup}]{Markup.Remove(describe(answer)).EscapeMarkup()}[/]");
         return answer;
+    }
+
+    /// <summary>
+    /// A list to pick one item from, with the wizard's look: the highlighted item in the primary color, and typing searches.
+    /// Esc throws <see cref="PromptCancelledException"/>; lists with a "back" option use <c>AddCancelResult</c> to pick it instead.
+    /// </summary>
+    /// <param name="title">The title, as markup.</param>
+    public static SelectionPrompt<T> Menu<T>(string title)
+        where T : notnull
+    {
+        return new SelectionPrompt<T>()
+            .Title(title)
+            .HighlightStyle(AnswerStyle)
+            .PageSize(15)
+            .EnableSearch()
+            .SearchPlaceholderText("[dim]Type to search[/]")
+            .AddCancelResult(() => throw new PromptCancelledException());
     }
 
     /// <summary>A heading line that starts a group of questions, e.g. "FTP / FTPS".</summary>

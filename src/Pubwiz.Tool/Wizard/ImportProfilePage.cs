@@ -43,16 +43,20 @@ public sealed class ImportProfilePage(IAnsiConsole console, PasswordProvider pas
             throw new UserErrorException($"'{Path.GetFileName(file)}' contains no Web Deploy, FTP or Zip Deploy profiles.");
         }
 
-        var chosen = entries.Count == 1
-            ? entries
-            : console.Prompt(new MultiSelectionPrompt<PublishSettingsEntry>()
-                .Title("Which profiles do you want to import?")
-                .HighlightStyle(new Style(Widgets.PrimaryColor))
-                .InstructionsText("[dim](space to select, enter to import)[/]")
-                .AddChoices(entries)
-                .UseConverter(e => $"{e.ProfileName.EscapeMarkup()} [dim]({e.Method})[/]"));
-
+        var chosen = entries.Count == 1 ? entries : ChooseEntries(entries);
         return chosen.Select(PublishSettingsImporter.ToProfile).ToList();
+    }
+
+    /// <summary>Space-selected entries are imported; Enter without selecting imports only the highlighted one.</summary>
+    private IReadOnlyList<PublishSettingsEntry> ChooseEntries(IReadOnlyList<PublishSettingsEntry> entries)
+    {
+        var prompt = new MultiSelectPrompt<PublishSettingsEntry>("Which profiles do you want to import?", entries, e => [e.ProfileName, e.Method.ToString()])
+        {
+            Hint = "Select several profiles to import them all, or press enter to import only the highlighted one."
+        };
+
+        var result = console.Prompt(prompt)!;
+        return result.Selected.Count > 0 ? result.Selected : [result.Highlighted];
     }
 
     private bool ConfirmOverwrite(ProjectInfo project, PublishProfile profile)

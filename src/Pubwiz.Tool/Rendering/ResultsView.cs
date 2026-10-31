@@ -45,10 +45,9 @@ public sealed class ResultsView(IAnsiConsole console)
 
         while (true)
         {
-            var choice = console.Prompt(new SelectionPrompt<MenuChoice>()
-                .Title("What next?")
-                .HighlightStyle(new Style(Widgets.PrimaryColor))
+            var choice = console.Prompt(Questions.Menu<MenuChoice>("What next?")
                 .AddChoices(Enum.GetValues<MenuChoice>())
+                .AddCancelResult(MenuChoice.Exit)
                 .UseConverter(Describe));
 
             switch (choice)

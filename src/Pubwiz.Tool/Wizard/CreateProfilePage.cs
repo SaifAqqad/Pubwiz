@@ -142,11 +142,10 @@ public sealed class CreateProfilePage(
     /// </summary>
     private Choice ChooseTarget(ProjectInfo project)
     {
-        var prompt = new SelectionPrompt<Choice>()
-            .Title($"Where do you want to publish [{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/]?")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
+        var prompt = Questions.Menu<Choice>($"Where do you want to publish [{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/]?")
             .Mode(SelectionMode.Leaf)
             .PageSize(24)
+            .AddCancelResult(new Choice.Back())
             .UseConverter(Describe);
 
         foreach (var group in PublishTargetCatalog.For(project.Kind).GroupBy(t => t.Group).OrderBy(g => g.Key))

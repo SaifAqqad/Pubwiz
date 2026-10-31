@@ -10,6 +10,8 @@ public class MultiSelectPromptTests
 
     private static MultiSelectPrompt<string> CreatePrompt() => new("Pick projects", Projects, name => [name]);
 
+    private static readonly ConsoleKeyInfo CtrlA = new('\u0001', ConsoleKey.A, shift: false, alt: false, control: true);
+
     private static TestConsole CreateConsole()
     {
         var console = new TestConsole().Interactive();
@@ -26,6 +28,7 @@ public class MultiSelectPromptTests
 
         var result = await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
 
+        Assert.NotNull(result);
         Assert.Empty(result.Selected);
         Assert.Equal("Worker", result.Highlighted);
     }
@@ -42,7 +45,7 @@ public class MultiSelectPromptTests
 
         var result = await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
 
-        Assert.Equal(["Api", "Web"], result.Selected);
+        Assert.Equal(["Api", "Web"], result!.Selected);
     }
 
     [Fact]
@@ -51,19 +54,58 @@ public class MultiSelectPromptTests
         var console = CreateConsole();
         console.Input.PushKey(ConsoleKey.Escape);
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<PromptCancelledException>(() => CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task UnselectableItemsCannotBeSelected()
     {
         var console = CreateConsole();
-        console.Input.PushKey(ConsoleKey.A);
+        console.Input.PushKey(CtrlA);
         console.Input.PushKey(ConsoleKey.Enter);
 
         var prompt = new MultiSelectPrompt<string>("Pick projects", Projects, name => [name]) { IsSelectable = name => name != "Worker" };
         var result = await prompt.ShowAsync(console, TestContext.Current.CancellationToken);
 
-        Assert.Equal(["Api", "Web"], result.Selected);
+        Assert.Equal(["Api", "Web"], result!.Selected);
+    }
+
+    [Fact]
+    public async Task Typing_SearchesAndEnterPicksTheFirstMatch()
+    {
+        var console = CreateConsole();
+        console.Input.PushText("we");
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var result = await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Web", result!.Highlighted);
+    }
+
+    [Fact]
+    public async Task EscapeClearsTheSearchBeforeCancelling()
+    {
+        var console = CreateConsole();
+        console.Input.PushText("web");
+        console.Input.PushKey(ConsoleKey.Escape);
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var result = await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Api", result!.Highlighted);
+    }
+
+    [Fact]
+    public async Task ExitRow_ReturnsNull()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.UpArrow); // wraps to the last row: Exit
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var prompt = new MultiSelectPrompt<string>("Pick projects", Projects, name => [name]) { ExitLabel = "Exit" };
+        var result = await prompt.ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Null(result);
+        Assert.Contains("Exit", console.Output);
     }
 }

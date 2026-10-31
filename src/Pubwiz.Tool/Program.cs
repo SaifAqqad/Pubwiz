@@ -10,11 +10,16 @@ using System.Text;
 Console.OutputEncoding = Encoding.UTF8;
 CtrlC.Install(AnsiConsole.Console);
 
-var services = new ServiceCollection().AddPubwiz();
+// Ctrl+C can stop a prompt that's waiting for a key (see InterruptibleConsole).
+var console = new InterruptibleConsole(AnsiConsole.Console);
+
+var services = new ServiceCollection().AddPubwiz(console);
 var app = new CommandApp<PublishCommand>(new TypeRegistrar(services));
 
 app.Configure(config =>
 {
+    // Spectre.Console.Cli registers its console for injection itself, so it has to be this one too.
+    config.ConfigureConsole(console);
     config.SetApplicationName(ToolInfo.CommandName);
     config.SetApplicationVersion(ToolInfo.Version);
     config.SetExceptionHandler((exception, _) => HandleException(exception));

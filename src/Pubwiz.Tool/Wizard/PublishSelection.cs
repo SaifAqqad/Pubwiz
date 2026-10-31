@@ -13,4 +13,5 @@ public sealed record PublishSelection(ProjectInfo Project, PublishProfile Profil
 /// </summary>
 /// <param name="Path">Folder, solution or project to start from.</param>
 /// <param name="IncludeAll">Also list projects that normally can't be published (libraries, tests, ...).</param>
-public sealed record WizardOptions(string Path, bool IncludeAll);
+/// <param name="Confirm">Ask "Publish now?" before returning the selection.</param>
+public sealed record WizardOptions(string Path, bool IncludeAll, bool Confirm);

@@ -26,9 +26,9 @@ namespace Pubwiz.Tool.Infrastructure;
 /// </summary>
 public static class ServiceRegistration
 {
-    public static IServiceCollection AddPubwiz(this IServiceCollection services)
+    public static IServiceCollection AddPubwiz(this IServiceCollection services, IAnsiConsole console)
     {
-        services.AddSingleton(AnsiConsole.Console);
+        services.AddSingleton(console);
         services.AddSingleton<IProcessRunner, ProcessRunner>();
         services.AddSingleton(CreateDotnetCli);
         services.AddSingleton(sp => SecretStoreFactory.Create(sp.GetRequiredService<IProcessRunner>()));
@@ -80,6 +80,7 @@ public static class ServiceRegistration
         services.AddSingleton<AzureSession>();
         services.AddSingleton<PasswordProvider>();
         services.AddSingleton<PresetPage>();
+        services.AddSingleton<ConfirmPage>();
         services.AddSingleton<ArgumentSelection>();
 
         // Publishing UI

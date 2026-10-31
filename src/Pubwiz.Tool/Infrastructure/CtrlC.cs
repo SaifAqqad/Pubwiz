@@ -6,13 +6,26 @@ namespace Pubwiz.Tool.Infrastructure;
 /// <remarks>
 /// By default Ctrl+C ends Pubwiz (exit code 130), but first restores the terminal: a prompt or menu can leave the
 /// cursor hidden and in the middle of a line, which would put the shell prompt right after it. While publishing, the first
-/// Ctrl+C cancels the jobs instead (see <see cref="CancelInstead"/>), so results can still be shown.
+/// Ctrl+C cancels the jobs instead (see <see cref="CancelInstead"/>), so results can still be shown. In the wizard's
+/// profile pages it cancels the open prompt (see <see cref="InterruptibleConsole"/>), which goes back to the main menu.
 /// </remarks>
 public static class CtrlC
 {
     private static readonly Lock Gate = new();
     private static CancellationTokenSource? _cancellation;
     private static IAnsiConsole? _console;
+
+    /// <summary>The token of the current <see cref="CancelInstead"/> scope, or <see cref="CancellationToken.None"/> outside one.</summary>
+    public static CancellationToken ScopeToken
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return _cancellation?.Token ?? CancellationToken.None;
+            }
+        }
+    }
 
     /// <summary>Starts handling Ctrl+C. Call once at startup.</summary>
     public static void Install(IAnsiConsole console)

@@ -33,6 +33,25 @@ public sealed class DotnetCli(IProcessRunner processRunner, string executablePat
     }
 
     /// <summary>
+    /// Evaluates several projects with one <c>dotnet msbuild</c> run, which is much faster than calling
+    /// <see cref="EvaluateAsync"/> for each of them (see <see cref="MsBuildBatch"/>).
+    /// </summary>
+    /// <returns>
+    /// The evaluations by full project path. Projects that could not be evaluated are missing;
+    /// <see cref="EvaluateAsync"/> on such a project reports why.
+    /// </returns>
+    public async Task<IReadOnlyDictionary<string, MsBuildEvaluation>> EvaluateManyAsync(IReadOnlyList<string> projectPaths, IReadOnlyCollection<string> properties,
+        IReadOnlyCollection<string> items, CancellationToken cancellationToken = default)
+    {
+        using var batch = MsBuildBatch.Create(projectPaths, properties, items);
+        List<string> arguments = ["msbuild", batch.RunnerPath, "-nologo", $"-target:{MsBuildBatch.RunnerTarget}", $"-getTargetResult:{MsBuildBatch.RunnerTarget}"];
+
+        // A broken project makes msbuild exit with an error, but the results of the other projects are still printed.
+        var result = await processRunner.RunAsync(new ProcessSpec(ExecutablePath, arguments), cancellationToken: cancellationToken);
+        return MsBuildBatch.ParseResults(result.Output, properties, items);
+    }
+
+    /// <summary>
     /// Runs <c>dotnet publish</c>, streaming every output line to <paramref name="onOutput"/>.
     /// </summary>
     public Task<ProcessResult> PublishAsync(DotnetPublishOptions options, Action<ProcessOutputLine>? onOutput, CancellationToken cancellationToken = default)
