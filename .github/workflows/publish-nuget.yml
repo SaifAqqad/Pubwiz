@@ -11,6 +11,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # lets the job request an OIDC token for nuget.org Trusted Publishing
 
     steps:
       - uses: actions/checkout@v4
@@ -24,7 +27,14 @@ jobs:
         # Packs every packable project: the Pubwiz tool and the Pubwiz.WebDeploy library
         run: dotnet pack Pubwiz.slnx -c Release
 
+      # Trades the OIDC token for an API key that is valid for one hour, so it runs right before the push
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: SaifAqqad # nuget.org profile name, not the email address
+
       - name: Push to nuget.org
         run: dotnet nuget push "./dist/nupkg/*.nupkg" --skip-duplicate -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY"
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}

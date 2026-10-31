@@ -20,21 +20,17 @@ Run it in a folder with a solution or project, then pick the projects and a publ
 dotnet pubwiz
 ```
 
-- **Real publish profiles:** ordinary `.pubxml` files that Visual Studio and `dotnet publish` understand. Import a `.publishsettings` or `.pubxml`, or create one in the wizard.
-- **Batches:** publish several projects one after another or in parallel, with a live checklist and an optional log tail.
-- **Presets:** save a batch to `pubwiz.json` and run it with `dotnet pubwiz --preset release`.
-- **CI ready:** no prompts without a terminal, passwords from environment variables, JSON/CSV reports and exit codes.
+- Uses your existing `.pubxml` profiles, or imports `.publishsettings`
+- Publishes several projects at once, with live progress
+- Saves batches as presets you can commit and run in CI
 
 ## Targets
 
-| Target | Notes |
-|---|---|
-| Folder, Zip file | Any OS |
-| IIS (Web Deploy) | Windows, with Web Deploy installed |
-| FTP / FTPS, SFTP | Any OS; can take the app offline while uploading |
-| Azure App Service, Function Apps, WebJobs | Kudu zip deploy; sign in with the Azure CLI or a `.publishsettings` file |
-| Container images | .NET SDK or Dockerfile builds, to Docker/Podman, a tarball, any registry, or Azure |
-| Android, iOS | Signed `.aab`/`.apk` and `.ipa` (.NET MAUI) |
+- **Local:** folder, zip file
+- **Servers:** IIS (Web Deploy, Windows only), FTP/FTPS, SFTP
+- **Azure:** App Service, Function Apps, WebJobs, Container Apps
+- **Containers:** Docker/Podman, tarball, any registry
+- **Mobile:** Android (`.aab`, `.apk`), iOS (`.ipa`, macOS only)
 
 ## Commands
 

@@ -14,7 +14,7 @@ artifacts/
 *.user
 *.suo
 *.DotSettings.user
-global.json
+
 .vs/
 .idea/
 .vscode/

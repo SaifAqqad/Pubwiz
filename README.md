@@ -24,26 +24,25 @@
 `dotnet publish` is great at building, but shipping an app still means remembering profile names, MSBuild properties, upload tools and which projects belong together. **Pubwiz** turns that into a short conversation in your terminal, and remembers the answers.
 
 > [!NOTE]
-> Pubwiz is in early development. Folder, zip file, SFTP and local container builds are tested end to end; Azure, FTP, registry pushes and MAUI haven't been run against real services yet. Bug reports are very welcome.
+> Pubwiz is in early development. Bug reports are very welcome.
 
-## Highlights
+## Features
 
-- **Finds your projects.** Solutions (`.sln`, `.slnx`) first, then project files, up to two folders deep. Libraries and test projects are hidden unless you ask for them.
-- **Uses real publish profiles.** Profiles are ordinary `Properties/PublishProfiles/*.pubxml` files that Visual Studio and `dotnet publish -p:PublishProfile=...` understand. Import a `.publishsettings` or `.pubxml`, or create one in the wizard.
-- **Publishes in batches.** Select several projects and publish them one after another or in parallel, with a live checklist of every step and an optional log tail (press <kbd>L</kbd>).
-- **Remembers batches as presets.** Save a selection to `pubwiz.json`, commit it, and the whole team (and CI) can run `dotnet pubwiz --preset release`.
-- **Handles the details.** `app_offline.htm` while uploading, passwords in your OS keychain, Azure sign-in through `az`, and a preview of your `web.config` transforms.
-- **Plays well with CI.** No prompts without a terminal, passwords from environment variables, JSON/CSV reports, full logs and meaningful exit codes.
+- Finds the solutions and projects in your folder
+- Uses your existing `.pubxml` profiles, or imports `.publishsettings`
+- Publishes several projects at once, with live progress
+- Saves batches as presets you can commit and run in CI
+- Keeps passwords in your OS keychain
 
 ## Install
 
 Pubwiz is a [.NET tool](https://learn.microsoft.com/dotnet/core/tools/global-tools). It needs the [.NET 10 SDK](https://dotnet.microsoft.com/download) or later.
 
 ```bash
-dotnet tool install --global Pubwiz
+dotnet tool install -g Pubwiz
 ```
 
-Update it later with `dotnet tool update --global Pubwiz`.
+Update it later with `dotnet tool update -g Pubwiz`.
 
 ## Quick start
 
@@ -65,24 +64,15 @@ dotnet pubwiz
 
 <p align="center"><img src="assets/screenshots/results.png" alt="The results table after publishing, with export options" width="600"></p>
 
-## Where you can publish
+## Targets
 
-| Target | What Pubwiz does | Needs |
-|---|---|---|
-| **Folder** | `dotnet publish` with your profile, into any folder | |
-| **Zip file** | Publishes, then zips the output, ready to copy to a server | |
-| **IIS (Web Deploy)** | Syncs to IIS with the official `msdeploy.exe` (Basic or Windows sign-in, app offline, keep or delete extra files) | Windows with [Web Deploy](https://www.iis.net/downloads/microsoft/web-deploy) |
-| **FTP / FTPS** | Uploads the output, optionally removing old files and taking the app offline while it uploads | |
-| **SFTP** | The same over SSH, with a password or a private key | |
-| **Azure App Service** | Zip deploy through Kudu, waiting for the deployment to finish; Windows and Linux apps | [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli), or a `.publishsettings` file |
-| **Azure Function App** | The same, for Function Apps | Azure CLI or `.publishsettings` |
-| **Azure WebJob** | Deploys a console app or worker as a continuous or scheduled WebJob | Azure CLI or `.publishsettings` |
-| **Container image** | Builds with the .NET SDK or your `Dockerfile`, then loads it into Docker/Podman, saves a tarball, or pushes to any registry | Docker or Podman for local images and Dockerfiles |
-| **Azure containers** | Pushes to Azure Container Registry, then points an App Service or Container App at the new image | Azure CLI |
-| **Android** | A signed `.aab` or `.apk`; can create the keystore for you | .NET MAUI workload, JDK |
-| **iOS** | A signed `.ipa` with your identity and provisioning profile | macOS, Xcode, .NET MAUI workload |
+- **Local:** folder, zip file
+- **Servers:** IIS (Web Deploy, Windows only), FTP/FTPS, SFTP
+- **Azure:** App Service, Function Apps, WebJobs, Container Apps
+- **Containers:** Docker/Podman, tarball, any registry
+- **Mobile:** Android (`.aab`, `.apk`), iOS (`.ipa`, macOS only)
 
-On Linux and macOS, where `msdeploy.exe` doesn't run, picking IIS (Web Deploy) suggests FTP, SFTP or a zip file for the same server. Web Deploy profiles from Azure (`.publishsettings`) are published through Kudu on every OS.
+Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) or use a `.publishsettings` file. Dockerfile builds need Docker or Podman.
 
 ## Commands
 
@@ -156,12 +146,13 @@ dotnet pubwiz --project Shop.Api --project Shop.Worker --profile Staging --yes
 
 ## Passwords and secrets
 
-Pubwiz never writes passwords into profiles. When a target needs one, it asks once and can save it in your OS keychain: the Secret Service (libsecret) on Linux, the Keychain on macOS, and Credential Manager on Windows. Passwords are masked in the live log and in exported logs.
+Pubwiz never writes passwords into profiles. When a target needs one, it asks once and can save it in your OS keychain: `libsecret` on Linux, the Keychain on macOS, and Credential Manager on Windows.
 
 ## web.config transforms
 
-Publishing runs `dotnet publish`, so the .NET SDK applies your `web.config` transforms as usual: `web.<Configuration>.config`, `web.<Profile>.config`, `web.<Environment>.config`, then the profile's `.transform` file. To preview the result, in the same order, without publishing:
+Publishing runs `dotnet publish`, so the .NET SDK applies your `web.config` transforms as usual: `web.<Configuration>.config`, `web.<Profile>.config`, `web.<Environment>.config`, then the profile's `.transform` file.
 
+To preview the result without publishing, Run:
 ```bash
 dotnet pubwiz transform --configuration Release --print
 ```
