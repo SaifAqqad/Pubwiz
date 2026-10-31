@@ -14,5 +14,11 @@ public sealed record ProcessSpec(string FileName, IReadOnlyList<string> Argument
     /// </summary>
     public IReadOnlyDictionary<string, string?> Environment { get; init; } = new Dictionary<string, string?>();
 
+    /// <summary>
+    /// Text written to the process's standard input, which is then closed. Used to pass secrets
+    /// (e.g. <c>secret-tool store</c>, <c>docker login --password-stdin</c>) without putting them on the command line.
+    /// </summary>
+    public string? StandardInput { get; init; }
+
     public override string ToString() => $"{FileName} {string.Join(' ', Arguments)}";
 }

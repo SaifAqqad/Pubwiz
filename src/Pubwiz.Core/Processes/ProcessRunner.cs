@@ -32,6 +32,12 @@ public sealed class ProcessRunner : IProcessRunner
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
+        if (spec.StandardInput is not null)
+        {
+            await process.StandardInput.WriteAsync(spec.StandardInput.AsMemory(), cancellationToken);
+            process.StandardInput.Close();
+        }
+
         try
         {
             await process.WaitForExitAsync(cancellationToken);
@@ -70,6 +76,7 @@ public sealed class ProcessRunner : IProcessRunner
             WorkingDirectory = spec.WorkingDirectory ?? string.Empty,
             UseShellExecute = false,
             CreateNoWindow = true,
+            RedirectStandardInput = spec.StandardInput is not null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8,

@@ -28,7 +28,7 @@ public sealed class PublishWizard(IAnsiConsole console, WorkspacePage workspaceP
                 console.Write(new Rule($"[{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/]").LeftJustified());
             }
 
-            var profile = profilePage.Choose(project);
+            var profile = await profilePage.ChooseAsync(project, cancellationToken);
             selections.Add(new PublishSelection(project, profile));
         }
 

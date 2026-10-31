@@ -25,7 +25,11 @@ public sealed class PublishProfile
 
     public IReadOnlyList<KeyValuePair<string, string>> Properties => _properties;
 
-    public PublishMethod Method => PublishMethodParser.Parse(this[ProfileProperties.WebPublishMethod]);
+    /// <summary>
+    /// How the profile publishes. Web projects use <c>WebPublishMethod</c>; Visual Studio writes <c>PublishProtocol</c>
+    /// for other projects (the Web SDK falls back the same way).
+    /// </summary>
+    public PublishMethod Method => PublishMethodParser.Parse(this[ProfileProperties.WebPublishMethod] ?? this[ProfileProperties.PublishProtocol]);
 
     /// <summary>
     /// Gets or sets a property by name (case-insensitive). Getting a missing property returns <c>null</c>;

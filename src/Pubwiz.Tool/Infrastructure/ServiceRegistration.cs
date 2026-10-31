@@ -2,7 +2,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Pubwiz.Core;
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Dotnet;
+using Pubwiz.Core.Execution;
 using Pubwiz.Core.Processes;
+using Pubwiz.Core.Secrets;
+using Pubwiz.Core.Targets.Folder;
+using Pubwiz.Tool.Credentials;
+using Pubwiz.Tool.Rendering;
 using Pubwiz.Tool.Wizard;
 
 namespace Pubwiz.Tool.Infrastructure;
@@ -17,10 +22,15 @@ public static class ServiceRegistration
         services.AddSingleton(AnsiConsole.Console);
         services.AddSingleton<IProcessRunner, ProcessRunner>();
         services.AddSingleton(CreateDotnetCli);
+        services.AddSingleton(sp => SecretStoreFactory.Create(sp.GetRequiredService<IProcessRunner>()));
 
         // Core
         services.AddSingleton<ProjectInspector>();
         services.AddSingleton<WorkspaceLoader>();
+        services.AddSingleton<PublishRunner>();
+
+        // Publish targets: the runner picks the first one that can publish a profile
+        services.AddSingleton<IPublishTarget, FolderTarget>();
 
         // Wizard
         services.AddSingleton<PublishWizard>();
@@ -29,6 +39,11 @@ public static class ServiceRegistration
         services.AddSingleton<ImportProfilePage>();
         services.AddSingleton<CreateProfilePage>();
         services.AddSingleton<FolderProfilePage>();
+        services.AddSingleton<PasswordProvider>();
+
+        // Publishing UI
+        services.AddSingleton<PublishDashboard>();
+        services.AddSingleton<ResultsView>();
 
         return services;
     }

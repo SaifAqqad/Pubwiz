@@ -8,6 +8,10 @@ public static class ProfileProperties
 {
     // Common
     public const string WebPublishMethod = nameof(WebPublishMethod);
+
+    /// <summary>Used instead of <see cref="WebPublishMethod"/> by Visual Studio profiles of non-web projects.</summary>
+    public const string PublishProtocol = nameof(PublishProtocol);
+
     public const string PublishProvider = nameof(PublishProvider);
     public const string LastUsedBuildConfiguration = nameof(LastUsedBuildConfiguration);
     public const string LastUsedPlatform = nameof(LastUsedPlatform);
@@ -21,6 +25,10 @@ public static class ProfileProperties
 
     // Folder, Zip deploy, FTP
     public const string PublishUrl = nameof(PublishUrl);
+
+    /// <summary>The publish folder of non-web projects (web projects use <see cref="PublishUrl"/>).</summary>
+    public const string PublishDir = nameof(PublishDir);
+
     public const string DeleteExistingFiles = nameof(DeleteExistingFiles);
     public const string FtpPassiveMode = nameof(FtpPassiveMode);
 
@@ -35,4 +43,5 @@ public static class ProfileProperties
 
     /// <summary>The value of <see cref="PublishProvider"/> for Azure App Service.</summary>
     public const string AzureWebSiteProvider = "AzureWebSite";
+
 }

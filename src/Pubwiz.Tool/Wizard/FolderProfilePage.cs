@@ -19,10 +19,13 @@ public sealed class FolderProfilePage(IAnsiConsole console)
 
         var deleteExisting = console.Confirm("Delete existing files in the folder before publishing?", defaultValue: false);
 
+        // Both folder properties are written: web projects read PublishUrl, other projects read PublishDir.
         var profile = new PublishProfile("FolderProfile");
         profile[ProfileProperties.WebPublishMethod] = "FileSystem";
+        profile[ProfileProperties.PublishProtocol] = "FileSystem";
         profile[ProfileProperties.PublishProvider] = "FileSystem";
         profile[ProfileProperties.PublishUrl] = folder;
+        profile[ProfileProperties.PublishDir] = folder;
         profile[ProfileProperties.DeleteExistingFiles] = deleteExisting ? "true" : "false";
         profile[ProfileProperties.LastUsedBuildConfiguration] = configuration;
         profile[ProfileProperties.LastUsedPlatform] = "Any CPU";

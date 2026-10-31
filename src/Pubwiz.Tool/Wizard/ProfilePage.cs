@@ -18,7 +18,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
         public sealed record Import : Choice;
     }
 
-    public PublishProfile Choose(ProjectInfo project)
+    public async Task<PublishProfile> ChooseAsync(ProjectInfo project, CancellationToken cancellationToken)
     {
         while (true)
         {
@@ -39,7 +39,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
                     break;
 
                 case Choice.Import:
-                    var imported = importPage.Import(project);
+                    var imported = await importPage.ImportAsync(project, cancellationToken);
                     if (imported.Count == 1)
                     {
                         return imported[0];

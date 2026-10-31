@@ -33,6 +33,31 @@ public sealed class DotnetCli(IProcessRunner processRunner, string executablePat
     }
 
     /// <summary>
+    /// Runs <c>dotnet publish</c>, streaming every output line to <paramref name="onOutput"/>.
+    /// </summary>
+    public Task<ProcessResult> PublishAsync(DotnetPublishOptions options, Action<ProcessOutputLine>? onOutput, CancellationToken cancellationToken = default)
+    {
+        var spec = new ProcessSpec(ExecutablePath, options.ToArguments())
+        {
+            WorkingDirectory = Path.GetDirectoryName(options.ProjectPath),
+            Environment = options.SecretProperties.ToDictionary(p => p.Key, string? (p) => p.Value)
+        };
+
+        return processRunner.RunAsync(spec, onOutput, cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns the MSBuild errors in a build output (<c>path(line,col): error CODE: message</c>), without duplicates.
+    /// </summary>
+    public static IReadOnlyList<string> GetBuildErrors(string output)
+    {
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => line.Contains(": error ", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>
     /// Parses the JSON printed by <c>-getProperty</c>/<c>-getItem</c>:
     /// <c>{ "Properties": { "Name": "value" }, "Items": { "Type": [ { "Identity": "...", "Version": "..." } ] } }</c>
     /// </summary>

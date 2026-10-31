@@ -1,15 +1,17 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
+using Pubwiz.Tool.Credentials;
 
 namespace Pubwiz.Tool.Wizard;
 
 /// <summary>
 /// Imports a .publishsettings file (Azure portal / IIS Web Deploy) or an existing .pubxml into a project.
+/// Passwords found in the file go to the OS secret store, never into the .pubxml.
 /// </summary>
-public sealed class ImportProfilePage(IAnsiConsole console)
+public sealed class ImportProfilePage(IAnsiConsole console, PasswordProvider passwords)
 {
     /// <returns>The profiles that were saved (possibly none).</returns>
-    public IReadOnlyList<PublishProfile> Import(ProjectInfo project)
+    public async Task<IReadOnlyList<PublishProfile>> ImportAsync(ProjectInfo project, CancellationToken cancellationToken)
     {
         var file = CommonPrompts.AskForFile(console, "Path to the profile file:", PublishSettingsImporter.FileExtension, PubxmlSerializer.FileExtension);
 
@@ -17,20 +19,17 @@ public sealed class ImportProfilePage(IAnsiConsole console)
             ? [new ImportedProfile(PubxmlSerializer.Read(file), Password: null)]
             : ReadPublishSettings(file);
 
-        var saved = imported
-            .Where(p => ConfirmOverwrite(project, p.Profile))
-            .Select(p => PublishProfileStore.Save(project.Directory, p.Profile, overwrite: true))
-            .ToList();
-
-        foreach (var profile in saved)
+        var saved = new List<PublishProfile>();
+        foreach (var (profile, password) in imported.Where(p => ConfirmOverwrite(project, p.Profile)))
         {
-            console.MarkupLine($"Imported [{Widgets.PrimaryColorMarkup}]{profile.Name.EscapeMarkup()}[/]");
-        }
+            var savedProfile = PublishProfileStore.Save(project.Directory, profile, overwrite: true);
+            saved.Add(savedProfile);
 
-        if (imported.Any(p => p.Password is not null))
-        {
-            // Passwords are kept in the OS keychain, which arrives together with publishing.
-            console.MarkupLine("[dim]Passwords in the file were not saved; you'll be asked for them when publishing.[/]");
+            var passwordNote = password is not null && await passwords.TrySaveAsync(project, savedProfile, password, cancellationToken)
+                ? $" [dim](password saved in {passwords.StoreName})[/]"
+                : string.Empty;
+
+            console.MarkupLine($"Imported [{Widgets.PrimaryColorMarkup}]{savedProfile.Name.EscapeMarkup()}[/]{passwordNote}");
         }
 
         return saved;

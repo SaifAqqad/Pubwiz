@@ -28,6 +28,22 @@ public sealed class PubxmlSerializerTests : IDisposable
     }
 
     [Fact]
+    public void Method_FallsBackToPublishProtocolForNonWebProfiles()
+    {
+        // What Visual Studio writes for a console app folder profile.
+        var path = _temp.CreateFile("Console.pubxml", """
+            <Project>
+              <PropertyGroup>
+                <PublishDir>bin\Release\net10.0\publish\</PublishDir>
+                <PublishProtocol>FileSystem</PublishProtocol>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        Assert.Equal(PublishMethod.FileSystem, PubxmlSerializer.Read(path).Method);
+    }
+
+    [Fact]
     public void WriteThenRead_KeepsPropertiesAndOrder()
     {
         var profile = new PublishProfile("Folder");
