@@ -1,4 +1,3 @@
-using Pubwiz.Core.MsDeploy;
 using Pubwiz.Core.Targets;
 using Pubwiz.Core.Targets.WebDeploy;
 using Pubwiz.WebDeploy;

@@ -1,6 +1,6 @@
 using Pubwiz.Core.Discovery;
-using Pubwiz.Core.Maui;
 using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Targets.Maui;
 
 namespace Pubwiz.Tool.Wizard;
 

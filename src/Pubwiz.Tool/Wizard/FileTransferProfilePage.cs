@@ -1,6 +1,6 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
-using Pubwiz.Core.Transfer;
+using Pubwiz.Core.Targets.FileTransfer;
 
 namespace Pubwiz.Tool.Wizard;
 

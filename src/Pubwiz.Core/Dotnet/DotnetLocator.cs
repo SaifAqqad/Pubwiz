@@ -1,4 +1,4 @@
-using Pubwiz.Core.Platform;
+using Pubwiz.Core.Infrastructure.Platform;
 
 namespace Pubwiz.Core.Dotnet;
 

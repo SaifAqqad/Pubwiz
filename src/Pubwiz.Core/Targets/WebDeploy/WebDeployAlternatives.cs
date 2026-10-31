@@ -1,4 +1,3 @@
-using Pubwiz.Core.MsDeploy;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.WebDeploy;

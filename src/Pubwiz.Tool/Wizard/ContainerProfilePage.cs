@@ -1,8 +1,7 @@
-using Pubwiz.Core.Azure;
-using Pubwiz.Core.Containers;
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets;
+using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Containers;
 using Pubwiz.Tool.Azure;
 

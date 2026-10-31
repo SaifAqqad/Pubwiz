@@ -1,6 +1,6 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Dotnet;
-using Pubwiz.Core.Processes;
+using Pubwiz.Core.Infrastructure.Processes;
 using Pubwiz.Core.Tests.TestHelpers;
 
 namespace Pubwiz.Core.Tests.Discovery;

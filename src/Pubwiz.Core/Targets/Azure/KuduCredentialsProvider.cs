@@ -1,7 +1,6 @@
-using Pubwiz.Core.Azure;
-using Pubwiz.Core.Azure.Kudu;
-using Pubwiz.Core.Execution;
 using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Publishing;
+using Pubwiz.Core.Targets.Azure.Kudu;
 
 namespace Pubwiz.Core.Targets.Azure;
 

@@ -1,5 +1,5 @@
-using Pubwiz.Core.Execution;
-using Pubwiz.Core.Platform;
+using Pubwiz.Core.Infrastructure.Platform;
+using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Reporting;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Infrastructure;

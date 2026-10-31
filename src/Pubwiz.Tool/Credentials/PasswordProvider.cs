@@ -1,6 +1,6 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Infrastructure.Secrets;
 using Pubwiz.Core.Profiles;
-using Pubwiz.Core.Secrets;
 
 namespace Pubwiz.Tool.Credentials;
 

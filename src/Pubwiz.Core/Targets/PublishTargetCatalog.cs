@@ -1,6 +1,6 @@
 using Pubwiz.Core.Discovery;
-using Pubwiz.Core.MsDeploy;
-using Pubwiz.Core.Platform;
+using Pubwiz.Core.Infrastructure.Platform;
+using Pubwiz.Core.Targets.WebDeploy;
 
 namespace Pubwiz.Core.Targets;
 

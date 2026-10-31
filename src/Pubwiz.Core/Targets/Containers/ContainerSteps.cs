@@ -1,9 +1,7 @@
-using Pubwiz.Core.Azure;
-using Pubwiz.Core.Containers;
-using Pubwiz.Core.Execution;
-using Pubwiz.Core.Logging;
-using Pubwiz.Core.Processes;
+using Pubwiz.Core.Infrastructure.Processes;
 using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Publishing;
+using Pubwiz.Core.Targets.Azure;
 
 namespace Pubwiz.Core.Targets.Containers;
 

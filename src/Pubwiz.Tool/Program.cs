@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Pubwiz.Core;
+using Pubwiz.Core.Infrastructure;
 using Pubwiz.Tool;
 using Pubwiz.Tool.Commands;
 using Pubwiz.Tool.Infrastructure;

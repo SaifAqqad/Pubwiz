@@ -1,7 +1,7 @@
 using Pubwiz.Core.Discovery;
-using Pubwiz.Core.Maui;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets;
+using Pubwiz.Core.Targets.Maui;
 using Pubwiz.Core.Targets.WebDeploy;
 using Pubwiz.Tool.Credentials;
 

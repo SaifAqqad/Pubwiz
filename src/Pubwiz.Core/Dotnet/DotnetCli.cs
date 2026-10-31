@@ -1,4 +1,4 @@
-using Pubwiz.Core.Processes;
+using Pubwiz.Core.Infrastructure.Processes;
 using System.Text.Json;
 
 namespace Pubwiz.Core.Dotnet;

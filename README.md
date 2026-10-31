@@ -68,7 +68,7 @@ dotnet pubwiz
 
 | Path | Contents |
 |---|---|
-| `src/Pubwiz.Core` | Publishing logic: project discovery, profiles, CLI wrappers (dotnet, az, docker), deploy clients |
+| `src/Pubwiz.Core` | Publishing logic, organized along a publish: discovery, profiles, the publishing engine, one folder per target, reporting ([layout guide](src/Pubwiz.Core/README.md)) |
 | `src/Pubwiz.Tool` | The `dotnet pubwiz` command line app (Spectre.Console UI) |
 | `src/Pubwiz.WebDeploy` | Standalone cross-platform Web Deploy client, published as its own NuGet package |
 | `tests/*` | Unit and integration tests (xUnit v3) |

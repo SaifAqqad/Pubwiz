@@ -1,7 +1,8 @@
 using Pubwiz.Core;
-using Pubwiz.Core.Azure;
-using Pubwiz.Core.Platform;
-using Pubwiz.Core.Processes;
+using Pubwiz.Core.Infrastructure;
+using Pubwiz.Core.Infrastructure.Platform;
+using Pubwiz.Core.Infrastructure.Processes;
+using Pubwiz.Core.Targets.Azure;
 
 namespace Pubwiz.Tool.Azure;
 

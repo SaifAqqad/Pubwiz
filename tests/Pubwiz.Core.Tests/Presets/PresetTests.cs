@@ -1,7 +1,7 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Dotnet;
+using Pubwiz.Core.Infrastructure.Processes;
 using Pubwiz.Core.Presets;
-using Pubwiz.Core.Processes;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Tests.TestHelpers;
 

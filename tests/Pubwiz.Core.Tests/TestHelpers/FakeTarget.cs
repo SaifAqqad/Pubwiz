@@ -1,6 +1,6 @@
 using Pubwiz.Core.Discovery;
-using Pubwiz.Core.Execution;
 using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Targets;
 
 namespace Pubwiz.Core.Tests.TestHelpers;

@@ -1,4 +1,3 @@
-using Pubwiz.Core.Azure;
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets.Azure;

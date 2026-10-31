@@ -1,5 +1,4 @@
 using Pubwiz.Core.Profiles;
-using Pubwiz.Core.Transfer;
 
 namespace Pubwiz.Core.Targets.FileTransfer;
 
