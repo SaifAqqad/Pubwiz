@@ -1,4 +1,5 @@
 using Pubwiz.Core.Publishing;
+using Pubwiz.Core.Targets;
 using Spectre.Console.Rendering;
 
 namespace Pubwiz.Tool.Rendering;
@@ -97,7 +98,7 @@ public sealed class PublishDashboard(IAnsiConsole console)
 
     private static Markup RenderJobHeader(PublishJob job, int frame)
     {
-        var target = job.TargetType?.ToString() ?? "unsupported";
+        var target = job.TargetType is { } type ? PublishTargetCatalog.DisplayName(type) : "unsupported";
         var elapsed = job.StartedAt is { } start ? StatusIcons.FormatDuration((job.FinishedAt ?? DateTimeOffset.Now) - start) : string.Empty;
 
         return new Markup(

@@ -63,6 +63,10 @@ public static class PublishTargetCatalog
             .ToList();
     }
 
+    /// <summary>The name shown to users, e.g. "Zip file" for <see cref="PublishTargetType.ZipFile"/>.</summary>
+    public static string DisplayName(PublishTargetType type) =>
+        AllTargets.FirstOrDefault(target => target.Type == type)?.DisplayName ?? type.ToString();
+
     private static HashSet<PublishTargetType> GetTargetTypes(ProjectKind kind) => kind switch
     {
         ProjectKind.Web =>

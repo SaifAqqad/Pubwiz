@@ -40,6 +40,9 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         {
             return await console.Live(Render(state, console)).AutoClear(true).StartAsync(async context =>
             {
+                // A live display draws nothing until it's refreshed, so show the list before waiting for a key.
+                context.Refresh();
+
                 while (true)
                 {
                     var key = await console.Input.ReadKeyAsync(intercept: true, cancellationToken);
