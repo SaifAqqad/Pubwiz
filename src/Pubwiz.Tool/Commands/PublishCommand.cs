@@ -2,6 +2,7 @@ using Pubwiz.Core.Execution;
 using Pubwiz.Core.Platform;
 using Pubwiz.Core.Reporting;
 using Pubwiz.Tool.Credentials;
+using Pubwiz.Tool.Infrastructure;
 using Pubwiz.Tool.Rendering;
 using Pubwiz.Tool.Wizard;
 using System.ComponentModel;
@@ -220,22 +221,10 @@ public sealed class PublishCommand(
     private async Task RunWithCtrlCAsync(IReadOnlyList<PublishJob> jobs, int parallel, Settings settings)
     {
         using var cancellation = new CancellationTokenSource();
-
-        void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
-        {
-            e.Cancel = !cancellation.IsCancellationRequested;
-            cancellation.Cancel();
-        }
-
-        Console.CancelKeyPress += OnCancelKeyPress;
-        try
+        using (CtrlC.CancelInstead(cancellation))
         {
             var run = runner.RunAsync(jobs, parallel, cancellation.Token);
             await dashboard.ShowAsync(jobs, run, new DashboardOptions(settings.ShowLog, settings.LogLines));
-        }
-        finally
-        {
-            Console.CancelKeyPress -= OnCancelKeyPress;
         }
     }
 

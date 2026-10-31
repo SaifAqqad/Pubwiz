@@ -7,6 +7,7 @@ using System.Text;
 
 // Box-drawing characters and spinners need UTF-8.
 Console.OutputEncoding = Encoding.UTF8;
+CtrlC.Install(AnsiConsole.Console);
 
 var services = new ServiceCollection().AddPubwiz();
 var app = new CommandApp<PublishCommand>(new TypeRegistrar(services));
