@@ -6,11 +6,13 @@
 # Ports are bound to 127.0.0.1 only:
 #   8006 -> web console (watch the install)     13389 -> RDP
 #   8172 -> Web Deploy (WMSVC, msdeploy.axd)    8080 -> PubwizTest IIS site
+#   2222 -> SSH (key only): ssh -i ~/.local/share/pubwiz-vm/id_ed25519 -p 2222 pubwiz@127.0.0.1
 set -euo pipefail
 
 readonly container_name="pubwiz-iis"
 readonly data_dir="${PUBWIZ_VM_DIR:-$HOME/.local/share/pubwiz-vm}"
 readonly env_file="$data_dir/vm.env"
+readonly ssh_key="$data_dir/id_ed25519"
 readonly script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mkdir -p "$data_dir/storage" "$data_dir/oem"
@@ -26,8 +28,14 @@ if [[ ! -f "$env_file" ]]; then
     chmod 600 "$env_file"
 fi
 
+# SSH key for running commands in the VM (setup-iis.ps1 installs the public key).
+if [[ ! -f "$ssh_key" ]]; then
+    ssh-keygen -q -t ed25519 -N "" -C "pubwiz-test-vm" -f "$ssh_key"
+fi
+
 # The OEM folder is copied to C:\OEM in the VM; install.bat runs after setup.
 cp "$script_dir"/oem/* "$data_dir/oem/"
+cp "$ssh_key.pub" "$data_dir/oem/authorized_key.pub"
 
 if podman container exists "$container_name"; then
     podman start "$container_name"
@@ -40,7 +48,7 @@ podman run --detach --name "$container_name" \
     --env RAM_SIZE=8G \
     --env CPU_CORES=4 \
     --env DISK_SIZE=64G \
-    --env USER_PORTS=8172,8080 \
+    --env USER_PORTS=8172,8080,22 \
     --device /dev/kvm \
     --device /dev/net/tun \
     --cap-add NET_ADMIN \
@@ -48,6 +56,7 @@ podman run --detach --name "$container_name" \
     --publish 127.0.0.1:13389:3389/tcp \
     --publish 127.0.0.1:8172:8172 \
     --publish 127.0.0.1:8080:8080 \
+    --publish 127.0.0.1:2222:22 \
     --volume "$data_dir/storage:/storage:Z" \
     --volume "$data_dir/oem:/oem:Z" \
     --stop-timeout 120 \

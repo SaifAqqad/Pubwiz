@@ -42,6 +42,7 @@ public static class ServiceRegistration
         services.AddSingleton<ImportProfilePage>();
         services.AddSingleton<CreateProfilePage>();
         services.AddSingleton<FolderProfilePage>();
+        services.AddSingleton<WebDeployProfilePage>();
         services.AddSingleton<FileTransferProfilePage>();
         services.AddSingleton<PasswordProvider>();
 

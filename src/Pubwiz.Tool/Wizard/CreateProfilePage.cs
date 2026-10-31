@@ -7,7 +7,7 @@ namespace Pubwiz.Tool.Wizard;
 /// <summary>
 /// Creates a new profile: choose a target, fill in the target's settings, then name and save it.
 /// </summary>
-public sealed class CreateProfilePage(IAnsiConsole console, FolderProfilePage folderPage, FileTransferProfilePage fileTransferPage)
+public sealed class CreateProfilePage(IAnsiConsole console, FolderProfilePage folderPage, WebDeployProfilePage webDeployPage, FileTransferProfilePage fileTransferPage)
 {
     /// <summary>The options in the target menu.</summary>
     private abstract record Choice
@@ -36,6 +36,7 @@ public sealed class CreateProfilePage(IAnsiConsole console, FolderProfilePage fo
             var profile = target.Type switch
             {
                 PublishTargetType.Folder => folderPage.Create(project),
+                PublishTargetType.WebDeploy => webDeployPage.Create(project),
                 PublishTargetType.Ftp => fileTransferPage.Create(project, sftp: false),
                 PublishTargetType.Sftp => fileTransferPage.Create(project, sftp: true),
                 _ => throw new NotSupportedException($"{target.DisplayName} is not implemented.")

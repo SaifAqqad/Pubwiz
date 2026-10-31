@@ -15,6 +15,7 @@ podman stop pubwiz-iis                   # stop (state is kept)
 | 13389 | RDP (host 3389 is often taken by GNOME Remote Desktop) |
 | 8172 | Web Deploy endpoint: `https://localhost:8172/msdeploy.axd?site=PubwizTest` |
 | 8080 | The `PubwizTest` IIS site |
+| 2222 | SSH, key only: `ssh -i ~/.local/share/pubwiz-vm/id_ed25519 -p 2222 pubwiz@127.0.0.1` |
 
 - Data and the generated credentials are in `~/.local/share/pubwiz-vm/` (`vm.env`, mode 600). Override the folder with `PUBWIZ_VM_DIR`.
 - `oem/setup-iis.ps1` runs once after Windows is installed. Its log is `C:\OEM\setup-iis.log`, and `C:\OEM\setup-complete.txt` appears when it finishes.

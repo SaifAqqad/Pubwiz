@@ -11,9 +11,11 @@
   <Folder Name="/src/">
     <Project Path="src/Pubwiz.Core/Pubwiz.Core.csproj" />
     <Project Path="src/Pubwiz.Tool/Pubwiz.Tool.csproj" />
+    <Project Path="src/Pubwiz.WebDeploy/Pubwiz.WebDeploy.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Pubwiz.Core.Tests/Pubwiz.Core.Tests.csproj" />
     <Project Path="tests/Pubwiz.Tool.Tests/Pubwiz.Tool.Tests.csproj" />
+    <Project Path="tests/Pubwiz.WebDeploy.Tests/Pubwiz.WebDeploy.Tests.csproj" />
   </Folder>
 </Solution>

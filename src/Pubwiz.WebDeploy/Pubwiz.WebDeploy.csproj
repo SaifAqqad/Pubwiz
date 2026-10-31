@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- A standalone, cross-platform Web Deploy (msdeploy / WMSVC) client, published as its own package. -->
+    <PropertyGroup>
+        <RootNamespace>Pubwiz.WebDeploy</RootNamespace>
+        <PackageId>Pubwiz.WebDeploy</PackageId>
+        <Description>A cross-platform client for IIS Web Deploy (msdeploy.axd / WMSVC): deploy folders to IIS from Linux, macOS or Windows without msdeploy.exe.</Description>
+        <PackageTags>webdeploy msdeploy iis wmsvc deploy</PackageTags>
+        <IsPackable>true</IsPackable>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="./" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Pubwiz.WebDeploy.Tests" />
+    </ItemGroup>
+</Project>

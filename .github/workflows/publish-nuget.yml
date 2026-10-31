@@ -21,7 +21,8 @@ jobs:
           global-json-file: global.json
 
       - name: Pack
-        run: dotnet pack src/Pubwiz.Tool/Pubwiz.Tool.csproj -c Release
+        # Packs every packable project: the Pubwiz tool and the Pubwiz.WebDeploy library
+        run: dotnet pack Pubwiz.slnx -c Release
 
       - name: Push to nuget.org
         run: dotnet nuget push "./dist/nupkg/*.nupkg" --skip-duplicate -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY"
