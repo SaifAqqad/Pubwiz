@@ -5,8 +5,30 @@
 ## Status (2026-10-31)
 - ✅ **Phase 0, scaffold:** solution, shared props, central packages, CI workflows, dotnet tool + standalone exe.
 - ✅ **Phase 1, discovery & profiles:** workspace scan (sln/slnx → csproj → 2 levels deep), MSBuild evaluation, project kinds, `.pubxml` read/write, `.publishsettings` import, project picker (Enter without selecting = single project), profile menu, Folder profile creation.
-- ⏳ **Phase 2, execution engine:** next. Includes the OS keychain secret store; imported passwords aren't saved until then.
-- 🧪 **Test VM is running** (`tools/test-vm`). Web Deploy answers on `https://localhost:8172/msdeploy.axd`; first protocol notes are in [webdeploy-protocol.md](webdeploy-protocol.md).
+- ✅ **Phase 2, execution engine:**
+  - Jobs made of steps, sequential or parallel (`--parallel`).
+  - Live checklist with an optional log tail (`--show-log`, toggle with L).
+  - Ctrl+C cancels and kills the build process tree.
+  - Results table; log/JSON/CSV export.
+  - OS keychain secret store: libsecret, macOS Keychain, Windows Credential Manager.
+  - Folder target.
+- ⏳ **Phase 3, Web Deploy:** in progress, in its own package `src/Pubwiz.WebDeploy` (published separately on NuGet).
+  - Done: endpoint rules, server error decoding, profile page, staging publish.
+  - Protocol captured and partly mapped in [webdeploy-protocol.md](webdeploy-protocol.md).
+  - Next: decode the object stream, then write the NRBF and stream writers, the client and the target.
+- 🟡 **Phase 4, Azure:** groundwork only.
+  - Kudu zip/one-deploy client with upload progress and status polling (tested with a fake HTTP handler; no Azure account to test against yet).
+  - `az` wrapper: sign-in state, subscriptions, web apps, tokens, per-distro install command.
+  - Not yet: the Azure target, WebJobs and Functions, the wizard pages.
+- ✅ **Phase 5, FTP/FTPS/SFTP:**
+  - FluentFTP and SSH.NET uploaders: mirror (delete extras), app_offline.htm, per-file progress, Visual Studio FTP profile format.
+  - SFTP verified against the VM (upload, app_offline, delete extras).
+  - FTP/FTPS is **not verified yet**: there's no FTP server set up.
+- ✅ **Phase 7, web.config transforms:** `dotnet pubwiz transform`, using the SDK's transform order.
+  - It warns about `Web.Release.config` casing: verified that `dotnet publish` on Linux skips it.
+- 🧪 **Test VM** (`tools/test-vm`): IIS + Web Deploy + SSH (key only).
+
+Finding: `dotnet publish -p:PublishProfile=<MSDeploy profile>` fails outside Windows ("msdeploy.exe is invalid"). Upload targets therefore publish with the profile plus `-p:WebPublishMethod=FileSystem` to a staging folder (`obj/pubwiz/<profile>/`), then upload it themselves.
 
 ---
 
