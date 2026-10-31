@@ -21,8 +21,6 @@
   <img src="assets/screenshots/publishing.png" alt="Pubwiz publishing four projects in parallel, with live steps and build output">
 </p>
 
-`dotnet publish` is great at building, but shipping an app still means remembering profile names, MSBuild properties, upload tools and which projects belong together. **Pubwiz** turns that into a short conversation in your terminal, and remembers the answers.
-
 > [!NOTE]
 > Pubwiz is in early development. Bug reports are very welcome.
 
