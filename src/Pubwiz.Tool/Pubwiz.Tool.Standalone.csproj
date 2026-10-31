@@ -1,8 +1,0 @@
-<Project>
-    <!-- Builds Pubwiz.Tool as a self-contained single-file executable instead of a dotnet tool -->
-    <PropertyGroup>
-        <IsStandaloneCli>true</IsStandaloneCli>
-    </PropertyGroup>
-
-    <Import Project="Pubwiz.Tool.csproj" />
-</Project>
