@@ -140,6 +140,10 @@ indent_style = space
 indent_size = 4
 tab_width = 4
 
+
+# CS8602: Dereference of a possibly null reference.
+dotnet_diagnostic.CS8602.severity = warning
+
 [*.{yaml,yml}]
 indent_style = space
 indent_size = 2

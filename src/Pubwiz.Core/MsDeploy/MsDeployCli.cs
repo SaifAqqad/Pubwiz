@@ -128,9 +128,9 @@ public sealed class MsDeployCli(IProcessRunner processRunner, string? executable
         }
 
         var error = lines.FirstOrDefault(line => line.StartsWith("Error:", StringComparison.Ordinal) && !line.StartsWith("Error count", StringComparison.Ordinal));
-        return error?["Error:".Length..].Trim() ?? code ?? $"msdeploy.exe failed with exit code {result.ExitCode}";
+        return error?["Error:".Length..]?.Trim() ?? code ?? $"msdeploy.exe failed with exit code {result.ExitCode}";
     }
 
     private static string? ValueAfter(IEnumerable<string> lines, string prefix) =>
-        lines.FirstOrDefault(line => line.StartsWith(prefix, StringComparison.Ordinal))?[prefix.Length..].Trim();
+        lines.FirstOrDefault(line => line.StartsWith(prefix, StringComparison.Ordinal))?[prefix.Length..]?.Trim();
 }
