@@ -23,12 +23,12 @@ public enum TransformKind
 
 /// <summary>A transform file to apply, in order.</summary>
 /// <param name="Kind">Why it applies.</param>
-/// <param name="FilePath">The file found on disk.</param>
-/// <param name="HasExpectedCasing">
-/// <c>false</c> when the file was found with different casing (e.g. Web.Release.config). The SDK looks for the exact
-/// name, so on case-sensitive file systems (Linux, macOS) <c>dotnet publish</c> skips such a file.
+/// <param name="FilePath">The file as it's named on disk, e.g. <c>Web.Release.config</c>.</param>
+/// <param name="FoundByDotnetPublish">
+/// Whether <c>dotnet publish</c> finds the file too. The SDK checks the exact name (<c>web.Release.config</c>), so a
+/// file with other casing is skipped on case-sensitive file systems (usually Linux), but not on Windows or macOS.
 /// </param>
-public sealed record PlannedTransform(TransformKind Kind, string FilePath, bool HasExpectedCasing = true);
+public sealed record PlannedTransform(TransformKind Kind, string FilePath, bool FoundByDotnetPublish = true);
 
 /// <summary>
 /// Works out which web.config transforms apply, in the same order as <c>dotnet publish</c>
@@ -68,8 +68,8 @@ public static class WebConfigTransformPlanner
         {
             if (FindFile(candidate.FilePath) is { } actualPath)
             {
-                var exactName = string.Equals(Path.GetFileName(actualPath), Path.GetFileName(candidate.FilePath), StringComparison.Ordinal);
-                found.Add(candidate with { FilePath = actualPath, HasExpectedCasing = exactName });
+                // The same check the SDK makes; it ignores case wherever the file system does.
+                found.Add(candidate with { FilePath = actualPath, FoundByDotnetPublish = File.Exists(candidate.FilePath) });
             }
         }
 
@@ -78,16 +78,15 @@ public static class WebConfigTransformPlanner
     }
 
     /// <summary>
-    /// Finds a file ignoring case, since projects written on Windows often say "Web.Release.config"
-    /// while the SDK looks for "web.Release.config", which only matters on Linux.
+    /// Finds a file ignoring case (projects written on Windows often say "Web.Release.config" while the SDK looks for
+    /// "web.Release.config") and returns it with its name as stored on disk, preferring an exact match.
     /// </summary>
+    /// <remarks>
+    /// The folder is listed instead of calling <see cref="File.Exists"/>, which on case-insensitive file systems
+    /// (Windows, macOS) would also match but return the name that was asked for.
+    /// </remarks>
     private static string? FindFile(string path)
     {
-        if (File.Exists(path))
-        {
-            return path;
-        }
-
         var folder = Path.GetDirectoryName(path)!;
         if (!Directory.Exists(folder))
         {
@@ -95,6 +94,10 @@ public static class WebConfigTransformPlanner
         }
 
         var name = Path.GetFileName(path);
-        return Directory.EnumerateFiles(folder).FirstOrDefault(f => string.Equals(Path.GetFileName(f), name, StringComparison.OrdinalIgnoreCase));
+        var matches = Directory.EnumerateFiles(folder)
+            .Where(file => string.Equals(Path.GetFileName(file), name, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return matches.FirstOrDefault(file => string.Equals(Path.GetFileName(file), name, StringComparison.Ordinal)) ?? matches.FirstOrDefault();
     }
 }

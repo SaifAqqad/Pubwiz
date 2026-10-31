@@ -144,16 +144,12 @@ public sealed class TransformCommand(IAnsiConsole console, WorkspacePage workspa
     }
 
     /// <summary>
-    /// dotnet publish looks for transform files by their exact name, so on Linux and macOS it skips e.g. "Web.Release.config".
+    /// dotnet publish looks for transform files by their exact name, so on case-sensitive file systems (usually Linux)
+    /// it skips e.g. "Web.Release.config".
     /// </summary>
     private void WarnAboutCasing(IReadOnlyList<PlannedTransform> transforms)
     {
-        if (OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
-        foreach (var transform in transforms.Where(t => !t.HasExpectedCasing))
+        foreach (var transform in transforms.Where(t => !t.FoundByDotnetPublish))
         {
             console.Write(Widgets.Warning($"{Path.GetFileName(transform.FilePath)} is applied here, but dotnet publish on this OS only finds the exact name (e.g. web.Release.config) and will skip it. Rename the file to fix that."));
             console.WriteLine();

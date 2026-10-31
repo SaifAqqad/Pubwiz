@@ -53,7 +53,10 @@ public sealed class WebConfigTransformTests : IDisposable
 
         Assert.Equal([TransformKind.Configuration, TransformKind.Environment, TransformKind.ProfileFile], plan.Select(t => t.Kind));
         Assert.Equal([release, staging, profileFile], plan.Select(t => t.FilePath));
-        Assert.Equal([false, true, true], plan.Select(t => t.HasExpectedCasing));
+
+        // dotnet publish only finds "Web.Release.config" where the file system ignores case (Windows, macOS).
+        var fileSystemIgnoresCase = File.Exists(Path.Combine(_temp.Path, "web.Release.config"));
+        Assert.Equal([fileSystemIgnoresCase, true, true], plan.Select(t => t.FoundByDotnetPublish));
     }
 
     [Fact]
