@@ -14,6 +14,9 @@ public sealed class AzCliException(string message) : Exception(message);
 /// </summary>
 public sealed class AzCli(IProcessRunner processRunner)
 {
+    /// <summary>The user name that goes with an ACR access token.</summary>
+    public const string AcrTokenUserName = "00000000-0000-0000-0000-000000000000";
+
     /// <summary>The resource Kudu (SCM) access tokens are issued for.</summary>
     private const string ManagementResource = "https://management.azure.com/";
 
@@ -93,6 +96,46 @@ public sealed class AzCli(IProcessRunner processRunner)
             .DistinctBy(app => (app.ResourceGroup.ToLowerInvariant(), app.Name.ToLowerInvariant()))
             .OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<AzureContainerRegistry>> ListContainerRegistriesAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(["acr", "list", "--query", "[].{name:name, resourceGroup:resourceGroup, loginServer:loginServer}", "-o", "json"], onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az acr list");
+        return Deserialize<List<AzureContainerRegistry>>(result.Output) ?? [];
+    }
+
+    /// <summary>
+    /// A registry token for pushing to an Azure Container Registry without docker
+    /// (<c>az acr login --expose-token</c>). Use it with the user name <see cref="AcrTokenUserName"/>.
+    /// </summary>
+    public async Task<string> GetAcrAccessTokenAsync(string registryName, CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(["acr", "login", "--name", registryName, "--expose-token", "--query", "accessToken", "-o", "tsv"], onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az acr login");
+        return result.Output.Trim();
+    }
+
+    public async Task<IReadOnlyList<AzureContainerApp>> ListContainerAppsAsync(CancellationToken cancellationToken = default)
+    {
+        const string query = "[].{name:name, resourceGroup:resourceGroup, fqdn:properties.configuration.ingress.fqdn}";
+        var result = await RunAsync(["containerapp", "list", "--query", query, "-o", "json"], onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az containerapp list");
+        return Deserialize<List<AzureContainerApp>>(result.Output) ?? [];
+    }
+
+    /// <summary>Points an App Service (container) app at a new image.</summary>
+    public async Task SetWebAppImageAsync(string resourceGroup, string appName, string image, CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(["webapp", "config", "container", "set", "--resource-group", resourceGroup, "--name", appName, "--container-image-name", image], onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az webapp config container set");
+    }
+
+    /// <summary>Creates a new revision of a Container App running <paramref name="image"/>.</summary>
+    public async Task UpdateContainerAppImageAsync(string resourceGroup, string appName, string image, CancellationToken cancellationToken = default)
+    {
+        var result = await RunAsync(["containerapp", "update", "--resource-group", resourceGroup, "--name", appName, "--image", image, "-o", "none"], onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az containerapp update");
     }
 
     /// <summary>An Entra ID access token for Azure Resource Manager, which Kudu also accepts.</summary>

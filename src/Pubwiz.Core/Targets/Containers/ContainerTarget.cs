@@ -1,0 +1,121 @@
+using Pubwiz.Core.Azure;
+using Pubwiz.Core.Containers;
+using Pubwiz.Core.Dotnet;
+using Pubwiz.Core.Execution;
+using Pubwiz.Core.Execution.Steps;
+using Pubwiz.Core.Profiles;
+
+namespace Pubwiz.Core.Targets.Containers;
+
+/// <summary>
+/// Builds a container image with the .NET SDK or a Dockerfile, and sends it to one destination:
+/// the local Docker/Podman, a tarball, a registry, or a registry plus an Azure app that runs it.
+/// </summary>
+/// <remarks>Registered once per destination (see <see cref="ContainerProfile.Destination"/>) so jobs show the right target.</remarks>
+public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, AzCli az, PublishTargetType destination) : IPublishTarget
+{
+    /// <summary>The destinations this target can be registered for.</summary>
+    public static IReadOnlyList<PublishTargetType> Destinations { get; } =
+    [
+        PublishTargetType.LocalContainer,
+        PublishTargetType.ContainerTarball,
+        PublishTargetType.ContainerRegistry,
+        PublishTargetType.AzureAppServiceContainer,
+        PublishTargetType.AzureContainerApps
+    ];
+
+    public PublishTargetType Type => destination;
+
+    public bool CanPublish(PublishProfile profile) =>
+        ContainerProfile.IsContainerProfile(profile) && ContainerProfile.Read(profile, "app").Destination == destination;
+
+    /// <summary>Only registries with a user name in the profile need a password; ACR uses az, others existing docker logins.</summary>
+    public bool RequiresPassword(PublishProfile profile) =>
+        destination is not (PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball) && profile[ProfileProperties.UserName] is not null;
+
+    public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request)
+    {
+        var container = ContainerProfile.Read(request.Profile, request.Project.Name);
+        var pushes = container.Registry is not null && container.ArchivePath is null;
+        var archivePath = container.ArchivePath is null ? null : ResolveArchivePath(request, container);
+
+        var steps = new List<PublishStep>();
+        if (container.Builder == ContainerBuilder.Dockerfile)
+        {
+            var tool = container.LocalTool ?? ContainerTool.Docker;
+            if (pushes)
+            {
+                steps.Add(new RegistrySignInStep(az, containers, container, tool));
+            }
+
+            steps.Add(new DockerBuildStep(containers, tool, container));
+            if (pushes)
+            {
+                steps.Add(new DockerPushStep(containers, tool, container));
+            }
+            else if (archivePath is not null)
+            {
+                steps.Add(new DockerSaveStep(containers, tool, container, archivePath));
+            }
+        }
+        else
+        {
+            if (pushes)
+            {
+                steps.Add(new RegistrySignInStep(az, containers, container, dockerfileTool: null));
+            }
+
+            steps.Add(CreateSdkPublishStep(request, archivePath));
+        }
+
+        if (container.AzureHost is not null)
+        {
+            var resourceGroup = request.Profile[ProfileProperties.PubwizAzureResourceGroup] ?? throw new ArgumentException("The profile has no PubwizAzureResourceGroup.");
+            var appName = request.Profile[ProfileProperties.PubwizAzureAppName] ?? throw new ArgumentException("The profile has no PubwizAzureAppName.");
+            steps.Add(new AzureImageUpdateStep(az, container, resourceGroup, appName));
+        }
+
+        steps.Add(new SetDestinationStep(archivePath ?? string.Join(", ", container.ImageNames)));
+        return steps;
+    }
+
+    /// <summary>
+    /// <c>dotnet publish -t:PublishContainer</c> with the profile. <c>EnableSdkContainerSupport</c> is needed for
+    /// console and worker projects; web projects have it on by default.
+    /// </summary>
+    private DotnetPublishStep CreateSdkPublishStep(PublishRequest request, string? archivePath)
+    {
+        var properties = new Dictionary<string, string> { ["EnableSdkContainerSupport"] = "true" };
+        if (archivePath is not null)
+        {
+            properties[ProfileProperties.ContainerArchiveOutputPath] = archivePath;
+        }
+
+        var options = new DotnetPublishOptions(request.Project.FilePath)
+        {
+            Configuration = request.EffectiveConfiguration,
+            ProfileName = request.Profile.Name,
+            TargetFramework = request.Profile[ProfileProperties.TargetFramework],
+            RuntimeIdentifier = request.Profile[ProfileProperties.RuntimeIdentifier],
+            Targets = ["PublishContainer"],
+            Properties = properties,
+            Verbose = request.Verbose
+        };
+
+        var outputDirectory = Path.Combine(request.Project.Directory, "bin", request.EffectiveConfiguration);
+        return new DotnetPublishStep(dotnet, options, outputDirectory);
+    }
+
+    /// <summary>
+    /// The tarball path, relative to the project folder. A folder (ending with a separator) gets
+    /// <c>{repository}.tar.gz</c>, like the SDK does.
+    /// </summary>
+    internal static string ResolveArchivePath(PublishRequest request, ContainerProfile container)
+    {
+        var path = container.ArchivePath!.Replace('\\', '/');
+        var full = Path.GetFullPath(Path.Combine(request.Project.Directory, path));
+        return path.EndsWith('/') || Directory.Exists(full)
+            ? Path.Combine(full, $"{container.Repository.Replace('/', '-')}.tar.gz")
+            : full;
+    }
+}

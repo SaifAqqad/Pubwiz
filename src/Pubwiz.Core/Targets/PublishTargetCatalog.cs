@@ -18,7 +18,12 @@ public static class PublishTargetCatalog
         PublishTargetType.Sftp,
         PublishTargetType.AzureAppService,
         PublishTargetType.AzureFunctions,
-        PublishTargetType.AzureWebJob
+        PublishTargetType.AzureWebJob,
+        PublishTargetType.AzureAppServiceContainer,
+        PublishTargetType.AzureContainerApps,
+        PublishTargetType.ContainerRegistry,
+        PublishTargetType.LocalContainer,
+        PublishTargetType.ContainerTarball
     ];
 
     private static readonly PublishTarget[] AllTargets =

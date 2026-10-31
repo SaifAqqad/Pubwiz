@@ -12,7 +12,8 @@ public sealed class CreateProfilePage(
     FolderProfilePage folderPage,
     WebDeployProfilePage webDeployPage,
     FileTransferProfilePage fileTransferPage,
-    AzureProfilePage azurePage)
+    AzureProfilePage azurePage,
+    ContainerProfilePage containerPage)
 {
     /// <summary>The options in the target menu.</summary>
     private abstract record Choice
@@ -47,6 +48,8 @@ public sealed class CreateProfilePage(
                 PublishTargetType.AzureAppService => await azurePage.CreateAsync(project, AzureAppKind.WebApp, cancellationToken),
                 PublishTargetType.AzureFunctions => await azurePage.CreateAsync(project, AzureAppKind.FunctionApp, cancellationToken),
                 PublishTargetType.AzureWebJob => await azurePage.CreateAsync(project, AzureAppKind.WebJob, cancellationToken),
+                PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball or PublishTargetType.ContainerRegistry
+                    or PublishTargetType.AzureAppServiceContainer or PublishTargetType.AzureContainerApps => await containerPage.CreateAsync(project, target.Type, cancellationToken),
                 _ => throw new NotSupportedException($"{target.DisplayName} is not implemented.")
             };
 

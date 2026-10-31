@@ -38,3 +38,17 @@ public sealed record AzureWebApp(
         }
     }
 }
+
+/// <summary>An Azure Container Registry (<c>az acr list</c>).</summary>
+/// <param name="LoginServer">e.g. <c>contoso.azurecr.io</c>.</param>
+public sealed record AzureContainerRegistry(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("resourceGroup")] string ResourceGroup,
+    [property: JsonPropertyName("loginServer")] string LoginServer);
+
+/// <summary>An Azure Container App (<c>az containerapp list</c>).</summary>
+/// <param name="Fqdn">The ingress host name, if ingress is enabled.</param>
+public sealed record AzureContainerApp(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("resourceGroup")] string ResourceGroup,
+    [property: JsonPropertyName("fqdn")] string? Fqdn);

@@ -33,6 +33,19 @@ public sealed class PublishContext(PublishJob job)
         set => job.Destination = value;
     }
 
+    /// <summary>
+    /// Environment variables for the external tools later steps run, e.g. registry credentials that a sign-in step
+    /// gets and the container publish step needs. Values are secrets: they're masked in the log.
+    /// </summary>
+    public Dictionary<string, string> ToolEnvironment { get; } = new();
+
+    /// <summary>Adds an environment variable for later tool runs and masks its value in the log.</summary>
+    public void SetToolEnvironment(string name, string value)
+    {
+        ToolEnvironment[name] = value;
+        Log.AddSecret(value);
+    }
+
     /// <summary>Updates the running step's live status line.</summary>
     public void ReportDetail(string? detail)
     {

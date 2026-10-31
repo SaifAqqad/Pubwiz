@@ -21,7 +21,12 @@ public sealed class DotnetPublishStep(DotnetCli dotnet, DotnetPublishOptions opt
     {
         context.Log.Info($"dotnet {string.Join(' ', Options.ToArguments())}");
 
-        var result = await dotnet.PublishAsync(Options, line => OnOutput(context, line), cancellationToken);
+        // Credentials from earlier steps (e.g. a registry sign-in) go in as environment variables.
+        var options = context.ToolEnvironment.Count == 0
+            ? Options
+            : Options with { SecretProperties = Options.SecretProperties.Concat(context.ToolEnvironment).ToDictionary() };
+
+        var result = await dotnet.PublishAsync(options, line => OnOutput(context, line), cancellationToken);
         if (result.Succeeded)
         {
             context.OutputDirectory = outputDirectory;

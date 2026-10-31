@@ -27,6 +27,9 @@ public sealed record DotnetPublishOptions(string ProjectPath)
     /// </summary>
     public IReadOnlyDictionary<string, string> SecretProperties { get; init; } = new Dictionary<string, string>();
 
+    /// <summary>MSBuild targets to run instead of the default <c>Publish</c>, e.g. <c>PublishContainer</c>.</summary>
+    public IReadOnlyList<string> Targets { get; init; } = [];
+
     /// <summary>Normal instead of minimal MSBuild verbosity.</summary>
     public bool Verbose { get; init; }
 
@@ -54,6 +57,8 @@ public sealed record DotnetPublishOptions(string ProjectPath)
         {
             arguments.Add($"-p:PublishProfile={ProfileName}");
         }
+
+        arguments.AddRange(Targets.Select(t => $"-t:{t}"));
 
         arguments.AddRange(Properties.Select(p => $"-p:{p.Key}={p.Value}"));
 

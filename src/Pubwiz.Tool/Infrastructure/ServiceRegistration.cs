@@ -2,12 +2,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Pubwiz.Core;
 using Pubwiz.Core.Azure;
 using Pubwiz.Core.Azure.Kudu;
+using Pubwiz.Core.Containers;
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Dotnet;
 using Pubwiz.Core.Execution;
 using Pubwiz.Core.Processes;
 using Pubwiz.Core.Secrets;
 using Pubwiz.Core.Targets.Azure;
+using Pubwiz.Core.Targets.Containers;
 using Pubwiz.Core.Targets.FileTransfer;
 using Pubwiz.Core.Targets.Folder;
 using Pubwiz.Tool.Azure;
@@ -37,6 +39,7 @@ public static class ServiceRegistration
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromMinutes(30) });
         services.AddSingleton<KuduClient>();
         services.AddSingleton<KuduCredentialsProvider>();
+        services.AddSingleton<ContainerCli>();
 
         // Publish targets: the runner picks the first one that can publish a profile
         services.AddSingleton<IPublishTarget, FolderTarget>();
@@ -44,6 +47,11 @@ public static class ServiceRegistration
         services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: true));
         services.AddSingleton<IPublishTarget, AzureWebJobTarget>();
         services.AddSingleton<IPublishTarget, AzureAppServiceTarget>();
+        foreach (var destination in ContainerTarget.Destinations)
+        {
+            services.AddSingleton<IPublishTarget>(sp => new ContainerTarget(
+                sp.GetRequiredService<DotnetCli>(), sp.GetRequiredService<ContainerCli>(), sp.GetRequiredService<AzCli>(), destination));
+        }
 
         // Wizard
         services.AddSingleton<PublishWizard>();
@@ -55,6 +63,7 @@ public static class ServiceRegistration
         services.AddSingleton<WebDeployProfilePage>();
         services.AddSingleton<FileTransferProfilePage>();
         services.AddSingleton<AzureProfilePage>();
+        services.AddSingleton<ContainerProfilePage>();
         services.AddSingleton<AzureSession>();
         services.AddSingleton<PasswordProvider>();
 

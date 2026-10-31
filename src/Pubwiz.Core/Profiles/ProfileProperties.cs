@@ -55,6 +55,23 @@ public static class ProfileProperties
     /// <summary><c>Continuous</c> or <c>Triggered</c>.</summary>
     public const string WebJobType = nameof(WebJobType);
 
+    // SDK container publishing (https://learn.microsoft.com/dotnet/core/containers/publish-configuration)
+
+    /// <summary>Where to push the image; empty means the local Docker/Podman.</summary>
+    public const string ContainerRegistry = nameof(ContainerRegistry);
+
+    /// <summary>The image name, e.g. <c>contoso/api</c>.</summary>
+    public const string ContainerRepository = nameof(ContainerRepository);
+
+    /// <summary>Semicolon-separated tags, e.g. <c>1.2.0;latest</c>.</summary>
+    public const string ContainerImageTags = nameof(ContainerImageTags);
+
+    /// <summary>Write the image to this .tar.gz file (or folder) instead of pushing it.</summary>
+    public const string ContainerArchiveOutputPath = nameof(ContainerArchiveOutputPath);
+
+    /// <summary><c>Docker</c> or <c>Podman</c>, for local images.</summary>
+    public const string LocalRegistry = nameof(LocalRegistry);
+
     // Pubwiz-only settings (Visual Studio ignores unknown properties)
 
     /// <summary>The value of <see cref="PublishProvider"/> for SFTP profiles (with <c>WebPublishMethod=Custom</c>).</summary>
@@ -84,4 +101,16 @@ public static class ProfileProperties
 
     /// <summary>A CRON schedule for triggered WebJobs, written to settings.job, e.g. <c>0 */15 * * * *</c>.</summary>
     public const string PubwizWebJobSchedule = nameof(PubwizWebJobSchedule);
+
+    /// <summary><c>Sdk</c> (default, dotnet publish -t:PublishContainer) or <c>Dockerfile</c> (docker/podman build).</summary>
+    public const string PubwizContainerBuilder = nameof(PubwizContainerBuilder);
+
+    /// <summary>The Dockerfile, relative to the project folder.</summary>
+    public const string PubwizDockerfile = nameof(PubwizDockerfile);
+
+    /// <summary>The docker build context, relative to the project folder (often the solution folder: <c>..</c>).</summary>
+    public const string PubwizDockerContext = nameof(PubwizDockerContext);
+
+    /// <summary>After pushing, point an Azure app at the image: <c>AppService</c> or <c>ContainerApp</c>.</summary>
+    public const string PubwizAzureContainerHost = nameof(PubwizAzureContainerHost);
 }
