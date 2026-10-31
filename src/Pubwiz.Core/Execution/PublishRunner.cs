@@ -14,7 +14,7 @@ public sealed class PublishRunner(IEnumerable<IPublishTarget> targets)
     public IPublishTarget? FindTarget(PublishProfile profile) => _targets.FirstOrDefault(t => t.CanPublish(profile));
 
     /// <summary>
-    /// Creates a job for a request. A profile no target supports gives a job that fails straight away,
+    /// Creates a job for a request. A profile no target supports (or can't run here) gives a job that fails straight away,
     /// so a batch still runs the other projects.
     /// </summary>
     public PublishJob CreateJob(PublishRequest request)
@@ -22,6 +22,11 @@ public sealed class PublishRunner(IEnumerable<IPublishTarget> targets)
         if (FindTarget(request.Profile) is not { } target)
         {
             return new PublishJob(request, targetType: null, steps: [], setupError: $"Publishing with '{request.Profile.Method}' profiles isn't supported yet.");
+        }
+
+        if (target.GetSetupError(request.Profile) is { } setupError)
+        {
+            return new PublishJob(request, target.Type, steps: [], setupError);
         }
 
         return new PublishJob(request, target.Type, target.CreateSteps(request), setupError: null);

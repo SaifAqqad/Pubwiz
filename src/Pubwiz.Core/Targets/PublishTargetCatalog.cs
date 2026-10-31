@@ -1,4 +1,5 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.MsDeploy;
 using Pubwiz.Core.Platform;
 
 namespace Pubwiz.Core.Targets;
@@ -14,6 +15,7 @@ public static class PublishTargetCatalog
     private static readonly HashSet<PublishTargetType> Implemented =
     [
         PublishTargetType.Folder,
+        PublishTargetType.WebDeploy,
         PublishTargetType.Ftp,
         PublishTargetType.Sftp,
         PublishTargetType.AzureAppService,
@@ -97,6 +99,11 @@ public static class PublishTargetCatalog
         if (type is PublishTargetType.MauiIos && !OperatingSystemInfo.IsMacOS)
         {
             return "requires macOS";
+        }
+
+        if (type is PublishTargetType.WebDeploy && MsDeployLocator.Find() is null)
+        {
+            return OperatingSystemInfo.IsWindows ? "install Web Deploy" : "requires Windows";
         }
 
         return Implemented.Contains(type) ? null : "coming soon";

@@ -6,7 +6,8 @@ namespace Pubwiz.Tool.Wizard;
 
 /// <summary>
 /// Settings for the IIS Web Deploy target. The password isn't stored in the profile:
-/// it's asked for when publishing and can be saved in the OS keychain.
+/// it's asked for when publishing and can be saved in the OS keychain. Without a user name,
+/// msdeploy signs in as the current Windows account (NTLM).
 /// </summary>
 public sealed class WebDeployProfilePage(IAnsiConsole console)
 {
@@ -15,7 +16,7 @@ public sealed class WebDeployProfilePage(IAnsiConsole console)
     {
         var server = console.Prompt(new TextPrompt<string>("Server [dim](e.g. iis.contoso.com or https://iis.contoso.com:8172/msdeploy.axd)[/]:"));
         var site = console.Prompt(new TextPrompt<string>("IIS site name [dim](e.g. Default Web Site or Default Web Site/api)[/]:"));
-        var userName = console.Prompt(new TextPrompt<string>("User name:"));
+        var userName = console.Prompt(new TextPrompt<string>("User name [dim](empty = current Windows account)[/]:").AllowEmpty());
 
         var endpoint = WebDeployEndpoint.Create(server, site);
         console.MarkupLine($"[dim]Deploying through {endpoint.ServiceUrl.ToString().EscapeMarkup()}[/]");
@@ -23,6 +24,7 @@ public sealed class WebDeployProfilePage(IAnsiConsole console)
         var allowUntrusted = console.Confirm("Allow an untrusted (self-signed) server certificate?", defaultValue: !endpoint.IsAzure);
         var siteUrl = console.Prompt(new TextPrompt<string>("Site URL to open after publishing [dim](optional)[/]:").AllowEmpty());
         var removeExtraFiles = console.Confirm("Delete files on the server that aren't part of the app?", defaultValue: false);
+        var takeOffline = console.Confirm("Take the app offline while copying? [dim](avoids \"file in use\" errors)[/]", defaultValue: true);
 
         var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
         var configuration = CommonPrompts.ChooseConfiguration(console);
@@ -39,7 +41,9 @@ public sealed class WebDeployProfilePage(IAnsiConsole console)
         profile[ProfileProperties.SkipExtraFilesOnServer] = removeExtraFiles ? "false" : "true";
         profile[ProfileProperties.MSDeployPublishMethod] = "WMSVC";
         profile[ProfileProperties.EnableMSDeployBackup] = "false";
-        profile[ProfileProperties.UserName] = userName;
+        profile[ProfileProperties.EnableMSDeployAppOffline] = takeOffline ? "true" : null;
+        profile[ProfileProperties.UserName] = userName.Length > 0 ? userName : null;
+        profile[ProfileProperties.AuthType] = userName.Length > 0 ? "Basic" : "NTLM";
         profile[ProfileProperties.AllowUntrustedCertificate] = allowUntrusted ? "true" : "false";
         profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
         return profile;

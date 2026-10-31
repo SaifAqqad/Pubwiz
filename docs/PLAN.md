@@ -12,9 +12,11 @@
   - Results table; log/JSON/CSV export.
   - OS keychain secret store: libsecret, macOS Keychain, Windows Credential Manager.
   - Folder target.
-- ⏸ **Phase 3, Web Deploy (on-premises IIS):** paused.
-  - Done: the `Pubwiz.WebDeploy` package (endpoint rules, error decoding), the profile page, and protocol notes.
-  - The custom client isn't written. Azure Web Deploy profiles already deploy through Kudu.
+- 🟡 **Phase 3, Web Deploy (on-premises IIS):**
+  - ✅ Windows: the `WebDeploy` target stages the publish, then runs `msdeploy.exe -verb:sync` itself (Basic or NTLM, `-allowUntrusted`, `DoNotDeleteRule`, `AppOffline`). The generated command was verified against the VM (site root and a new `my app` application).
+  - ✅ Azure Web Deploy profiles deploy through Kudu on every OS.
+  - ⏸ Linux/macOS to on-prem IIS: the custom client in `Pubwiz.WebDeploy` isn't written (only endpoint rules, error decoding and protocol notes). The target shows "requires Windows" there.
+  - msdeploy.exe parses its raw command line itself: every value is wrapped in `"…"` (keeps spaces and commas), and values with `"`, `'` or a trailing `\` are rejected because msdeploy can't receive them. The password is on msdeploy's command line (it has no stdin or file option).
 - ✅ **Phase 4, Azure:**
   - App Service and Function Apps (Kudu one-deploy), WebJobs (run script, settings.job schedule).
   - Sign-in with az tokens or publishing credentials; az install, login and subscription in the wizard.
@@ -215,7 +217,7 @@ dotnet pubwiz azure login|logout|status|subscription
 | **Azure App Service** | az picks subscription/app → bearer token → Kudu publish (same code as above). Fallback: `az webapp deploy` |
 | **Azure WebJob** | publish → zip with `run.cmd`/`run.sh` (as `GenerateRunCommandFile` does) → `PUT /api/{continuous|triggered}webjobs/{name}` |
 | **Azure Functions** | publish → zip → Kudu zipdeploy, or `/api/publish` for Flex; `az functionapp` for discovery |
-| **IIS Web Deploy** | Azure site → Kudu path; Windows + msdeploy.exe → SDK `MSDeploy`; otherwise experimental WMSVC client |
+| **IIS Web Deploy** | Azure site → Kudu path; Windows + msdeploy.exe → staging publish, then our own `msdeploy -verb:sync` call (`MsDeployCli`); otherwise experimental WMSVC client |
 | **FTP / FTPS** | publish → `FluentFTP` mirror upload (only changed files, optional delete of extra remote files), `app_offline.htm` up/down around the upload |
 | **SFTP** | same with `SSH.NET` (password or private key) |
 | **Container (SDK)** | `dotnet publish -t:PublishContainer` + props; ACR token via az; tarball through `ContainerArchiveOutputPath` |

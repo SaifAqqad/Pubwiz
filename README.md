@@ -6,12 +6,13 @@ An interactive publish wizard for .NET: `dotnet publish`, but you pick the proje
 
 Targets:
 - Folder
+- IIS Web Deploy on Windows (runs the official `msdeploy.exe`)
 - FTP/FTPS/SFTP
 - Azure App Service, Function Apps and WebJobs (Kudu zip deploy, including imported `.publishsettings` Web Deploy profiles)
 - Container images: built with the .NET SDK or a Dockerfile, sent to local Docker/Podman, a tarball, any registry, or ACR plus App Service or Container Apps
 - .NET MAUI: Android `.aab`/`.apk` and iOS `.ipa`
 
-IIS Web Deploy to on-premises servers is in progress.
+IIS Web Deploy from Linux and macOS (a cross-platform client in `src/Pubwiz.WebDeploy`) is in progress; until then, use FTP/SFTP there.
 
 ## Commands
 
@@ -53,6 +54,7 @@ dotnet pubwiz --project Api --project Worker --profile Staging --yes
 
 - Passwords come from `PUBWIZ_PASSWORD_<PROFILE>` (profile name in upper case, other characters as `_`), then `PUBWIZ_PASSWORD`, then the OS keychain.
 - Azure profiles sign in with `az`; use `az login --service-principal` (or a workload identity) in CI.
+- Web Deploy profiles without a user name sign in as the current Windows account. msdeploy.exe takes the password on its command line, so other users of the machine could see it while it runs.
 - Exit codes: `0` success, `1` a publish failed, `2` a required tool is missing, `3` invalid input, `130` cancelled.
 
 ## Install

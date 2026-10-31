@@ -44,6 +44,9 @@ public static class ProfileProperties
     public const string AllowUntrustedCertificate = nameof(AllowUntrustedCertificate);
     public const string AuthType = nameof(AuthType);
 
+    /// <summary>Take the app offline (<c>app_offline.htm</c>) while Web Deploy copies files.</summary>
+    public const string EnableMSDeployAppOffline = nameof(EnableMSDeployAppOffline);
+
     /// <summary>The value of <see cref="PublishProvider"/> for Azure App Service.</summary>
     public const string AzureWebSiteProvider = "AzureWebSite";
 

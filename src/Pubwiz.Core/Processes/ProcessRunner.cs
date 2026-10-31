@@ -118,9 +118,16 @@ public sealed class ProcessRunner : IProcessRunner
             StandardErrorEncoding = Encoding.UTF8
         };
 
-        foreach (var argument in spec.Arguments)
+        if (spec.CommandLine is not null)
         {
-            startInfo.ArgumentList.Add(argument);
+            startInfo.Arguments = spec.CommandLine;
+        }
+        else
+        {
+            foreach (var argument in spec.Arguments)
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
         }
 
         foreach (var (name, value) in spec.Environment)

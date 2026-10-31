@@ -163,7 +163,9 @@ public sealed class PublishCommand(
         var requests = new List<PublishRequest>();
         foreach (var (project, profile) in batch.Selections)
         {
-            var needsPassword = runner.FindTarget(profile)?.RequiresPassword(profile) ?? false;
+            // A job that can't run here fails straight away, so don't ask for its password.
+            var target = runner.FindTarget(profile);
+            var needsPassword = target is not null && target.GetSetupError(profile) is null && target.RequiresPassword(profile);
             requests.Add(new PublishRequest(project, profile)
             {
                 Configuration = settings.Configuration ?? batch.Configuration,

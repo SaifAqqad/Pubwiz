@@ -20,5 +20,11 @@ public sealed record ProcessSpec(string FileName, IReadOnlyList<string> Argument
     /// </summary>
     public string? StandardInput { get; init; }
 
-    public override string ToString() => $"{FileName} {string.Join(' ', Arguments)}";
+    /// <summary>
+    /// A ready-made command line, used instead of <see cref="Arguments"/> for tools that parse the raw command line
+    /// themselves and reject the standard quoting (msdeploy.exe).
+    /// </summary>
+    public string? CommandLine { get; init; }
+
+    public override string ToString() => $"{FileName} {CommandLine ?? string.Join(' ', Arguments)}";
 }

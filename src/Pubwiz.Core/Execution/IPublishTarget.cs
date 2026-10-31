@@ -16,6 +16,12 @@ public interface IPublishTarget
     /// <summary>Whether publishing needs a password (asked for or read from the secret store before running).</summary>
     bool RequiresPassword(PublishProfile profile);
 
+    /// <summary>
+    /// Why <paramref name="profile"/> can't be published from this machine (a missing tool, an incomplete profile),
+    /// or <c>null</c> when it can. Checked before anything runs, so the job fails straight away.
+    /// </summary>
+    string? GetSetupError(PublishProfile profile) => null;
+
     /// <summary>Creates fresh steps for one run.</summary>
     IReadOnlyList<PublishStep> CreateSteps(PublishRequest request);
 }
