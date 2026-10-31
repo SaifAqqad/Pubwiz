@@ -27,6 +27,9 @@ public sealed class CreateProfilePage(
     {
         public sealed record Target(PublishTarget Value) : Choice;
 
+        /// <summary>A category heading (Local, Servers, Azure, ...); not selectable.</summary>
+        public sealed record Group(PublishTargetGroup Value) : Choice;
+
         public sealed record Back : Choice;
     }
 
@@ -131,35 +134,45 @@ public sealed class CreateProfilePage(
         _ => throw new NotSupportedException($"{target.DisplayName} is not implemented.")
     };
 
+    /// <summary>
+    /// One list with the targets under category headings. The cursor skips the headings (leaf mode),
+    /// so every target is one keypress away instead of behind a category page.
+    /// </summary>
     private Choice ChooseTarget(ProjectInfo project)
     {
-        var targets = PublishTargetCatalog.For(project.Kind)
-            .OrderBy(t => t.Group)
-            .Select(t => new Choice.Target(t));
-
-        return console.Prompt(new SelectionPrompt<Choice>()
+        var prompt = new SelectionPrompt<Choice>()
             .Title($"Where do you want to publish [{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/]?")
             .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .PageSize(16)
-            .AddChoices(targets)
-            .AddChoices(new Choice.Back())
-            .UseConverter(Describe));
+            .Mode(SelectionMode.Leaf)
+            .PageSize(24)
+            .UseConverter(Describe);
+
+        foreach (var group in PublishTargetCatalog.For(project.Kind).GroupBy(t => t.Group).OrderBy(g => g.Key))
+        {
+            prompt.AddChoiceGroup(new Choice.Group(group.Key), group.Select(target => new Choice.Target(target)));
+        }
+
+        prompt.AddChoice(new Choice.Back());
+        return console.Prompt(prompt);
     }
 
     private static string Describe(Choice choice)
     {
-        if (choice is not Choice.Target { Value: var target })
+        switch (choice)
         {
-            return "[dim]← Back[/]";
-        }
+            case Choice.Group { Value: var group }:
+                return $"[bold]{group}[/]";
 
-        if (!target.IsAvailable)
-        {
-            return $"[grey]{target.DisplayName.EscapeMarkup()} · {target.Group} ({target.UnavailableReason})[/]";
-        }
+            case Choice.Target { Value: { IsAvailable: false } target }:
+                return $"[grey]{target.DisplayName.EscapeMarkup()} ({target.UnavailableReason})[/]";
 
-        var warning = target.Warning is null ? string.Empty : $" [yellow]({target.Warning.EscapeMarkup()})[/]";
-        return $"{target.DisplayName.EscapeMarkup()} [dim]· {target.Group} · {target.Description.EscapeMarkup()}[/]{warning}";
+            case Choice.Target { Value: var target }:
+                var warning = target.Warning is null ? string.Empty : $" [yellow]({target.Warning.EscapeMarkup()})[/]";
+                return $"{target.DisplayName.EscapeMarkup()} [dim]· {target.Description.EscapeMarkup()}[/]{warning}";
+
+            default:
+                return "[dim]← Back[/]";
+        }
     }
 
     private PublishProfile Save(ProjectInfo project, PublishProfile profile, string defaultName)

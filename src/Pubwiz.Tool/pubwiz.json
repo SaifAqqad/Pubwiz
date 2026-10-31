@@ -1,0 +1,12 @@
+{
+  "presets": {
+    "Zip Default": {
+      "projects": [
+        {
+          "path": "Pubwiz.Tool.csproj",
+          "profile": "ZipProfile"
+        }
+      ]
+    }
+  }
+}

@@ -11,10 +11,10 @@ public sealed class ResultsView(IAnsiConsole console)
     /// <summary>The options in the menu shown after publishing.</summary>
     private enum MenuChoice
     {
+        Exit,
         ExportLogs,
         ExportJson,
-        ExportCsv,
-        Exit
+        ExportCsv
     }
 
     public void WriteResults(IReadOnlyList<PublishJob> jobs)

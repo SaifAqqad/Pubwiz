@@ -1,0 +1,14 @@
+16:44:24.871 pubwiz: Publishing Pubwiz.Tool with profile 'ZipProfile' (Release)
+16:44:24.872 [Build and publish] pubwiz: ▶ Build and publish
+16:44:24.873 [Build and publish] pubwiz: dotnet publish /var/home/saif/Repos/Pubwiz/src/Pubwiz.Tool/Pubwiz.Tool.csproj -c Release -p:PublishProfile=ZipProfile -p:WebPublishMethod=FileSystem -p:PublishProtocol=FileSystem -p:PublishUrl=/var/home/saif/Repos/Pubwiz/src/Pubwiz.Tool/obj/pubwiz/ZipProfile/ -p:PublishDir=/var/home/saif/Repos/Pubwiz/src/Pubwiz.Tool/obj/pubwiz/ZipProfile/ -p:DeleteExistingFiles=true -nologo -tl:off -v:m
+16:44:25.199 [Build and publish] out:   Determining projects to restore...
+16:44:25.416 [Build and publish] out:   All projects are up-to-date for restore.
+16:44:25.614 [Build and publish] out:   Pubwiz.WebDeploy -> /var/home/saif/Repos/Pubwiz/src/Pubwiz.WebDeploy/bin/Release/net10.0/Pubwiz.WebDeploy.dll
+16:44:25.810 [Build and publish] out:   Pubwiz.Core -> /var/home/saif/Repos/Pubwiz/src/Pubwiz.Core/bin/Release/net10.0/Pubwiz.Core.dll
+16:44:25.936 [Build and publish] out:   Pubwiz.Tool -> /var/home/saif/Repos/Pubwiz/src/Pubwiz.Tool/bin/Release/net10.0/pubwiz.dll
+16:44:25.963 [Build and publish] out:   Pubwiz.Tool -> /var/home/saif/Repos/Pubwiz/src/Pubwiz.Tool/obj/pubwiz/ZipProfile/
+16:44:26.039 [Package] pubwiz: ▶ Package
+16:44:26.160 [Package] pubwiz: Created /var/home/saif/Repos/Pubwiz/src/Pubwiz.Tool/bin/Release/Pubwiz.Tool.zip (4.3 MB)
+16:44:26.160 [Done] pubwiz: ▶ Done
+16:44:26.160 [Done] pubwiz: Deployed to /var/home/saif/Repos/Pubwiz/src/Pubwiz.Tool/bin/Release/Pubwiz.Tool.zip
+16:44:26.160 pubwiz: Finished: Succeeded

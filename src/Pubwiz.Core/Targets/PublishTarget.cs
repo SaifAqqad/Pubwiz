@@ -1,11 +1,16 @@
 namespace Pubwiz.Core.Targets;
 
 /// <summary>
-/// Groups targets in the wizard, like Visual Studio's publish dialog.
+/// Groups targets in the wizard, like Visual Studio's publish dialog. Listed in this order.
 /// </summary>
 public enum PublishTargetGroup
 {
-    General,
+    /// <summary>Output on this machine: a folder, a zip or a package.</summary>
+    Local,
+
+    /// <summary>Your own servers: IIS, FTP, SFTP.</summary>
+    Servers,
+
     Azure,
     Containers,
     Mobile

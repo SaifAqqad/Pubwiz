@@ -33,12 +33,12 @@ public static class PublishTargetCatalog
 
     private static readonly PublishTarget[] AllTargets =
     [
-        new(PublishTargetType.Folder, PublishTargetGroup.General, "Folder", "Publish to a local or network folder"),
-        new(PublishTargetType.ZipFile, PublishTargetGroup.General, "Zip file", "Publish to a .zip to copy to a server yourself"),
-        new(PublishTargetType.WebDeploy, PublishTargetGroup.General, "IIS (Web Deploy)", "Deploy to an IIS server with Web Deploy (msdeploy)"),
-        new(PublishTargetType.WebDeployPackage, PublishTargetGroup.General, "Web Deploy package", "Create a package to import into IIS later"),
-        new(PublishTargetType.Ftp, PublishTargetGroup.General, "FTP / FTPS", "Upload to an FTP or FTPS server"),
-        new(PublishTargetType.Sftp, PublishTargetGroup.General, "SFTP", "Upload over SSH"),
+        new(PublishTargetType.Folder, PublishTargetGroup.Local, "Folder", "Publish to a local or network folder"),
+        new(PublishTargetType.ZipFile, PublishTargetGroup.Local, "Zip file", "Publish to a .zip to copy to a server yourself"),
+        new(PublishTargetType.WebDeployPackage, PublishTargetGroup.Local, "Web Deploy package", "Create a package to import into IIS later"),
+        new(PublishTargetType.WebDeploy, PublishTargetGroup.Servers, "IIS (Web Deploy)", "Deploy to an IIS server with Web Deploy (msdeploy)"),
+        new(PublishTargetType.Ftp, PublishTargetGroup.Servers, "FTP / FTPS", "Upload to an FTP or FTPS server"),
+        new(PublishTargetType.Sftp, PublishTargetGroup.Servers, "SFTP", "Upload over SSH"),
         new(PublishTargetType.AzureAppService, PublishTargetGroup.Azure, "Azure App Service", "Deploy to an App Service web app (Windows or Linux)"),
         new(PublishTargetType.AzureAppServiceContainer, PublishTargetGroup.Azure, "Azure App Service (container)", "Build an image and run it on App Service"),
         new(PublishTargetType.AzureWebJob, PublishTargetGroup.Azure, "Azure WebJob", "Run as a WebJob inside an App Service app"),
