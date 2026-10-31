@@ -33,3 +33,10 @@ Thumbs.db
 
 # Local notes (not tracked)
 docs/
+
+# Pubwiz's own exports (default names) and local test setup from running the tool in its project folder
+pubwiz-logs-*/
+pubwiz-report-*.json
+pubwiz-report-*.csv
+src/Pubwiz.Tool/Properties/PublishProfiles/
+src/Pubwiz.Tool/pubwiz.json
