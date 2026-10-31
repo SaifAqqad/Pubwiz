@@ -12,20 +12,24 @@
   - Results table; log/JSON/CSV export.
   - OS keychain secret store: libsecret, macOS Keychain, Windows Credential Manager.
   - Folder target.
-- ⏳ **Phase 3, Web Deploy:** in progress, in its own package `src/Pubwiz.WebDeploy` (published separately on NuGet).
-  - Done: endpoint rules, server error decoding, profile page, staging publish.
-  - Protocol captured and partly mapped in [webdeploy-protocol.md](webdeploy-protocol.md).
-  - Next: decode the object stream, then write the NRBF and stream writers, the client and the target.
-- 🟡 **Phase 4, Azure:** groundwork only.
-  - Kudu zip/one-deploy client with upload progress and status polling (tested with a fake HTTP handler; no Azure account to test against yet).
-  - `az` wrapper: sign-in state, subscriptions, web apps, tokens, per-distro install command.
-  - Not yet: the Azure target, WebJobs and Functions, the wizard pages.
-- ✅ **Phase 5, FTP/FTPS/SFTP:**
-  - FluentFTP and SSH.NET uploaders: mirror (delete extras), app_offline.htm, per-file progress, Visual Studio FTP profile format.
-  - SFTP verified against the VM (upload, app_offline, delete extras).
-  - FTP/FTPS is **not verified yet**: there's no FTP server set up.
-- ✅ **Phase 7, web.config transforms:** `dotnet pubwiz transform`, using the SDK's transform order.
-  - It warns about `Web.Release.config` casing: verified that `dotnet publish` on Linux skips it.
+- ⏸ **Phase 3, Web Deploy (on-premises IIS):** paused.
+  - Done: the `Pubwiz.WebDeploy` package (endpoint rules, error decoding), the profile page, and protocol notes.
+  - The custom client isn't written. Azure Web Deploy profiles already deploy through Kudu.
+- ✅ **Phase 4, Azure:**
+  - App Service and Function Apps (Kudu one-deploy), WebJobs (run script, settings.job schedule).
+  - Sign-in with az tokens or publishing credentials; az install, login and subscription in the wizard.
+  - Not tested against real Azure.
+- ✅ **Phase 5, FTP/FTPS/SFTP:** SFTP verified on the VM; FTP not verified.
+- ✅ **Phase 6, Containers:**
+  - Built with the SDK or a Dockerfile, sent to local Docker/Podman, a tarball, a registry, or ACR + App Service/Container Apps.
+  - SDK and Dockerfile builds verified with podman. Registry pushes and Azure updates not verified.
+- ✅ **Phase 7, web.config transforms:** `dotnet pubwiz transform`.
+- ✅ **Phase 8, MAUI:**
+  - Android (signing via `env:` passwords, keystore creation) and iOS (macOS).
+  - No real build run: the workloads aren't installed here.
+- ✅ **Phase 9, presets + CI:**
+  - `pubwiz.json` presets: save from the wizard, `--preset`, `--preset-file`, `presets list/export`.
+  - `--project/--profile`, `--yes`, env var passwords, `--report`/`--log-dir`, never prompts without a terminal.
 - 🧪 **Test VM** (`tools/test-vm`): IIS + Web Deploy + SSH (key only).
 
 Finding: `dotnet publish -p:PublishProfile=<MSDeploy profile>` fails outside Windows ("msdeploy.exe is invalid"). Upload targets therefore publish with the profile plus `-p:WebPublishMethod=FileSystem` to a staging folder (`obj/pubwiz/<profile>/`), then upload it themselves.

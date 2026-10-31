@@ -47,12 +47,14 @@ public static class PublishExporter
 
     public static void WriteJsonReport(IReadOnlyList<PublishJob> jobs, string filePath)
     {
+        CreateParentFolder(filePath);
         var entries = jobs.Select(PublishReportEntry.FromJob).ToList();
         File.WriteAllText(filePath, JsonSerializer.Serialize(entries, JsonOptions));
     }
 
     public static void WriteCsvReport(IReadOnlyList<PublishJob> jobs, string filePath)
     {
+        CreateParentFolder(filePath);
         var csv = new StringBuilder();
         csv.AppendLine("Project,ProjectPath,Profile,Target,Configuration,Status,StartedAt,FinishedAt,DurationSeconds,FailedStep,Error,OutputDirectory,Destination,LogLines");
 
@@ -72,6 +74,8 @@ public static class PublishExporter
 
         File.WriteAllText(filePath, csv.ToString());
     }
+
+    private static void CreateParentFolder(string filePath) => Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filePath))!);
 
     /// <summary>e.g. <c>12:03:44.120 [Build and publish] out: Restored /src/Api/Api.csproj</c></summary>
     internal static string FormatLogLine(LogEntry entry)

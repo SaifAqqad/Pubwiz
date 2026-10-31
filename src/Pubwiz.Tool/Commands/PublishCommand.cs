@@ -1,4 +1,6 @@
 using Pubwiz.Core.Execution;
+using Pubwiz.Core.Platform;
+using Pubwiz.Core.Reporting;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Rendering;
 using Pubwiz.Tool.Wizard;
@@ -7,11 +9,13 @@ using System.ComponentModel;
 namespace Pubwiz.Tool.Commands;
 
 /// <summary>
-/// The default command: finds projects, walks the user through choosing profiles, then publishes.
+/// The default command: chooses what to publish (preset, arguments or the wizard), then publishes it.
 /// </summary>
 public sealed class PublishCommand(
     IAnsiConsole console,
     PublishWizard wizard,
+    PresetPage presets,
+    ArgumentSelection argumentSelection,
     PasswordProvider passwords,
     PublishRunner runner,
     PublishDashboard dashboard,
@@ -24,8 +28,28 @@ public sealed class PublishCommand(
         public string? Path { get; init; }
 
         [CommandOption("-c|--configuration")]
-        [Description("Build configuration, overriding the profile's (e.g. Release or Debug)")]
+        [Description("Build configuration, overriding the profiles' (e.g. Release or Debug)")]
         public string? Configuration { get; init; }
+
+        [CommandOption("--preset <NAME>")]
+        [Description("Run a saved preset from pubwiz.json instead of the wizard")]
+        public string? Preset { get; init; }
+
+        [CommandOption("--preset-file <FILE>")]
+        [Description("The preset file to use (default: pubwiz.json in the folder or its parents)")]
+        public string? PresetFile { get; init; }
+
+        [CommandOption("--project <NAME>")]
+        [Description("Publish this project (name or .csproj path) without the wizard; repeatable. Needs --profile")]
+        public string[] Projects { get; init; } = [];
+
+        [CommandOption("--profile <NAME>")]
+        [Description("The publish profile used with --project")]
+        public string? Profile { get; init; }
+
+        [CommandOption("-y|--yes")]
+        [Description("Don't ask for confirmation, and skip the menu after publishing")]
+        public bool Yes { get; init; }
 
         [CommandOption("--all")]
         [Description("Also list projects that normally aren't published (libraries, tests, Aspire AppHosts)")]
@@ -40,10 +64,17 @@ public sealed class PublishCommand(
         [Description("How many lines of live output to show per project")]
         public int LogLines { get; init; }
 
-        [DefaultValue(1)]
         [CommandOption("--parallel")]
-        [Description("How many projects to publish at the same time")]
-        public int Parallel { get; init; }
+        [Description("How many projects to publish at the same time (default 1, or the preset's)")]
+        public int? Parallel { get; init; }
+
+        [CommandOption("--report <FILE>")]
+        [Description("Write a report after publishing (.json or .csv)")]
+        public string? Report { get; init; }
+
+        [CommandOption("--log-dir <FOLDER>")]
+        [Description("Write each project's full log to this folder after publishing")]
+        public string? LogDirectory { get; init; }
 
         [CommandOption("--verbose")]
         [Description("Use detailed build output")]
@@ -56,7 +87,14 @@ public sealed class PublishCommand(
                 return ValidationResult.Error("--log-lines must be at least 1");
             }
 
-            return Parallel < 1 ? ValidationResult.Error("--parallel must be at least 1") : ValidationResult.Success();
+            if (Parallel is < 1)
+            {
+                return ValidationResult.Error("--parallel must be at least 1");
+            }
+
+            return Projects.Length > 0 && (Preset is not null || PresetFile is not null)
+                ? ValidationResult.Error("Use either --project or --preset, not both")
+                : ValidationResult.Success();
         }
     }
 
@@ -64,23 +102,25 @@ public sealed class PublishCommand(
     {
         Widgets.WriteHeader();
 
-        var options = new WizardOptions(settings.Path ?? Directory.GetCurrentDirectory(), settings.IncludeAll);
-        var selections = await wizard.RunAsync(options, cancellationToken);
+        // No terminal (output piped, CI): never prompt, fail with a clear message instead.
+        var interactive = console.Profile.Capabilities.Interactive && !EnvironmentVariables.IsCi;
 
-        var requests = await CreateRequestsAsync(selections, settings, cancellationToken);
+        var batch = await ChooseBatchAsync(settings, interactive, cancellationToken);
+        var requests = await CreateRequestsAsync(batch, settings, interactive, cancellationToken);
         var jobs = requests.Select(runner.CreateJob).ToList();
 
         console.WriteLine();
-        if (!console.Confirm($"Publish {jobs.Count} project(s) now?"))
+        if (interactive && !settings.Yes && !console.Confirm($"Publish {jobs.Count} project(s) now?"))
         {
             return ExitCodes.Cancelled;
         }
 
         console.WriteLine();
-        await RunWithCtrlCAsync(jobs, settings);
+        await RunWithCtrlCAsync(jobs, settings.Parallel ?? batch.Parallel ?? 1, settings);
 
         results.WriteResults(jobs);
-        if (console.Profile.Capabilities.Interactive)
+        WriteRequestedExports(jobs, settings);
+        if (interactive && !settings.Yes)
         {
             results.ShowMenu(jobs);
         }
@@ -88,17 +128,47 @@ public sealed class PublishCommand(
         return GetExitCode(jobs);
     }
 
-    private async Task<List<PublishRequest>> CreateRequestsAsync(IReadOnlyList<PublishSelection> selections, Settings settings, CancellationToken cancellationToken)
+    private async Task<PublishBatch> ChooseBatchAsync(Settings settings, bool interactive, CancellationToken cancellationToken)
+    {
+        var path = settings.Path ?? Directory.GetCurrentDirectory();
+        var startDirectory = Directory.Exists(path) ? path : System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!;
+
+        if (settings.Preset is not null || settings.PresetFile is not null)
+        {
+            return await presets.LoadAsync(settings.Preset, settings.PresetFile, startDirectory, cancellationToken);
+        }
+
+        if (settings.Projects.Length > 0)
+        {
+            return await argumentSelection.SelectAsync(path, settings.Projects, settings.Profile, cancellationToken);
+        }
+
+        if (!interactive)
+        {
+            throw new UserErrorException("There's no terminal for the wizard. Use --preset <name>, or --project <name> with --profile <name>.");
+        }
+
+        if (await presets.OfferAsync(startDirectory, cancellationToken) is { } preset)
+        {
+            return preset;
+        }
+
+        var result = await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll), cancellationToken);
+        presets.OfferSave(result.Selections, result.Workspace, startDirectory);
+        return new PublishBatch(result.Selections);
+    }
+
+    private async Task<List<PublishRequest>> CreateRequestsAsync(PublishBatch batch, Settings settings, bool interactive, CancellationToken cancellationToken)
     {
         var requests = new List<PublishRequest>();
-        foreach (var (project, profile) in selections)
+        foreach (var (project, profile) in batch.Selections)
         {
             var needsPassword = runner.FindTarget(profile)?.RequiresPassword(profile) ?? false;
             requests.Add(new PublishRequest(project, profile)
             {
-                Configuration = settings.Configuration,
+                Configuration = settings.Configuration ?? batch.Configuration,
                 Verbose = settings.Verbose,
-                Password = needsPassword ? await passwords.GetAsync(project, profile, cancellationToken) : null
+                Password = needsPassword ? await passwords.GetAsync(project, profile, allowPrompt: interactive, cancellationToken) : null
             });
         }
 
@@ -109,7 +179,7 @@ public sealed class PublishCommand(
     /// Ctrl+C while publishing cancels the jobs (and kills the build processes) instead of ending Pubwiz,
     /// so the results and logs can still be shown and exported. A second Ctrl+C exits right away.
     /// </summary>
-    private async Task RunWithCtrlCAsync(IReadOnlyList<PublishJob> jobs, Settings settings)
+    private async Task RunWithCtrlCAsync(IReadOnlyList<PublishJob> jobs, int parallel, Settings settings)
     {
         using var cancellation = new CancellationTokenSource();
 
@@ -122,12 +192,37 @@ public sealed class PublishCommand(
         Console.CancelKeyPress += OnCancelKeyPress;
         try
         {
-            var run = runner.RunAsync(jobs, settings.Parallel, cancellation.Token);
+            var run = runner.RunAsync(jobs, parallel, cancellation.Token);
             await dashboard.ShowAsync(jobs, run, new DashboardOptions(settings.ShowLog, settings.LogLines));
         }
         finally
         {
             Console.CancelKeyPress -= OnCancelKeyPress;
+        }
+    }
+
+    /// <summary>The --report and --log-dir exports, written without asking.</summary>
+    private void WriteRequestedExports(IReadOnlyList<PublishJob> jobs, Settings settings)
+    {
+        if (settings.Report is { } report)
+        {
+            var reportPath = System.IO.Path.GetFullPath(report);
+            if (reportPath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                PublishExporter.WriteCsvReport(jobs, reportPath);
+            }
+            else
+            {
+                PublishExporter.WriteJsonReport(jobs, reportPath);
+            }
+
+            console.MarkupLine($"Report: {DisplayText.ShortPath(reportPath).EscapeMarkup()}");
+        }
+
+        if (settings.LogDirectory is { } logDirectory)
+        {
+            var files = PublishExporter.WriteLogs(jobs, System.IO.Path.GetFullPath(logDirectory));
+            console.MarkupLine($"Logs: {files.Count} file(s) in {DisplayText.ShortPath(System.IO.Path.GetFullPath(logDirectory)).EscapeMarkup()}");
         }
     }
 

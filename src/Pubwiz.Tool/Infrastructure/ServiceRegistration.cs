@@ -5,6 +5,7 @@ using Pubwiz.Core.Azure.Kudu;
 using Pubwiz.Core.Containers;
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Maui;
+using Pubwiz.Core.Presets;
 using Pubwiz.Core.Dotnet;
 using Pubwiz.Core.Execution;
 using Pubwiz.Core.Processes;
@@ -36,6 +37,7 @@ public static class ServiceRegistration
         // Core
         services.AddSingleton<ProjectInspector>();
         services.AddSingleton<WorkspaceLoader>();
+        services.AddSingleton<PresetResolver>();
         services.AddSingleton<PublishRunner>();
         services.AddSingleton<AzCli>();
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromMinutes(30) });
@@ -73,6 +75,8 @@ public static class ServiceRegistration
         services.AddSingleton<MauiProfilePage>();
         services.AddSingleton<AzureSession>();
         services.AddSingleton<PasswordProvider>();
+        services.AddSingleton<PresetPage>();
+        services.AddSingleton<ArgumentSelection>();
 
         // Publishing UI
         services.AddSingleton<PublishDashboard>();

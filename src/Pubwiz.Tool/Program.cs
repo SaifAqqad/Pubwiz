@@ -19,6 +19,13 @@ app.Configure(config =>
 
     config.AddCommand<TransformCommand>("transform")
         .WithDescription("Write a transformed web.config (same transforms as publishing) without publishing");
+
+    config.AddBranch("presets", presets =>
+    {
+        presets.SetDescription("List and export the batch presets saved in pubwiz.json");
+        presets.AddCommand<PresetsListCommand>("list").WithDescription("Show the saved presets");
+        presets.AddCommand<PresetsExportCommand>("export").WithDescription("Write one preset to its own file");
+    });
 });
 
 var exitCode = await app.RunAsync(args);

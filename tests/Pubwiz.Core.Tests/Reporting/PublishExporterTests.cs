@@ -27,8 +27,9 @@ public sealed class PublishExporterTests : IDisposable
         var job = runner.CreateJob(TestRequests.Create());
         await runner.RunAsync([job], 1, TestContext.Current.CancellationToken);
 
-        var json = Path.Combine(_temp.Path, "report.json");
-        var csv = Path.Combine(_temp.Path, "report.csv");
+        // The folders don't exist yet: the exporter creates them.
+        var json = Path.Combine(_temp.Path, "reports", "report.json");
+        var csv = Path.Combine(_temp.Path, "ci", "out", "report.csv");
         PublishExporter.WriteJsonReport([job], json);
         PublishExporter.WriteCsvReport([job], csv);
 

@@ -4,14 +4,56 @@ An interactive publish wizard for .NET: `dotnet publish`, but you pick the proje
 
 > **Status:** early development. See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
-Planned targets: folder, IIS Web Deploy (cross-platform), Zip/One deploy, FTP/FTPS/SFTP, Azure App Service, WebJobs and Functions, container images (SDK or Dockerfile → local daemon, ACR or any registry, tarball), and .NET MAUI (Android, iOS).
+Targets:
+- Folder
+- FTP/FTPS/SFTP
+- Azure App Service, Function Apps and WebJobs (Kudu zip deploy, including imported `.publishsettings` Web Deploy profiles)
+- Container images: built with the .NET SDK or a Dockerfile, sent to local Docker/Podman, a tarball, any registry, or ACR plus App Service or Container Apps
+- .NET MAUI: Android `.aab`/`.apk` and iOS `.ipa`
+
+IIS Web Deploy to on-premises servers is in progress.
 
 ## Commands
 
 ```bash
-dotnet pubwiz [path]              # pick projects and profiles, then publish (--parallel, --show-log, -c)
-dotnet pubwiz transform [path]    # write a transformed web.config without publishing
+dotnet pubwiz [path]                      # pick projects and profiles, then publish (--parallel, --show-log, -c)
+dotnet pubwiz --preset prod               # run a saved batch from pubwiz.json
+dotnet pubwiz transform [path]            # write a transformed web.config without publishing
+dotnet pubwiz presets list                # show saved presets
+dotnet pubwiz presets export prod         # write one preset to its own file (run with --preset-file)
 ```
+
+## Presets
+
+After choosing projects and profiles in the wizard, you can save the selection as a named preset in `pubwiz.json`, next to your solution. Commit that file so the whole team (and CI) can publish the same batch:
+
+```json
+{
+  "presets": {
+    "prod": {
+      "configuration": "Release",
+      "parallel": 2,
+      "projects": [
+        { "path": "src/Api/Api.csproj", "profile": "Prod" },
+        { "path": "src/Worker/Worker.csproj", "profile": "Prod-WebJob" }
+      ]
+    }
+  }
+}
+```
+
+## CI / non-interactive use
+
+Without a terminal (or with `CI=true`), Pubwiz never prompts. It needs a preset or explicit projects:
+
+```bash
+dotnet pubwiz --preset prod --yes --report artifacts/publish.json --log-dir artifacts/logs
+dotnet pubwiz --project Api --project Worker --profile Staging --yes
+```
+
+- Passwords come from `PUBWIZ_PASSWORD_<PROFILE>` (profile name in upper case, other characters as `_`), then `PUBWIZ_PASSWORD`, then the OS keychain.
+- Azure profiles sign in with `az`; use `az login --service-principal` (or a workload identity) in CI.
+- Exit codes: `0` success, `1` a publish failed, `2` a required tool is missing, `3` invalid input, `130` cancelled.
 
 ## Install
 

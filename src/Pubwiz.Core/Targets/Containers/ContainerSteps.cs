@@ -21,6 +21,7 @@ internal sealed class RegistrySignInStep(AzCli az, ContainerCli containers, Cont
     public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
     {
         var (userName, password) = await GetCredentialsAsync(context, cancellationToken);
+        context.Log.AddSecret(password);
         if (userName is null || password is null)
         {
             context.Log.Info($"No credentials in the profile; using existing docker login credentials for {container.Registry}");
@@ -33,8 +34,8 @@ internal sealed class RegistrySignInStep(AzCli az, ContainerCli containers, Cont
         }
         else
         {
-            context.SetToolEnvironment(SdkUserNameVariable, userName);
-            context.SetToolEnvironment(SdkPasswordVariable, password);
+            context.SetToolEnvironment(SdkUserNameVariable, userName, isSecret: false);
+            context.SetToolEnvironment(SdkPasswordVariable, password, isSecret: true);
         }
 
         context.Log.Info($"Signed in to {container.Registry} as {userName}");

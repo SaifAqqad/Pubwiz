@@ -3,12 +3,15 @@ using Pubwiz.Tool.Prompts;
 
 namespace Pubwiz.Tool.Wizard;
 
+/// <summary>What the wizard chose, and the workspace it chose from.</summary>
+public sealed record WizardResult(Workspace Workspace, IReadOnlyList<PublishSelection> Selections);
+
 /// <summary>
 /// The interactive flow: find the workspace, pick projects, then choose (or create) a profile for each one.
 /// </summary>
 public sealed class PublishWizard(IAnsiConsole console, WorkspacePage workspacePage, ProfilePage profilePage)
 {
-    public async Task<IReadOnlyList<PublishSelection>> RunAsync(WizardOptions options, CancellationToken cancellationToken)
+    public async Task<WizardResult> RunAsync(WizardOptions options, CancellationToken cancellationToken)
     {
         var workspace = await workspacePage.LoadAsync(options.Path, cancellationToken);
 
@@ -32,7 +35,7 @@ public sealed class PublishWizard(IAnsiConsole console, WorkspacePage workspaceP
             selections.Add(new PublishSelection(project, profile));
         }
 
-        return selections;
+        return new WizardResult(workspace, selections);
     }
 
     /// <summary>
