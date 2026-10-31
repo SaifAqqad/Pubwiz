@@ -1,0 +1,57 @@
+name: Publish standalone executables
+
+on:
+  workflow_dispatch:
+  release:
+    types: [ published ]
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_FILE: src/Pubwiz.Tool/Pubwiz.Tool.Standalone.csproj
+  OUTPUT_DIR: executable-dist
+
+jobs:
+  publish:
+    name: Build executable (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, rid: linux-x64 }
+          - { os: ubuntu-latest, rid: linux-arm64 }
+          - { os: windows-latest, rid: win-x64 }
+          - { os: windows-latest, rid: win-arm64 }
+          - { os: macos-latest, rid: osx-arm64 }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Publish
+        run: >
+          dotnet publish ${{ env.PROJECT_FILE }}
+          -c Release
+          -r ${{ matrix.rid }}
+          -o ${{ env.OUTPUT_DIR }}
+          -p:DebugType=None -p:DebugSymbols=false
+
+      - name: Compress
+        shell: pwsh
+        run: Compress-Archive -Path ${{ env.OUTPUT_DIR }}/* -DestinationPath ./pubwiz-${{ matrix.rid }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pubwiz-${{ matrix.rid }}
+          path: ./pubwiz-${{ matrix.rid }}.zip
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" ./pubwiz-${{ matrix.rid }}.zip --clobber

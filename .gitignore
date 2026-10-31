@@ -1,0 +1,32 @@
+# Build output
+bin/
+obj/
+artifacts/
+/packages/
+*.binlog
+
+# Packages and executables produced by `dotnet pack` / the release workflows
+/**/nupkg
+/**/dist
+/**/executable-dist
+
+# Per-user IDE files (*.user also covers .pubxml.user, which can hold deploy passwords)
+*.user
+*.suo
+*.DotSettings.user
+.vs/
+.idea/
+.vscode/
+riderModule.iml
+/_ReSharper.Caches/
+
+# Test results and coverage
+TestResults/
+*.coverage
+*.coveragexml
+coverage*.xml
+coverage*.json
+
+# OS files
+.DS_Store
+Thumbs.db

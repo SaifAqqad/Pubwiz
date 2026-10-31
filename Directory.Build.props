@@ -1,0 +1,24 @@
+<Project>
+    <!-- Settings shared by every project in the repo -->
+    <PropertyGroup>
+        <Version>0.1.0</Version>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <!-- Package metadata -->
+    <PropertyGroup>
+        <Authors>SaifAqqad</Authors>
+        <Description>An interactive publish wizard for .NET projects: folders, IIS Web Deploy, Zip deploy, FTP/SFTP, Azure, container registries and MAUI.</Description>
+        <PackageProjectUrl>https://github.com/SaifAqqad/Pubwiz</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/SaifAqqad/Pubwiz.git</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
+        <PackageTags>publish deploy webdeploy msdeploy iis azure kudu ftp sftp container maui dotnet-tool</PackageTags>
+        <PackageOutputPath>$(MSBuildThisFileDirectory)dist/nupkg</PackageOutputPath>
+    </PropertyGroup>
+</Project>

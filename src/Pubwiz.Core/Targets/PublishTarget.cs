@@ -1,0 +1,29 @@
+namespace Pubwiz.Core.Targets;
+
+/// <summary>
+/// Groups targets in the wizard, like Visual Studio's publish dialog.
+/// </summary>
+public enum PublishTargetGroup
+{
+    General,
+    Azure,
+    Containers,
+    Mobile
+}
+
+/// <summary>
+/// Describes a publish target shown in the "create profile" step.
+/// </summary>
+/// <param name="Type">Which target this is.</param>
+/// <param name="Group">The heading it's listed under.</param>
+/// <param name="DisplayName">Short name, e.g. "Folder".</param>
+/// <param name="Description">One line describing what it does.</param>
+public sealed record PublishTarget(PublishTargetType Type, PublishTargetGroup Group, string DisplayName, string Description)
+{
+    /// <summary>
+    /// Why the target can't be used on this machine or in this version, or <c>null</c> when it can.
+    /// </summary>
+    public string? UnavailableReason { get; init; }
+
+    public bool IsAvailable => UnavailableReason is null;
+}

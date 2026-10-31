@@ -1,0 +1,26 @@
+<Project>
+    <!-- Central package management: versions live here, projects reference packages without a Version -->
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    </PropertyGroup>
+
+    <ItemGroup Label="Core">
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+        <PackageVersion Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
+    </ItemGroup>
+
+    <ItemGroup Label="Tool">
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
+        <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.14" />
+        <PackageVersion Include="Spectre.Console" Version="0.57.2" />
+        <PackageVersion Include="Spectre.Console.Cli" Version="0.57.2" />
+        <PackageVersion Include="Spectre.Console.Analyzer" Version="1.0.0" />
+    </ItemGroup>
+
+    <ItemGroup Label="Tests">
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+        <PackageVersion Include="Spectre.Console.Testing" Version="0.57.2" />
+        <PackageVersion Include="xunit.v3" Version="4.0.2" />
+        <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
+    </ItemGroup>
+</Project>

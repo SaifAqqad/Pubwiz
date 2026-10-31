@@ -1,0 +1,60 @@
+using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Tests.TestHelpers;
+
+namespace Pubwiz.Core.Tests.Profiles;
+
+public sealed class PubxmlSerializerTests : IDisposable
+{
+    private readonly TempDirectory _temp = new();
+
+    [Fact]
+    public void Read_HandlesTheOldMsBuildNamespace()
+    {
+        var path = _temp.CreateFile("Old.pubxml", """
+            <?xml version="1.0" encoding="utf-8"?>
+            <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+              <PropertyGroup>
+                <WebPublishMethod>FileSystem</WebPublishMethod>
+                <PublishUrl>bin\Release\publish\</PublishUrl>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var profile = PubxmlSerializer.Read(path);
+
+        Assert.Equal("Old", profile.Name);
+        Assert.Equal(PublishMethod.FileSystem, profile.Method);
+        Assert.Equal(@"bin\Release\publish\", profile[ProfileProperties.PublishUrl]);
+    }
+
+    [Fact]
+    public void WriteThenRead_KeepsPropertiesAndOrder()
+    {
+        var profile = new PublishProfile("Folder");
+        profile[ProfileProperties.WebPublishMethod] = "FileSystem";
+        profile[ProfileProperties.PublishUrl] = "out";
+        profile[ProfileProperties.DeleteExistingFiles] = "true";
+        var path = Path.Combine(_temp.Path, "Folder.pubxml");
+
+        PubxmlSerializer.Write(profile, path);
+        var read = PubxmlSerializer.Read(path);
+
+        Assert.Equal(profile.Properties, read.Properties);
+    }
+
+    [Fact]
+    public void Indexer_IsCaseInsensitiveAndNullRemoves()
+    {
+        var profile = new PublishProfile("Test");
+        profile["PublishUrl"] = "a";
+
+        profile["publishurl"] = "b";
+        Assert.Equal("b", profile["PUBLISHURL"]);
+        Assert.Single(profile.Properties);
+
+        profile["PublishUrl"] = null;
+        Assert.Empty(profile.Properties);
+    }
+
+    public void Dispose() => _temp.Dispose();
+}

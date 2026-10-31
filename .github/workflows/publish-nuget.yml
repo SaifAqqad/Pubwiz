@@ -1,0 +1,29 @@
+name: Publish NuGet package
+
+on:
+  workflow_dispatch:
+  release:
+    types: [ published ]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Pack
+        run: dotnet pack src/Pubwiz.Tool/Pubwiz.Tool.csproj -c Release
+
+      - name: Push to nuget.org
+        run: dotnet nuget push "./dist/nupkg/*.nupkg" --skip-duplicate -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY"
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
