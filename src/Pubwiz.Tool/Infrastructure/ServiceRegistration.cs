@@ -4,6 +4,7 @@ using Pubwiz.Core.Azure;
 using Pubwiz.Core.Azure.Kudu;
 using Pubwiz.Core.Containers;
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Maui;
 using Pubwiz.Core.Dotnet;
 using Pubwiz.Core.Execution;
 using Pubwiz.Core.Processes;
@@ -11,6 +12,7 @@ using Pubwiz.Core.Secrets;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Containers;
 using Pubwiz.Core.Targets.FileTransfer;
+using Pubwiz.Core.Targets.Maui;
 using Pubwiz.Core.Targets.Folder;
 using Pubwiz.Tool.Azure;
 using Pubwiz.Tool.Credentials;
@@ -40,6 +42,8 @@ public static class ServiceRegistration
         services.AddSingleton<KuduClient>();
         services.AddSingleton<KuduCredentialsProvider>();
         services.AddSingleton<ContainerCli>();
+        services.AddSingleton<AndroidKeystore>();
+        services.AddSingleton<AppleSigning>();
 
         // Publish targets: the runner picks the first one that can publish a profile
         services.AddSingleton<IPublishTarget, FolderTarget>();
@@ -47,6 +51,8 @@ public static class ServiceRegistration
         services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: true));
         services.AddSingleton<IPublishTarget, AzureWebJobTarget>();
         services.AddSingleton<IPublishTarget, AzureAppServiceTarget>();
+        services.AddSingleton<IPublishTarget>(sp => new MauiTarget(sp.GetRequiredService<DotnetCli>(), MauiPlatform.Android));
+        services.AddSingleton<IPublishTarget>(sp => new MauiTarget(sp.GetRequiredService<DotnetCli>(), MauiPlatform.Ios));
         foreach (var destination in ContainerTarget.Destinations)
         {
             services.AddSingleton<IPublishTarget>(sp => new ContainerTarget(
@@ -64,6 +70,7 @@ public static class ServiceRegistration
         services.AddSingleton<FileTransferProfilePage>();
         services.AddSingleton<AzureProfilePage>();
         services.AddSingleton<ContainerProfilePage>();
+        services.AddSingleton<MauiProfilePage>();
         services.AddSingleton<AzureSession>();
         services.AddSingleton<PasswordProvider>();
 

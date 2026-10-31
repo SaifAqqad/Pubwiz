@@ -46,6 +46,32 @@ public sealed class DotnetCli(IProcessRunner processRunner, string executablePat
         return processRunner.RunAsync(spec, onOutput, cancellationToken);
     }
 
+    /// <summary>The IDs of the installed workloads (<c>dotnet workload list</c>), e.g. <c>maui-android</c>.</summary>
+    public async Task<IReadOnlyList<string>> ListWorkloadsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await processRunner.RunAsync(new ProcessSpec(ExecutablePath, ["workload", "list"]), cancellationToken: cancellationToken);
+        return result.Succeeded ? ParseWorkloadList(result.Output) : [];
+    }
+
+    /// <summary>
+    /// Reads the table printed by <c>dotnet workload list</c>: the IDs are the first column of the rows
+    /// between the "-----" separator and the first empty line.
+    /// </summary>
+    internal static IReadOnlyList<string> ParseWorkloadList(string output)
+    {
+        var lines = output.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+        var separator = lines.FindIndex(l => l.TrimStart().StartsWith("---", StringComparison.Ordinal));
+        if (separator < 0)
+        {
+            return [];
+        }
+
+        return lines.Skip(separator + 1)
+            .TakeWhile(l => !string.IsNullOrWhiteSpace(l))
+            .Select(l => l.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0])
+            .ToList();
+    }
+
     /// <summary>
     /// Returns the MSBuild errors in a build output (<c>path(line,col): error CODE: message</c>), without duplicates.
     /// </summary>

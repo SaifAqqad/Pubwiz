@@ -1,6 +1,8 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Maui;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets;
+using Pubwiz.Tool.Credentials;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -13,7 +15,9 @@ public sealed class CreateProfilePage(
     WebDeployProfilePage webDeployPage,
     FileTransferProfilePage fileTransferPage,
     AzureProfilePage azurePage,
-    ContainerProfilePage containerPage)
+    ContainerProfilePage containerPage,
+    MauiProfilePage mauiPage,
+    PasswordProvider passwords)
 {
     /// <summary>The options in the target menu.</summary>
     private abstract record Choice
@@ -39,24 +43,36 @@ public sealed class CreateProfilePage(
                 continue;
             }
 
-            var profile = target.Type switch
-            {
-                PublishTargetType.Folder => folderPage.Create(project),
-                PublishTargetType.WebDeploy => webDeployPage.Create(project),
-                PublishTargetType.Ftp => fileTransferPage.Create(project, sftp: false),
-                PublishTargetType.Sftp => fileTransferPage.Create(project, sftp: true),
-                PublishTargetType.AzureAppService => await azurePage.CreateAsync(project, AzureAppKind.WebApp, cancellationToken),
-                PublishTargetType.AzureFunctions => await azurePage.CreateAsync(project, AzureAppKind.FunctionApp, cancellationToken),
-                PublishTargetType.AzureWebJob => await azurePage.CreateAsync(project, AzureAppKind.WebJob, cancellationToken),
-                PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball or PublishTargetType.ContainerRegistry
-                    or PublishTargetType.AzureAppServiceContainer or PublishTargetType.AzureContainerApps => await containerPage.CreateAsync(project, target.Type, cancellationToken),
-                _ => throw new NotSupportedException($"{target.DisplayName} is not implemented.")
-            };
+            var created = await CreateForTargetAsync(project, target, cancellationToken);
 
             // Each page names its profile (FolderProfile, "contoso - Zip Deploy", ...); that's the suggested name.
-            return Save(project, profile, defaultName: profile.Name);
+            var saved = Save(project, created.Profile, defaultName: created.Profile.Name);
+            if (created.Password is not null)
+            {
+                await passwords.TrySaveAsync(project, saved, created.Password, cancellationToken);
+            }
+
+            return saved;
         }
     }
+
+    /// <summary>Runs the settings page of the chosen target.</summary>
+    private async Task<CreatedProfile> CreateForTargetAsync(ProjectInfo project, PublishTarget target, CancellationToken cancellationToken) => target.Type switch
+    {
+        PublishTargetType.Folder => new CreatedProfile(folderPage.Create(project)),
+        PublishTargetType.WebDeploy => new CreatedProfile(webDeployPage.Create(project)),
+        PublishTargetType.Ftp => new CreatedProfile(fileTransferPage.Create(project, sftp: false)),
+        PublishTargetType.Sftp => new CreatedProfile(fileTransferPage.Create(project, sftp: true)),
+        PublishTargetType.AzureAppService => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.WebApp, cancellationToken)),
+        PublishTargetType.AzureFunctions => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.FunctionApp, cancellationToken)),
+        PublishTargetType.AzureWebJob => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.WebJob, cancellationToken)),
+        PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball or PublishTargetType.ContainerRegistry
+            or PublishTargetType.AzureAppServiceContainer or PublishTargetType.AzureContainerApps
+            => new CreatedProfile(await containerPage.CreateAsync(project, target.Type, cancellationToken)),
+        PublishTargetType.MauiAndroid => await mauiPage.CreateAsync(project, MauiPlatform.Android, cancellationToken),
+        PublishTargetType.MauiIos => await mauiPage.CreateAsync(project, MauiPlatform.Ios, cancellationToken),
+        _ => throw new NotSupportedException($"{target.DisplayName} is not implemented.")
+    };
 
     private Choice ChooseTarget(ProjectInfo project)
     {

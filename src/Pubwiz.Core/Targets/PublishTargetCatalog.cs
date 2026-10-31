@@ -23,7 +23,9 @@ public static class PublishTargetCatalog
         PublishTargetType.AzureContainerApps,
         PublishTargetType.ContainerRegistry,
         PublishTargetType.LocalContainer,
-        PublishTargetType.ContainerTarball
+        PublishTargetType.ContainerTarball,
+        PublishTargetType.MauiAndroid,
+        PublishTargetType.MauiIos
     ];
 
     private static readonly PublishTarget[] AllTargets =

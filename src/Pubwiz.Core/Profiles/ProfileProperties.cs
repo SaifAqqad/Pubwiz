@@ -72,6 +72,43 @@ public static class ProfileProperties
     /// <summary><c>Docker</c> or <c>Podman</c>, for local images.</summary>
     public const string LocalRegistry = nameof(LocalRegistry);
 
+    // .NET MAUI (https://learn.microsoft.com/dotnet/maui/android/deployment/publish-cli)
+
+    /// <summary><c>aab</c> (Google Play), <c>apk</c> (ad-hoc installs) or <c>aab;apk</c>.</summary>
+    public const string AndroidPackageFormats = nameof(AndroidPackageFormats);
+
+    /// <summary><c>true</c> to sign with <see cref="AndroidSigningKeyStore"/>.</summary>
+    public const string AndroidKeyStore = nameof(AndroidKeyStore);
+
+    public const string AndroidSigningKeyStore = nameof(AndroidSigningKeyStore);
+
+    public const string AndroidSigningKeyAlias = nameof(AndroidSigningKeyAlias);
+
+    public const string AndroidSigningKeyPass = nameof(AndroidSigningKeyPass);
+
+    public const string AndroidSigningStorePass = nameof(AndroidSigningStorePass);
+
+    /// <summary>The iOS signing identity, e.g. <c>Apple Distribution: Contoso (TEAMID)</c>.</summary>
+    public const string CodesignKey = nameof(CodesignKey);
+
+    /// <summary>The iOS provisioning profile name.</summary>
+    public const string CodesignProvision = nameof(CodesignProvision);
+
+    /// <summary><c>true</c> to produce the .ipa on iOS.</summary>
+    public const string ArchiveOnBuild = nameof(ArchiveOnBuild);
+
+    /// <summary>The user-visible version, e.g. <c>1.2.0</c>.</summary>
+    public const string ApplicationDisplayVersion = nameof(ApplicationDisplayVersion);
+
+    /// <summary>The build number (Android versionCode / iOS CFBundleVersion).</summary>
+    public const string ApplicationVersion = nameof(ApplicationVersion);
+
+    /// <summary>The value of <see cref="PublishProvider"/> for MAUI Android profiles (with <c>WebPublishMethod=Custom</c>).</summary>
+    public const string MauiAndroidProvider = "MauiAndroid";
+
+    /// <summary>The value of <see cref="PublishProvider"/> for MAUI iOS profiles (with <c>WebPublishMethod=Custom</c>).</summary>
+    public const string MauiIosProvider = "MauiIos";
+
     // Pubwiz-only settings (Visual Studio ignores unknown properties)
 
     /// <summary>The value of <see cref="PublishProvider"/> for SFTP profiles (with <c>WebPublishMethod=Custom</c>).</summary>
