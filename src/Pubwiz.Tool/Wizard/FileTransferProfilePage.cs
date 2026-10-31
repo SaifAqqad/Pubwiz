@@ -4,6 +4,9 @@ using Pubwiz.Core.Transfer;
 
 namespace Pubwiz.Tool.Wizard;
 
+/// <summary>Values to suggest in the FTP/SFTP prompts, e.g. taken from a Web Deploy profile for the same server.</summary>
+public sealed record FileTransferDefaults(string? Host, string? UserName, string? SiteUrl);
+
 /// <summary>
 /// Settings for the FTP/FTPS and SFTP targets. Passwords are asked for when publishing (and can be saved in the keychain).
 /// </summary>
@@ -11,13 +14,14 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
 {
     /// <param name="project">The project being published.</param>
     /// <param name="sftp"><c>true</c> for SFTP, <c>false</c> for FTP/FTPS.</param>
+    /// <param name="defaults">Suggested answers, or <c>null</c>.</param>
     /// <returns>An unsaved profile.</returns>
-    public PublishProfile Create(ProjectInfo project, bool sftp)
+    public PublishProfile Create(ProjectInfo project, bool sftp, FileTransferDefaults? defaults = null)
     {
-        var host = console.Prompt(new TextPrompt<string>("Server:"));
+        var host = console.Prompt(WithDefault(new TextPrompt<string>("Server:"), defaults?.Host));
         var port = console.Prompt(new TextPrompt<int>("Port:").DefaultValue(sftp ? 22 : 21));
         var remoteFolder = console.Prompt(new TextPrompt<string>("Folder on the server [dim](e.g. /site/wwwroot)[/]:").DefaultValue("/"));
-        var userName = console.Prompt(new TextPrompt<string>("User name:"));
+        var userName = console.Prompt(WithDefault(new TextPrompt<string>("User name:"), defaults?.UserName));
 
         var profile = new PublishProfile(sftp ? "SftpProfile" : "FtpProfile");
         var scheme = sftp ? "sftp" : "ftp";
@@ -58,7 +62,7 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
         profile[ProfileProperties.DeleteExistingFiles] = console.Confirm("Delete files on the server that aren't part of the app?", defaultValue: false) ? "true" : "false";
         profile[ProfileProperties.PubwizUseAppOffline] = console.Confirm("Take the app offline (app_offline.htm) while uploading? [dim](IIS)[/]", defaultValue: false) ? "true" : null;
 
-        var siteUrl = console.Prompt(new TextPrompt<string>("Site URL [dim](optional, shown after publishing)[/]:").AllowEmpty());
+        var siteUrl = console.Prompt(WithDefault(new TextPrompt<string>("Site URL [dim](optional, shown after publishing)[/]:").AllowEmpty(), defaults?.SiteUrl));
         profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = siteUrl.Length > 0 ? siteUrl : null;
 
         var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
@@ -67,6 +71,9 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
         profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
         return profile;
     }
+
+    private static TextPrompt<string> WithDefault(TextPrompt<string> prompt, string? value) =>
+        value is null ? prompt : prompt.DefaultValue(value);
 
     private static string DescribeSecurity(FtpSecurity security) => security switch
     {

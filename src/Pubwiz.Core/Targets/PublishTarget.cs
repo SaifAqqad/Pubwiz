@@ -26,4 +26,10 @@ public sealed record PublishTarget(PublishTargetType Type, PublishTargetGroup Gr
     public string? UnavailableReason { get; init; }
 
     public bool IsAvailable => UnavailableReason is null;
+
+    /// <summary>
+    /// A caveat for a target that can still be chosen, e.g. Web Deploy on Linux: the profile can be created
+    /// (for a Windows machine or CI), but won't publish from here. <c>null</c> when there's none.
+    /// </summary>
+    public string? Warning { get; init; }
 }

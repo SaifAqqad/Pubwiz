@@ -102,14 +102,45 @@ public sealed class WebDeployTargetTests
     }
 
     [Fact]
-    public void Catalog_OffersWebDeployOnlyWhereMsDeployIsInstalled()
+    public void Catalog_KeepsWebDeploySelectable_WithAWarningWhereMsDeployIsMissing()
     {
         var webDeploy = PublishTargetCatalog.For(ProjectKind.Web).Single(t => t.Type == PublishTargetType.WebDeploy);
 
-        Assert.Equal(MsDeployLocator.Find() is not null, webDeploy.IsAvailable);
+        Assert.True(webDeploy.IsAvailable);
+        Assert.Equal(MsDeployLocator.Find() is null, webDeploy.Warning is not null);
         if (!OperatingSystem.IsWindows())
         {
-            Assert.Equal("requires Windows", webDeploy.UnavailableReason);
+            Assert.Equal("needs Windows", webDeploy.Warning);
         }
+    }
+
+    [Fact]
+    public void Alternatives_DependOnTheServer()
+    {
+        Assert.Equal(
+            [PublishTargetType.AzureAppService, PublishTargetType.Ftp, PublishTargetType.Sftp, PublishTargetType.ZipFile],
+            WebDeployAlternatives.SuggestFor(endpoint: null));
+        Assert.Equal([PublishTargetType.Ftp, PublishTargetType.Sftp, PublishTargetType.ZipFile],
+            WebDeployAlternatives.SuggestFor(WebDeployProfile.GetEndpoint(Profile())));
+        Assert.Equal([PublishTargetType.AzureAppService],
+            WebDeployAlternatives.SuggestFor(WebDeployProfile.GetEndpoint(Profile("contoso.scm.azurewebsites.net:443"))));
+    }
+
+    [Fact]
+    public void Alternatives_AreOnlyNeededForOnPremisesProfilesWithoutMsDeploy()
+    {
+        var folder = new PublishProfile("Folder");
+        folder[ProfileProperties.WebPublishMethod] = "FileSystem";
+
+        Assert.Equal(MsDeployLocator.Find() is null, WebDeployAlternatives.AreNeeded(Profile()));
+        Assert.False(WebDeployAlternatives.AreNeeded(Profile("contoso.scm.azurewebsites.net:443")));
+        Assert.False(WebDeployAlternatives.AreNeeded(folder));
+    }
+
+    [Fact]
+    public void TryGetEndpoint_IsNullForAnIncompleteProfile()
+    {
+        Assert.Null(WebDeployAlternatives.TryGetEndpoint(Profile(site: null)));
+        Assert.Equal("iis.contoso.local", WebDeployAlternatives.TryGetEndpoint(Profile())?.ServiceUrl.Host);
     }
 }

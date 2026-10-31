@@ -5,14 +5,14 @@ An interactive publish wizard for .NET: `dotnet publish`, but you pick the proje
 > **Status:** early development. See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 Targets:
-- Folder
+- Folder or Zip file
 - IIS Web Deploy on Windows (runs the official `msdeploy.exe`)
 - FTP/FTPS/SFTP
 - Azure App Service, Function Apps and WebJobs (Kudu zip deploy, including imported `.publishsettings` Web Deploy profiles)
 - Container images: built with the .NET SDK or a Dockerfile, sent to local Docker/Podman, a tarball, any registry, or ACR plus App Service or Container Apps
 - .NET MAUI: Android `.aab`/`.apk` and iOS `.ipa`
 
-IIS Web Deploy from Linux and macOS (a cross-platform client in `src/Pubwiz.WebDeploy`) is in progress; until then, use FTP/SFTP there.
+IIS Web Deploy from Linux and macOS (a cross-platform client in `src/Pubwiz.WebDeploy`) is in progress. Until then, choosing Web Deploy there suggests FTP/FTPS, SFTP or a Zip file for the same server (or Azure App Service for Azure apps), and you can still create Web Deploy profiles to publish from Windows or CI.
 
 ## Commands
 

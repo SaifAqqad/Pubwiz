@@ -1,5 +1,6 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Targets.WebDeploy;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -27,6 +28,14 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
 
             switch (choice)
             {
+                case Choice.Existing { Profile: var profile } when WebDeployAlternatives.AreNeeded(profile):
+                    if (await createPage.OfferWebDeployAlternativeAsync(project, profile, cancellationToken) is { } chosen)
+                    {
+                        return chosen;
+                    }
+
+                    break;
+
                 case Choice.Existing existing:
                     return existing.Profile;
 

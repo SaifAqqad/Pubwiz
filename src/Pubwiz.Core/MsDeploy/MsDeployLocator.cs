@@ -25,7 +25,7 @@ public static class MsDeployLocator
         ? null
         : OperatingSystemInfo.IsWindows
             ? $"Web Deploy isn't installed. Install it from {DownloadUrl}."
-            : "Web Deploy (msdeploy.exe) only runs on Windows. Publish from Windows, or use FTP/SFTP from this machine.";
+            : "Web Deploy (msdeploy.exe) only runs on Windows. Publish from Windows, or use an FTP, SFTP or Zip file profile from this machine.";
 
     [SupportedOSPlatform("windows")]
     private static IEnumerable<string> GetWindowsCandidates()

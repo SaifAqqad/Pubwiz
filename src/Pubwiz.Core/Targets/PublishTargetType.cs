@@ -6,6 +6,7 @@ namespace Pubwiz.Core.Targets;
 public enum PublishTargetType
 {
     Folder,
+    ZipFile,
     WebDeploy,
     WebDeployPackage,
     Ftp,

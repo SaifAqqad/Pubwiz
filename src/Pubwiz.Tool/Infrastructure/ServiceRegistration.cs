@@ -51,6 +51,7 @@ public static class ServiceRegistration
         services.AddSingleton<AppleSigning>();
 
         // Publish targets: the runner picks the first one that can publish a profile
+        services.AddSingleton<IPublishTarget, ZipFileTarget>(); // before Folder, which takes the other FileSystem profiles
         services.AddSingleton<IPublishTarget, FolderTarget>();
         services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: false));
         services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: true));
@@ -72,7 +73,9 @@ public static class ServiceRegistration
         services.AddSingleton<ImportProfilePage>();
         services.AddSingleton<CreateProfilePage>();
         services.AddSingleton<FolderProfilePage>();
+        services.AddSingleton<ZipFileProfilePage>();
         services.AddSingleton<WebDeployProfilePage>();
+        services.AddSingleton<WebDeployAlternativesPrompt>();
         services.AddSingleton<FileTransferProfilePage>();
         services.AddSingleton<AzureProfilePage>();
         services.AddSingleton<ContainerProfilePage>();

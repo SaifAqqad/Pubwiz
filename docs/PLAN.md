@@ -15,7 +15,9 @@
 - 🟡 **Phase 3, Web Deploy (on-premises IIS):**
   - ✅ Windows: the `WebDeploy` target stages the publish, then runs `msdeploy.exe -verb:sync` itself (Basic or NTLM, `-allowUntrusted`, `DoNotDeleteRule`, `AppOffline`). The generated command was verified against the VM (site root and a new `my app` application).
   - ✅ Azure Web Deploy profiles deploy through Kudu on every OS.
-  - ⏸ Linux/macOS to on-prem IIS: the custom client in `Pubwiz.WebDeploy` isn't written (only endpoint rules, error decoding and protocol notes). The target shows "requires Windows" there.
+  - ⏸ Linux/macOS to on-prem IIS: the custom client in `Pubwiz.WebDeploy` isn't written (only endpoint rules, error decoding and protocol notes).
+  - ✅ Without msdeploy.exe, Web Deploy stays selectable with a warning. Creating one, or picking an existing on-prem profile, suggests FTP/FTPS, SFTP or a Zip file for the same server (FTP/SFTP prefilled with its host and user name); Azure App Service is suggested while the server is unknown. Keeping Web Deploy is allowed (for Windows or CI).
+  - ✅ New Zip file target: a FileSystem profile with `PubwizZipFile` (Visual Studio still sees a folder profile).
   - msdeploy.exe parses its raw command line itself: every value is wrapped in `"…"` (keeps spaces and commas), and values with `"`, `'` or a trailing `\` are rejected because msdeploy can't receive them. The password is on msdeploy's command line (it has no stdin or file option).
 - ✅ **Phase 4, Azure:**
   - App Service and Function Apps (Kudu one-deploy), WebJobs (run script, settings.job schedule).

@@ -120,6 +120,12 @@ public static class ProfileProperties
     /// <summary>FTP security override: Auto, None, Explicit or Implicit. By default it follows the URL scheme.</summary>
     public const string PubwizFtpSecurity = nameof(PubwizFtpSecurity);
 
+    /// <summary>
+    /// Zip the published app into this file (relative to the project folder). Set on <c>FileSystem</c> profiles,
+    /// so Visual Studio still opens them as folder profiles.
+    /// </summary>
+    public const string PubwizZipFile = nameof(PubwizZipFile);
+
     /// <summary>Upload app_offline.htm while uploading (true/false).</summary>
     public const string PubwizUseAppOffline = nameof(PubwizUseAppOffline);
 

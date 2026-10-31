@@ -16,7 +16,7 @@ public sealed class FolderTarget(DotnetCli dotnet) : IPublishTarget
 {
     public PublishTargetType Type => PublishTargetType.Folder;
 
-    public bool CanPublish(PublishProfile profile) => profile.Method == PublishMethod.FileSystem;
+    public bool CanPublish(PublishProfile profile) => profile.Method == PublishMethod.FileSystem && !ZipFileTarget.IsZipProfile(profile);
 
     public bool RequiresPassword(PublishProfile profile) => false;
 

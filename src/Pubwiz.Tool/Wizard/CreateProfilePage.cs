@@ -2,6 +2,7 @@ using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Maui;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets;
+using Pubwiz.Core.Targets.WebDeploy;
 using Pubwiz.Tool.Credentials;
 
 namespace Pubwiz.Tool.Wizard;
@@ -12,7 +13,9 @@ namespace Pubwiz.Tool.Wizard;
 public sealed class CreateProfilePage(
     IAnsiConsole console,
     FolderProfilePage folderPage,
+    ZipFileProfilePage zipFilePage,
     WebDeployProfilePage webDeployPage,
+    WebDeployAlternativesPrompt webDeployAlternatives,
     FileTransferProfilePage fileTransferPage,
     AzureProfilePage azurePage,
     ContainerProfilePage containerPage,
@@ -43,23 +46,77 @@ public sealed class CreateProfilePage(
                 continue;
             }
 
+            if (target is { Type: PublishTargetType.WebDeploy, Warning: not null })
+            {
+                const string keepLabel = "Create the Web Deploy profile anyway [dim]· to publish from Windows or CI[/]";
+                switch (webDeployAlternatives.Ask(endpoint: null, keepLabel))
+                {
+                    case WebDeployAlternativesPrompt.Choice.Alternative { Type: var type }:
+                        target = FindTarget(project, type);
+                        break;
+                    case WebDeployAlternativesPrompt.Choice.Back:
+                        continue;
+                }
+            }
+
             var created = await CreateForTargetAsync(project, target, cancellationToken);
 
             // Each page names its profile (FolderProfile, "contoso - Zip Deploy", ...); that's the suggested name.
-            var saved = Save(project, created.Profile, defaultName: created.Profile.Name);
-            if (created.Password is not null)
-            {
-                await passwords.TrySaveAsync(project, saved, created.Password, cancellationToken);
-            }
-
-            return saved;
+            return await SaveAsync(project, created, defaultName: created.Profile.Name, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// For a Web Deploy profile that can't publish from this machine: suggests other targets for the same server
+    /// and creates a profile for the chosen one (FTP/SFTP start with the server and user name filled in).
+    /// </summary>
+    /// <returns>The profile to publish with (the original or a new one), or <c>null</c> to go back.</returns>
+    public async Task<PublishProfile?> OfferWebDeployAlternativeAsync(ProjectInfo project, PublishProfile profile, CancellationToken cancellationToken)
+    {
+        var endpoint = WebDeployAlternatives.TryGetEndpoint(profile);
+        var keepLabel = $"Use '{profile.Name.EscapeMarkup()}' anyway [dim]· it will fail on this machine[/]";
+
+        switch (webDeployAlternatives.Ask(endpoint, keepLabel))
+        {
+            case WebDeployAlternativesPrompt.Choice.KeepWebDeploy:
+                return profile;
+
+            case WebDeployAlternativesPrompt.Choice.Alternative { Type: var type }:
+                var defaults = new FileTransferDefaults(endpoint?.ServiceUrl.Host, profile[ProfileProperties.UserName], profile[ProfileProperties.SiteUrlToLaunchAfterPublish]);
+                var created = type switch
+                {
+                    PublishTargetType.Ftp => new CreatedProfile(fileTransferPage.Create(project, sftp: false, defaults)),
+                    PublishTargetType.Sftp => new CreatedProfile(fileTransferPage.Create(project, sftp: true, defaults)),
+                    _ => await CreateForTargetAsync(project, FindTarget(project, type), cancellationToken)
+                };
+
+                return await SaveAsync(project, created, defaultName: $"{profile.Name}-{type}", cancellationToken);
+
+            default:
+                return null;
+        }
+    }
+
+    private static PublishTarget FindTarget(ProjectInfo project, PublishTargetType type) =>
+        PublishTargetCatalog.For(project.Kind).Single(target => target.Type == type);
+
+    /// <summary>Asks for a name, saves the profile, and offers to keep its password in the keychain.</summary>
+    private async Task<PublishProfile> SaveAsync(ProjectInfo project, CreatedProfile created, string defaultName, CancellationToken cancellationToken)
+    {
+        var saved = Save(project, created.Profile, defaultName);
+        if (created.Password is not null)
+        {
+            await passwords.TrySaveAsync(project, saved, created.Password, cancellationToken);
+        }
+
+        return saved;
     }
 
     /// <summary>Runs the settings page of the chosen target.</summary>
     private async Task<CreatedProfile> CreateForTargetAsync(ProjectInfo project, PublishTarget target, CancellationToken cancellationToken) => target.Type switch
     {
         PublishTargetType.Folder => new CreatedProfile(folderPage.Create(project)),
+        PublishTargetType.ZipFile => new CreatedProfile(zipFilePage.Create(project)),
         PublishTargetType.WebDeploy => new CreatedProfile(webDeployPage.Create(project)),
         PublishTargetType.Ftp => new CreatedProfile(fileTransferPage.Create(project, sftp: false)),
         PublishTargetType.Sftp => new CreatedProfile(fileTransferPage.Create(project, sftp: true)),
@@ -96,9 +153,13 @@ public sealed class CreateProfilePage(
             return "[dim]← Back[/]";
         }
 
-        return target.IsAvailable
-            ? $"{target.DisplayName.EscapeMarkup()} [dim]· {target.Group} · {target.Description.EscapeMarkup()}[/]"
-            : $"[grey]{target.DisplayName.EscapeMarkup()} · {target.Group} ({target.UnavailableReason})[/]";
+        if (!target.IsAvailable)
+        {
+            return $"[grey]{target.DisplayName.EscapeMarkup()} · {target.Group} ({target.UnavailableReason})[/]";
+        }
+
+        var warning = target.Warning is null ? string.Empty : $" [yellow]({target.Warning.EscapeMarkup()})[/]";
+        return $"{target.DisplayName.EscapeMarkup()} [dim]· {target.Group} · {target.Description.EscapeMarkup()}[/]{warning}";
     }
 
     private PublishProfile Save(ProjectInfo project, PublishProfile profile, string defaultName)
