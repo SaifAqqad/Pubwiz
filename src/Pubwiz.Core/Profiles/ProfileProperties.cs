@@ -32,6 +32,9 @@ public static class ProfileProperties
     public const string DeleteExistingFiles = nameof(DeleteExistingFiles);
     public const string FtpPassiveMode = nameof(FtpPassiveMode);
 
+    /// <summary>Folder on the FTP server, added to the <see cref="PublishUrl"/> path (Visual Studio FTP profiles).</summary>
+    public const string FtpSitePath = nameof(FtpSitePath);
+
     // Web Deploy
     public const string MSDeployServiceURL = nameof(MSDeployServiceURL);
     public const string DeployIisAppPath = nameof(DeployIisAppPath);
@@ -44,4 +47,17 @@ public static class ProfileProperties
     /// <summary>The value of <see cref="PublishProvider"/> for Azure App Service.</summary>
     public const string AzureWebSiteProvider = "AzureWebSite";
 
+    // Pubwiz-only settings (Visual Studio ignores unknown properties)
+
+    /// <summary>The value of <see cref="PublishProvider"/> for SFTP profiles (with <c>WebPublishMethod=Custom</c>).</summary>
+    public const string SftpProvider = "Sftp";
+
+    /// <summary>FTP security override: Auto, None, Explicit or Implicit. By default it follows the URL scheme.</summary>
+    public const string PubwizFtpSecurity = nameof(PubwizFtpSecurity);
+
+    /// <summary>Upload app_offline.htm while uploading (true/false).</summary>
+    public const string PubwizUseAppOffline = nameof(PubwizUseAppOffline);
+
+    /// <summary>Private key file for SFTP; the password is then used as the key's passphrase, if any.</summary>
+    public const string PubwizSshPrivateKeyFile = nameof(PubwizSshPrivateKeyFile);
 }

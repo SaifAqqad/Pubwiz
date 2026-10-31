@@ -11,7 +11,7 @@ public static class PublishTargetCatalog
     /// <summary>
     /// Targets that are implemented. Others are listed but marked as coming soon.
     /// </summary>
-    private static readonly HashSet<PublishTargetType> Implemented = [PublishTargetType.Folder];
+    private static readonly HashSet<PublishTargetType> Implemented = [PublishTargetType.Folder, PublishTargetType.Ftp, PublishTargetType.Sftp];
 
     private static readonly PublishTarget[] AllTargets =
     [

@@ -10,8 +10,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="FluentFTP" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Microsoft.VisualStudio.SolutionPersistence" />
         <PackageReference Include="Microsoft.Web.Xdt" />
+        <PackageReference Include="SSH.NET" />
     </ItemGroup>
 </Project>

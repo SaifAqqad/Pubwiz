@@ -5,9 +5,11 @@
     </PropertyGroup>
 
     <ItemGroup Label="Core">
+        <PackageVersion Include="FluentFTP" Version="55.1.0" />
         <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
         <PackageVersion Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
         <PackageVersion Include="Microsoft.Web.Xdt" Version="3.2.14" />
+        <PackageVersion Include="SSH.NET" Version="2026.0.0" />
     </ItemGroup>
 
     <ItemGroup Label="Tool">

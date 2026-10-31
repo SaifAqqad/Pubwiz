@@ -5,6 +5,7 @@ using Pubwiz.Core.Dotnet;
 using Pubwiz.Core.Execution;
 using Pubwiz.Core.Processes;
 using Pubwiz.Core.Secrets;
+using Pubwiz.Core.Targets.FileTransfer;
 using Pubwiz.Core.Targets.Folder;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Rendering;
@@ -31,6 +32,8 @@ public static class ServiceRegistration
 
         // Publish targets: the runner picks the first one that can publish a profile
         services.AddSingleton<IPublishTarget, FolderTarget>();
+        services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: false));
+        services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: true));
 
         // Wizard
         services.AddSingleton<PublishWizard>();
@@ -39,6 +42,7 @@ public static class ServiceRegistration
         services.AddSingleton<ImportProfilePage>();
         services.AddSingleton<CreateProfilePage>();
         services.AddSingleton<FolderProfilePage>();
+        services.AddSingleton<FileTransferProfilePage>();
         services.AddSingleton<PasswordProvider>();
 
         // Publishing UI
