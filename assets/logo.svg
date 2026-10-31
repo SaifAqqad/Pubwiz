@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a185ff"/>
+      <stop offset="1" stop-color="#4a26b0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.15" r="0.6">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="hat" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.6" stop-color="#f3efff"/>
+      <stop offset="1" stop-color="#d8ccff"/>
+    </linearGradient>
+    <linearGradient id="brim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#ddd3ff"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffb23b"/>
+      <stop offset="1" stop-color="#ffe17d"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#190a4a" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- tile -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+
+  <g filter="url(#shadow)">
+    <!-- brim -->
+    <ellipse cx="248" cy="388" rx="172" ry="36" fill="url(#brim)"/>
+    <!-- hat: a cone leaning right to a sharp tip -->
+    <path d="M128 380 C 176 306, 222 214, 290 126 C 296 214, 322 304, 372 380 C 290 396, 210 396, 128 380 Z" fill="url(#hat)"/>
+    <!-- band -->
+    <path d="M150 346 C 214 360, 290 360, 352 346 L 364 366 C 292 382, 210 382, 138 366 Z" fill="#6a46e6"/>
+    <!-- star on the hat -->
+    <path d="M246 250 l9 18 l20 3 l-14 14 l3 20 l-18 -9 l-18 9 l3 -20 l-14 -14 l20 -3 z" fill="url(#gold)"/>
+  </g>
+
+  <!-- the publish arrow, launching from the tip of the hat -->
+  <g>
+    <path d="M310.0 112.0 L 363.6 68.7" stroke="url(#gold)" stroke-width="22" stroke-linecap="round"/>
+    <path d="M404.0 36.0 L 380.3 98.9 L 337.5 46.0 Z" fill="url(#gold)" stroke="url(#gold)" stroke-width="5" stroke-linejoin="round"/>
+  </g>
+  <g stroke="#ffe17d" stroke-width="7" stroke-linecap="round" opacity="0.85">
+    <path d="M274.3 99.7 L 294.5 83.3"/>
+    <path d="M325.5 140.7 L 345.7 124.3"/>
+  </g>
+
+  <!-- sparkles -->
+  <g fill="url(#gold)">
+    <path d="M140 156 l11 -28 l11 28 l28 11 l-28 11 l-11 28 l-11 -28 l-28 -11 z"/>
+    <path d="M424 240 l6 -16 l6 16 l16 6 l-16 6 l-6 16 l-6 -16 l-16 -6 z"/>
+  </g>
+  <g fill="#ffffff" opacity="0.9">
+    <circle cx="214" cy="92" r="6"/>
+    <circle cx="452" cy="176" r="5"/>
+    <circle cx="96" cy="250" r="4"/>
+    <circle cx="420" cy="300" r="3.5"/>
+  </g>
+</svg>

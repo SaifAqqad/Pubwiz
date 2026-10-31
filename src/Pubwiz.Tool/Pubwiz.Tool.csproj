@@ -18,8 +18,9 @@
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
+    <!-- nuget.org shows this README: images use absolute GitHub URLs, since relative paths don't work there -->
     <ItemGroup>
-        <None Include="../../README.md" Pack="true" PackagePath="./" />
+        <None Include="README.md" Pack="true" PackagePath="/" />
     </ItemGroup>
 
     <ItemGroup>

@@ -20,5 +20,11 @@
         <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
         <PackageTags>publish deploy webdeploy msdeploy iis azure kudu ftp sftp container maui dotnet-tool</PackageTags>
         <PackageOutputPath>$(MSBuildThisFileDirectory)dist/nupkg</PackageOutputPath>
+        <PackageIcon>icon.png</PackageIcon>
     </PropertyGroup>
+
+    <!-- The package icon (assets/logo.svg rendered at 256px) -->
+    <ItemGroup>
+        <None Include="$(MSBuildThisFileDirectory)assets/icon.png" Pack="true" PackagePath="/" Visible="false" />
+    </ItemGroup>
 </Project>
