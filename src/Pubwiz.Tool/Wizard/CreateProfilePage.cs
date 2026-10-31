@@ -7,7 +7,12 @@ namespace Pubwiz.Tool.Wizard;
 /// <summary>
 /// Creates a new profile: choose a target, fill in the target's settings, then name and save it.
 /// </summary>
-public sealed class CreateProfilePage(IAnsiConsole console, FolderProfilePage folderPage, WebDeployProfilePage webDeployPage, FileTransferProfilePage fileTransferPage)
+public sealed class CreateProfilePage(
+    IAnsiConsole console,
+    FolderProfilePage folderPage,
+    WebDeployProfilePage webDeployPage,
+    FileTransferProfilePage fileTransferPage,
+    AzureProfilePage azurePage)
 {
     /// <summary>The options in the target menu.</summary>
     private abstract record Choice
@@ -18,7 +23,7 @@ public sealed class CreateProfilePage(IAnsiConsole console, FolderProfilePage fo
     }
 
     /// <returns>The saved profile, or <c>null</c> when the user went back.</returns>
-    public PublishProfile? Create(ProjectInfo project)
+    public async Task<PublishProfile?> CreateAsync(ProjectInfo project, CancellationToken cancellationToken)
     {
         while (true)
         {
@@ -39,10 +44,14 @@ public sealed class CreateProfilePage(IAnsiConsole console, FolderProfilePage fo
                 PublishTargetType.WebDeploy => webDeployPage.Create(project),
                 PublishTargetType.Ftp => fileTransferPage.Create(project, sftp: false),
                 PublishTargetType.Sftp => fileTransferPage.Create(project, sftp: true),
+                PublishTargetType.AzureAppService => await azurePage.CreateAsync(project, AzureAppKind.WebApp, cancellationToken),
+                PublishTargetType.AzureFunctions => await azurePage.CreateAsync(project, AzureAppKind.FunctionApp, cancellationToken),
+                PublishTargetType.AzureWebJob => await azurePage.CreateAsync(project, AzureAppKind.WebJob, cancellationToken),
                 _ => throw new NotSupportedException($"{target.DisplayName} is not implemented.")
             };
 
-            return Save(project, profile, defaultName: $"{target.Type}Profile");
+            // Each page names its profile (FolderProfile, "contoso - Zip Deploy", ...); that's the suggested name.
+            return Save(project, profile, defaultName: profile.Name);
         }
     }
 

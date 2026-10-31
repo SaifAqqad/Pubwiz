@@ -57,6 +57,31 @@ public sealed class KuduClient(HttpClient httpClient)
         return await WaitForDeploymentAsync(new Uri(scmUrl, statusUrl), credentials, onStatus, cancellationToken);
     }
 
+    /// <summary>
+    /// Uploads a WebJob: <c>PUT /api/continuouswebjobs/{name}</c> or <c>/api/triggeredwebjobs/{name}</c> with the zip as the body.
+    /// Kudu replaces an existing WebJob with the same name.
+    /// </summary>
+    /// <exception cref="KuduException">The upload was rejected.</exception>
+    public async Task DeployWebJobAsync(
+        Uri scmUrl,
+        string name,
+        bool triggered,
+        string zipPath,
+        KuduCredentials credentials,
+        Action<double> onUploadProgress,
+        CancellationToken cancellationToken)
+    {
+        var path = $"api/{(triggered ? "triggeredwebjobs" : "continuouswebjobs")}/{Uri.EscapeDataString(name)}";
+        using var request = new HttpRequestMessage(HttpMethod.Put, new Uri(scmUrl, path));
+        request.Headers.Authorization = credentials.ToHeader();
+        request.Content = new ProgressStreamContent(File.OpenRead(zipPath), onUploadProgress);
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
+        request.Content.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileName = $"{name}.zip" };
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        await EnsureAcceptedAsync(response, cancellationToken);
+    }
+
     private async Task<KuduDeployment> WaitForDeploymentAsync(Uri statusUrl, KuduCredentials credentials, Action<KuduDeployment> onStatus, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

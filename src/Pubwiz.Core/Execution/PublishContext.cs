@@ -19,6 +19,13 @@ public sealed class PublishContext(PublishJob job)
         set => job.OutputDirectory = value;
     }
 
+    /// <summary>The package built from the publish folder (zip, image tarball, ...), if any.</summary>
+    public string? PackagePath
+    {
+        get => job.PackagePath;
+        set => job.PackagePath = value;
+    }
+
     /// <summary>Where the app ended up: a folder, URL or image name, shown in the results.</summary>
     public string? Destination
     {

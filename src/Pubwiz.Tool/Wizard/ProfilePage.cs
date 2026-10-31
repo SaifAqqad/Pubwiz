@@ -31,7 +31,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
                     return existing.Profile;
 
                 case Choice.Create:
-                    if (createPage.Create(project) is { } created)
+                    if (await createPage.CreateAsync(project, cancellationToken) is { } created)
                     {
                         return created;
                     }

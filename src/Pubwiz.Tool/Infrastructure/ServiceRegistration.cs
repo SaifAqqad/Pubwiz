@@ -1,12 +1,16 @@
 using Microsoft.Extensions.DependencyInjection;
 using Pubwiz.Core;
+using Pubwiz.Core.Azure;
+using Pubwiz.Core.Azure.Kudu;
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Dotnet;
 using Pubwiz.Core.Execution;
 using Pubwiz.Core.Processes;
 using Pubwiz.Core.Secrets;
+using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.FileTransfer;
 using Pubwiz.Core.Targets.Folder;
+using Pubwiz.Tool.Azure;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Rendering;
 using Pubwiz.Tool.Wizard;
@@ -29,11 +33,17 @@ public static class ServiceRegistration
         services.AddSingleton<ProjectInspector>();
         services.AddSingleton<WorkspaceLoader>();
         services.AddSingleton<PublishRunner>();
+        services.AddSingleton<AzCli>();
+        services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromMinutes(30) });
+        services.AddSingleton<KuduClient>();
+        services.AddSingleton<KuduCredentialsProvider>();
 
         // Publish targets: the runner picks the first one that can publish a profile
         services.AddSingleton<IPublishTarget, FolderTarget>();
         services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: false));
         services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: true));
+        services.AddSingleton<IPublishTarget, AzureWebJobTarget>();
+        services.AddSingleton<IPublishTarget, AzureAppServiceTarget>();
 
         // Wizard
         services.AddSingleton<PublishWizard>();
@@ -44,6 +54,8 @@ public static class ServiceRegistration
         services.AddSingleton<FolderProfilePage>();
         services.AddSingleton<WebDeployProfilePage>();
         services.AddSingleton<FileTransferProfilePage>();
+        services.AddSingleton<AzureProfilePage>();
+        services.AddSingleton<AzureSession>();
         services.AddSingleton<PasswordProvider>();
 
         // Publishing UI

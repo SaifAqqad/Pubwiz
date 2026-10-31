@@ -68,6 +68,41 @@ public sealed class ProcessRunner : IProcessRunner
         }
     }
 
+    public async Task<int> RunInteractiveAsync(ProcessSpec spec, CancellationToken cancellationToken = default)
+    {
+        var startInfo = BuildStartInfo(spec);
+        startInfo.RedirectStandardInput = false;
+        startInfo.RedirectStandardOutput = false;
+        startInfo.RedirectStandardError = false;
+        startInfo.StandardOutputEncoding = null;
+        startInfo.StandardErrorEncoding = null;
+
+        // On Windows, CreateNoWindow would detach the child from this console.
+        startInfo.CreateNoWindow = false;
+
+        using var process = new Process { StartInfo = startInfo };
+        try
+        {
+            process.Start();
+        }
+        catch (Win32Exception ex)
+        {
+            throw new ProcessStartException(spec.FileName, ex);
+        }
+
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            KillQuietly(process);
+            throw;
+        }
+
+        return process.ExitCode;
+    }
+
     private static ProcessStartInfo BuildStartInfo(ProcessSpec spec)
     {
         var startInfo = new ProcessStartInfo

@@ -56,6 +56,9 @@ public sealed class PublishJob
     /// <inheritdoc cref="PublishContext.OutputDirectory"/>
     public string? OutputDirectory { get; internal set; }
 
+    /// <inheritdoc cref="PublishContext.PackagePath"/>
+    public string? PackagePath { get; internal set; }
+
     /// <inheritdoc cref="PublishContext.Destination"/>
     public string? Destination { get; internal set; }
 

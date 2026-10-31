@@ -1,0 +1,93 @@
+using Pubwiz.Core.Azure;
+using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Targets.Azure;
+using Pubwiz.Tool.Azure;
+
+namespace Pubwiz.Tool.Wizard;
+
+/// <summary>What kind of Azure app a profile deploys to.</summary>
+public enum AzureAppKind
+{
+    /// <summary>An App Service web app.</summary>
+    WebApp,
+
+    /// <summary>A Function App.</summary>
+    FunctionApp,
+
+    /// <summary>A WebJob inside an App Service app.</summary>
+    WebJob
+}
+
+/// <summary>
+/// Creates Azure App Service, Function App and WebJob profiles by picking an existing app from the subscription.
+/// Profiles sign in with az by default, so no password is stored anywhere.
+/// </summary>
+public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session, AzCli az)
+{
+    public async Task<PublishProfile> CreateAsync(ProjectInfo project, AzureAppKind kind, CancellationToken cancellationToken)
+    {
+        var subscription = await session.EnsureReadyAsync(cancellationToken);
+        var app = await ChooseAppAsync(kind, subscription, cancellationToken);
+
+        var profile = new PublishProfile(kind == AzureAppKind.WebJob ? $"{app.Name} - WebJob" : $"{app.Name} - Zip Deploy");
+        profile[ProfileProperties.WebPublishMethod] = "ZipDeploy";
+        profile[ProfileProperties.PublishProvider] = ProfileProperties.AzureWebSiteProvider;
+        profile[ProfileProperties.PublishUrl] = app.ScmUrl.AbsoluteUri;
+        profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{app.DefaultHostName}";
+        profile[ProfileProperties.PubwizAzureAuthentication] = AzureProfile.AzCliAuthentication;
+        profile[ProfileProperties.PubwizAzureSubscriptionId] = subscription.Id;
+        profile[ProfileProperties.PubwizAzureResourceGroup] = app.ResourceGroup;
+        profile[ProfileProperties.PubwizAzureAppName] = app.Name;
+        profile[ProfileProperties.PubwizAzureLinux] = app.IsLinux ? "true" : "false";
+
+        if (kind == AzureAppKind.WebJob)
+        {
+            AskWebJobSettings(project, profile);
+        }
+
+        var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
+        profile[ProfileProperties.LastUsedBuildConfiguration] = CommonPrompts.ChooseConfiguration(console);
+        profile[ProfileProperties.LastUsedPlatform] = "Any CPU";
+        profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
+        return profile;
+    }
+
+    private async Task<AzureWebApp> ChooseAppAsync(AzureAppKind kind, AzureSubscription subscription, CancellationToken cancellationToken)
+    {
+        var apps = await console.Status().StartAsync("Loading apps...", _ => az.ListWebAppsAsync(cancellationToken));
+
+        // Container apps run an image, so a zip deploy wouldn't change what they run.
+        var matching = apps.Where(a => !a.IsContainer && a.IsFunctionApp == (kind == AzureAppKind.FunctionApp)).ToList();
+        if (matching.Count == 0)
+        {
+            var what = kind == AzureAppKind.FunctionApp ? "Function Apps" : "App Service apps";
+            throw new UserErrorException($"No {what} were found in '{subscription.Name}'. Create one in the Azure portal or with az, then run this again.");
+        }
+
+        return console.Prompt(new SelectionPrompt<AzureWebApp>()
+            .Title(kind == AzureAppKind.WebJob ? "App Service app to host the WebJob:" : $"{(kind == AzureAppKind.FunctionApp ? "Function App" : "App Service app")}:")
+            .HighlightStyle(new Style(Widgets.PrimaryColor))
+            .PageSize(15)
+            .AddChoices(matching)
+            .UseConverter(a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()} · {(a.IsLinux ? "Linux" : "Windows")} · {a.State}[/]"));
+    }
+
+    private void AskWebJobSettings(ProjectInfo project, PublishProfile profile)
+    {
+        profile[ProfileProperties.WebJobName] = console.Prompt(new TextPrompt<string>("WebJob name:").DefaultValue(project.Name.ToLowerInvariant()));
+
+        // Workers run all the time; console apps usually run on demand or on a schedule.
+        var continuous = console.Prompt(new SelectionPrompt<string>()
+            .Title("WebJob type:")
+            .HighlightStyle(new Style(Widgets.PrimaryColor))
+            .AddChoices(project.Kind == ProjectKind.Worker ? ["Continuous", "Triggered"] : ["Triggered", "Continuous"])) == "Continuous";
+
+        profile[ProfileProperties.WebJobType] = continuous ? "Continuous" : "Triggered";
+        if (!continuous)
+        {
+            var schedule = console.Prompt(new TextPrompt<string>("CRON schedule [dim](optional, e.g. 0 */15 * * * *; empty = run on demand)[/]:").AllowEmpty());
+            profile[ProfileProperties.PubwizWebJobSchedule] = schedule.Length > 0 ? schedule : null;
+        }
+    }
+}

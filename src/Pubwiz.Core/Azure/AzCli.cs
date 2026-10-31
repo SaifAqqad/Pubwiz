@@ -17,9 +17,17 @@ public sealed class AzCli(IProcessRunner processRunner)
     /// <summary>The resource Kudu (SCM) access tokens are issued for.</summary>
     private const string ManagementResource = "https://management.azure.com/";
 
-    private readonly Lazy<string?> _executablePath = new(() => ExecutableLocator.FindInPath("az"));
+    private Lazy<string?> _executablePath = new(() => ExecutableLocator.FindInPath("az"));
 
     public bool IsInstalled => _executablePath.Value is not null;
+
+    /// <summary>Looks for az again, e.g. right after installing it.</summary>
+    /// <returns><c>true</c> when it's installed now.</returns>
+    public bool Refresh()
+    {
+        _executablePath = new Lazy<string?>(() => ExecutableLocator.FindInPath("az"));
+        return IsInstalled;
+    }
 
     /// <returns>The active subscription, or <c>null</c> when nobody is signed in.</returns>
     public async Task<AzureSubscription?> GetCurrentAccountAsync(CancellationToken cancellationToken = default)
@@ -29,10 +37,12 @@ public sealed class AzCli(IProcessRunner processRunner)
     }
 
     /// <summary>
-    /// Signs in with <c>az login</c>. The browser flow needs a desktop; the device code flow prints a code and URL
-    /// to stderr, which is streamed to <paramref name="onOutput"/> so the user can see it.
+    /// Signs in with <c>az login</c>, attached to the terminal so the user sees the browser prompt or the device code.
     /// </summary>
-    public async Task LoginAsync(bool useDeviceCode, string? tenant, Action<ProcessOutputLine> onOutput, CancellationToken cancellationToken = default)
+    /// <param name="useDeviceCode">Show a code to enter on another device instead of opening a browser (SSH sessions, no desktop).</param>
+    /// <param name="tenant">Sign in to a specific tenant (ID or domain).</param>
+    /// <param name="cancellationToken">Cancels the login.</param>
+    public async Task LoginAsync(bool useDeviceCode, string? tenant, CancellationToken cancellationToken = default)
     {
         List<string> arguments = ["login", "-o", "none"];
         if (useDeviceCode)
@@ -45,8 +55,11 @@ public sealed class AzCli(IProcessRunner processRunner)
             arguments.AddRange(["--tenant", tenant]);
         }
 
-        var result = await RunAsync(arguments, onOutput, cancellationToken);
-        EnsureSucceeded(result, "az login");
+        var exitCode = await processRunner.RunInteractiveAsync(CreateSpec(arguments), cancellationToken);
+        if (exitCode != 0)
+        {
+            throw new AzCliException($"az login failed with exit code {exitCode}");
+        }
     }
 
     public async Task<IReadOnlyList<AzureSubscription>> ListSubscriptionsAsync(CancellationToken cancellationToken = default)
@@ -62,13 +75,24 @@ public sealed class AzCli(IProcessRunner processRunner)
         EnsureSucceeded(result, "az account set");
     }
 
-    /// <summary>App Service apps (including Function Apps) in the active subscription.</summary>
+    /// <summary>App Service apps and Function Apps in the active subscription, sorted by name.</summary>
+    /// <remarks><c>az webapp list</c> leaves Function Apps out, so both lists are read and merged.</remarks>
     public async Task<IReadOnlyList<AzureWebApp>> ListWebAppsAsync(CancellationToken cancellationToken = default)
     {
         const string query = "[].{name:name, resourceGroup:resourceGroup, kind:kind, defaultHostName:defaultHostName, state:state}";
-        var result = await RunAsync(["webapp", "list", "--query", query, "-o", "json"], onOutput: null, cancellationToken);
-        EnsureSucceeded(result, "az webapp list");
-        return Deserialize<List<AzureWebApp>>(result.Output) ?? [];
+
+        var webApps = RunAsync(["webapp", "list", "--query", query, "-o", "json"], onOutput: null, cancellationToken);
+        var functionApps = RunAsync(["functionapp", "list", "--query", query, "-o", "json"], onOutput: null, cancellationToken);
+        var results = await Task.WhenAll(webApps, functionApps);
+
+        EnsureSucceeded(results[0], "az webapp list");
+        EnsureSucceeded(results[1], "az functionapp list");
+
+        return results
+            .SelectMany(r => Deserialize<List<AzureWebApp>>(r.Output) ?? [])
+            .DistinctBy(app => (app.ResourceGroup.ToLowerInvariant(), app.Name.ToLowerInvariant()))
+            .OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>An Entra ID access token for Azure Resource Manager, which Kudu also accepts.</summary>
@@ -79,18 +103,20 @@ public sealed class AzCli(IProcessRunner processRunner)
         return result.Output.Trim();
     }
 
-    private Task<ProcessResult> RunAsync(IReadOnlyList<string> arguments, Action<ProcessOutputLine>? onOutput, CancellationToken cancellationToken)
-    {
-        var executable = _executablePath.Value ?? throw new PrerequisiteMissingException("Azure (az)", "Install it from https://aka.ms/installazurecli.");
+    private Task<ProcessResult> RunAsync(IReadOnlyList<string> arguments, Action<ProcessOutputLine>? onOutput, CancellationToken cancellationToken) =>
+        processRunner.RunAsync(CreateSpec(arguments), onOutput, cancellationToken);
 
-        // Keep az from asking questions or printing upgrade notices in the middle of the output.
-        var spec = new ProcessSpec(executable, arguments)
+    private ProcessSpec CreateSpec(IReadOnlyList<string> arguments)
+    {
+        var executable = _executablePath.Value ?? throw new PrerequisiteMissingException("Azure (az)", $"Install it: {AzCliInstallGuide.DocsUrl}");
+
+        // Keep az from printing upgrade notices and colors in the middle of the output.
+        return new ProcessSpec(executable, arguments)
         {
             Environment = new Dictionary<string, string?> { ["AZURE_CORE_ONLY_SHOW_ERRORS"] = "true", ["AZURE_CORE_NO_COLOR"] = "true" }
         };
-
-        return processRunner.RunAsync(spec, onOutput, cancellationToken);
     }
+
 
     private static void EnsureSucceeded(ProcessResult result, string command)
     {

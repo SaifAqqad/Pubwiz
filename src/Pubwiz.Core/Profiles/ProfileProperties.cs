@@ -47,6 +47,14 @@ public static class ProfileProperties
     /// <summary>The value of <see cref="PublishProvider"/> for Azure App Service.</summary>
     public const string AzureWebSiteProvider = "AzureWebSite";
 
+    // Azure WebJobs (same names as the Web SDK's OneDeploy task)
+
+    /// <summary>The WebJob's name; when set, a Zip/One deploy profile deploys a WebJob instead of the app.</summary>
+    public const string WebJobName = nameof(WebJobName);
+
+    /// <summary><c>Continuous</c> or <c>Triggered</c>.</summary>
+    public const string WebJobType = nameof(WebJobType);
+
     // Pubwiz-only settings (Visual Studio ignores unknown properties)
 
     /// <summary>The value of <see cref="PublishProvider"/> for SFTP profiles (with <c>WebPublishMethod=Custom</c>).</summary>
@@ -60,4 +68,20 @@ public static class ProfileProperties
 
     /// <summary>Private key file for SFTP; the password is then used as the key's passphrase, if any.</summary>
     public const string PubwizSshPrivateKeyFile = nameof(PubwizSshPrivateKeyFile);
+
+    /// <summary><c>AzCli</c> to sign in with an az token instead of publishing credentials (the default when there's no user name).</summary>
+    public const string PubwizAzureAuthentication = nameof(PubwizAzureAuthentication);
+
+    /// <summary>The Azure subscription of the app, for <c>az</c> commands.</summary>
+    public const string PubwizAzureSubscriptionId = nameof(PubwizAzureSubscriptionId);
+
+    public const string PubwizAzureResourceGroup = nameof(PubwizAzureResourceGroup);
+
+    public const string PubwizAzureAppName = nameof(PubwizAzureAppName);
+
+    /// <summary><c>true</c> when the App Service runs on Linux (WebJobs then get a run.sh instead of run.cmd).</summary>
+    public const string PubwizAzureLinux = nameof(PubwizAzureLinux);
+
+    /// <summary>A CRON schedule for triggered WebJobs, written to settings.job, e.g. <c>0 */15 * * * *</c>.</summary>
+    public const string PubwizWebJobSchedule = nameof(PubwizWebJobSchedule);
 }
