@@ -43,13 +43,11 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store)
         }
 
         var userName = profile[ProfileProperties.UserName];
-        var question = userName is null
-            ? $"Password for [{Widgets.PrimaryColorMarkup}]{profile.Name.EscapeMarkup()}[/]:"
-            : $"Password for [{Widgets.PrimaryColorMarkup}]{userName.EscapeMarkup()}[/] ({profile.Name.EscapeMarkup()}):";
+        var password = userName is null
+            ? console.AskSecret($"Password for {profile.Name}")
+            : console.AskSecret($"Password for {userName}", hint: profile.Name);
 
-        var password = console.Prompt(new TextPrompt<string>(question).Secret());
-
-        if (store.IsAvailable && console.Confirm($"Save it in {store.Name}?"))
+        if (store.IsAvailable && console.AskYesNo($"Save it in {store.Name}?", defaultValue: true))
         {
             await TrySaveAsync(project, profile, password, cancellationToken);
         }

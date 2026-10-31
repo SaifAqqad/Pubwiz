@@ -110,7 +110,7 @@ public sealed class PublishCommand(
         var jobs = requests.Select(runner.CreateJob).ToList();
 
         console.WriteLine();
-        if (interactive && !settings.Yes && !console.Confirm($"Publish {jobs.Count} project(s) now?"))
+        if (interactive && !settings.Yes && !ConfirmPublish(batch, jobs.Count))
         {
             return ExitCodes.Cancelled;
         }
@@ -126,6 +126,43 @@ public sealed class PublishCommand(
         }
 
         return GetExitCode(jobs);
+    }
+
+    /// <summary>The options before publishing starts.</summary>
+    private enum StartChoice
+    {
+        Publish,
+        SaveAsPreset,
+        Cancel
+    }
+
+    /// <summary>
+    /// Asks before publishing. A batch picked in the wizard can also be saved as a preset here
+    /// (a single project's profile is saved from its profile list instead).
+    /// </summary>
+    /// <returns><c>false</c> when the user cancels.</returns>
+    private bool ConfirmPublish(PublishBatch batch, int jobCount)
+    {
+        var canSavePreset = batch.PresetFilePath is not null && batch.Selections.Count > 1;
+        while (true)
+        {
+            List<StartChoice> choices = canSavePreset ? [StartChoice.Publish, StartChoice.SaveAsPreset, StartChoice.Cancel] : [StartChoice.Publish, StartChoice.Cancel];
+            var choice = console.Choose($"Publish {jobCount} project(s)?", choices, c => c switch
+            {
+                StartChoice.Publish => "Publish now",
+                StartChoice.SaveAsPreset => "Save this selection as a preset",
+                _ => "Cancel"
+            });
+
+            if (choice != StartChoice.SaveAsPreset)
+            {
+                return choice == StartChoice.Publish;
+            }
+
+            presets.Save(batch.Selections, batch.PresetFilePath!);
+            canSavePreset = false;
+            console.WriteLine();
+        }
     }
 
     private async Task<PublishBatch> ChooseBatchAsync(Settings settings, bool interactive, CancellationToken cancellationToken)
@@ -154,8 +191,7 @@ public sealed class PublishCommand(
         }
 
         var result = await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll), cancellationToken);
-        presets.OfferSave(result.Selections, result.Workspace, startDirectory);
-        return new PublishBatch(result.Selections);
+        return new PublishBatch(result.Selections, PresetFilePath: result.PresetFilePath);
     }
 
     private async Task<List<PublishRequest>> CreateRequestsAsync(PublishBatch batch, Settings settings, bool interactive, CancellationToken cancellationToken)

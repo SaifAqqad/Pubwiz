@@ -43,7 +43,7 @@ public sealed class AzureSession(IAnsiConsole console, AzCli az, IProcessRunner 
 
         console.MarkupLine($"{option.Description.EscapeMarkup()}:");
         console.MarkupLine($"  [{Widgets.PrimaryColorMarkup}]{option.Command.EscapeMarkup()}[/]");
-        if (!console.Confirm("Run this command now?", defaultValue: false))
+        if (!console.AskYesNo("Run this command now?", defaultValue: false))
         {
             throw new PrerequisiteMissingException("Azure (az)", $"Install it ({AzCliInstallGuide.DocsUrl}), then run this again.");
         }
@@ -63,10 +63,8 @@ public sealed class AzureSession(IAnsiConsole console, AzCli az, IProcessRunner 
         const string deviceCode = "Sign in with a code on another device";
 
         var choices = HasDesktop() ? new[] { browser, deviceCode } : [deviceCode, browser];
-        var useDeviceCode = console.Prompt(new SelectionPrompt<string>()
-            .Title("You're not signed in to Azure.")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .AddChoices(choices)) == deviceCode;
+        console.MarkupLine("You're not signed in to Azure.");
+        var useDeviceCode = console.Choose("Sign in", choices) == deviceCode;
 
         await az.LoginAsync(useDeviceCode, tenant: null, cancellationToken);
         return await az.GetCurrentAccountAsync(cancellationToken)
@@ -84,11 +82,7 @@ public sealed class AzureSession(IAnsiConsole console, AzCli az, IProcessRunner 
 
         // The active subscription comes first, so Enter keeps it.
         var ordered = subscriptions.OrderByDescending(s => s.Id == current.Id).ThenBy(s => s.Name).ToList();
-        var chosen = console.Prompt(new SelectionPrompt<AzureSubscription>()
-            .Title("Azure subscription:")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .AddChoices(ordered)
-            .UseConverter(s => $"{s.Name.EscapeMarkup()} [dim]{s.Id}[/]"));
+        var chosen = console.Choose("Azure subscription", ordered, s => $"{s.Name.EscapeMarkup()} [dim]{s.Id}[/]");
 
         if (chosen.Id != current.Id)
         {

@@ -26,7 +26,7 @@ dotnet pubwiz presets export prod         # write one preset to its own file (ru
 
 ## Presets
 
-After choosing projects and profiles in the wizard, you can save the selection as a named preset in `pubwiz.json`, next to your solution. Commit that file so the whole team (and CI) can publish the same batch:
+Presets are saved only when you ask: pick "Save a profile as a preset" in a project's profile list, or, when publishing several projects, "Save this selection as a preset" before publishing. They go in `pubwiz.json`, next to your solution. Commit that file so the whole team (and CI) can publish the same batch:
 
 ```json
 {

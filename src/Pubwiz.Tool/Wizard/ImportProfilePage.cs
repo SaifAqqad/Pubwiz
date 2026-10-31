@@ -13,7 +13,7 @@ public sealed class ImportProfilePage(IAnsiConsole console, PasswordProvider pas
     /// <returns>The profiles that were saved (possibly none).</returns>
     public async Task<IReadOnlyList<PublishProfile>> ImportAsync(ProjectInfo project, CancellationToken cancellationToken)
     {
-        var file = CommonPrompts.AskForFile(console, "Path to the profile file:", PublishSettingsImporter.FileExtension, PubxmlSerializer.FileExtension);
+        var file = CommonPrompts.AskForFile(console, "Profile file", PublishSettingsImporter.FileExtension, PubxmlSerializer.FileExtension);
 
         var imported = Path.GetExtension(file).Equals(PubxmlSerializer.FileExtension, StringComparison.OrdinalIgnoreCase)
             ? [new ImportedProfile(PubxmlSerializer.Read(file), Password: null)]
@@ -58,6 +58,6 @@ public sealed class ImportProfilePage(IAnsiConsole console, PasswordProvider pas
     private bool ConfirmOverwrite(ProjectInfo project, PublishProfile profile)
     {
         return !PublishProfileStore.Exists(project.Directory, profile.Name)
-               || console.Confirm($"A profile named '{profile.Name.EscapeMarkup()}' already exists. Replace it?", defaultValue: false);
+               || console.AskYesNo($"A profile named '{profile.Name}' already exists. Replace it?", defaultValue: false);
     }
 }

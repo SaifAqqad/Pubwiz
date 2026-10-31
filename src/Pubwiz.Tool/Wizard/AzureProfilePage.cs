@@ -65,28 +65,29 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
             throw new UserErrorException($"No {what} were found in '{subscription.Name}'. Create one in the Azure portal or with az, then run this again.");
         }
 
-        return console.Prompt(new SelectionPrompt<AzureWebApp>()
-            .Title(kind == AzureAppKind.WebJob ? "App Service app to host the WebJob:" : $"{(kind == AzureAppKind.FunctionApp ? "Function App" : "App Service app")}:")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .PageSize(15)
-            .AddChoices(matching)
-            .UseConverter(a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()} · {(a.IsLinux ? "Linux" : "Windows")} · {a.State}[/]"));
+        var question = kind switch
+        {
+            AzureAppKind.WebJob => "App Service app to host the WebJob",
+            AzureAppKind.FunctionApp => "Function App",
+            _ => "App Service app"
+        };
+
+        return console.Choose(question, matching,
+            a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()} · {(a.IsLinux ? "Linux" : "Windows")} · {a.State}[/]");
     }
 
     private void AskWebJobSettings(ProjectInfo project, PublishProfile profile)
     {
-        profile[ProfileProperties.WebJobName] = console.Prompt(new TextPrompt<string>("WebJob name:").DefaultValue(project.Name.ToLowerInvariant()));
+        profile[ProfileProperties.WebJobName] = console.Ask("WebJob name", defaultValue: project.Name.ToLowerInvariant());
 
         // Workers run all the time; console apps usually run on demand or on a schedule.
-        var continuous = console.Prompt(new SelectionPrompt<string>()
-            .Title("WebJob type:")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .AddChoices(project.Kind == ProjectKind.Worker ? ["Continuous", "Triggered"] : ["Triggered", "Continuous"])) == "Continuous";
+        string[] types = project.Kind == ProjectKind.Worker ? ["Continuous", "Triggered"] : ["Triggered", "Continuous"];
+        var continuous = console.Choose("WebJob type", types) == "Continuous";
 
         profile[ProfileProperties.WebJobType] = continuous ? "Continuous" : "Triggered";
         if (!continuous)
         {
-            var schedule = console.Prompt(new TextPrompt<string>("CRON schedule [dim](optional, e.g. 0 */15 * * * *; empty = run on demand)[/]:").AllowEmpty());
+            var schedule = console.Ask("CRON schedule", hint: "optional, e.g. 0 */15 * * * *; empty = run on demand", optional: true);
             profile[ProfileProperties.PubwizWebJobSchedule] = schedule.Length > 0 ? schedule : null;
         }
     }

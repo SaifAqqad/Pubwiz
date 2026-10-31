@@ -22,7 +22,7 @@ public sealed class MauiProfilePage(IAnsiConsole console, AndroidKeystore keysto
 
         var targetFramework = frameworks.Count == 1
             ? frameworks[0]
-            : console.Prompt(new SelectionPrompt<string>().Title("Target framework:").HighlightStyle(new Style(Widgets.PrimaryColor)).AddChoices(frameworks));
+            : console.Choose("Target framework", frameworks);
 
         var profile = new PublishProfile($"{platform}Profile");
         profile[ProfileProperties.WebPublishMethod] = "Custom";
@@ -41,25 +41,18 @@ public sealed class MauiProfilePage(IAnsiConsole console, AndroidKeystore keysto
     /// <returns>The keystore password when a new keystore was created here.</returns>
     private async Task<string?> AskAndroidSettingsAsync(ProjectInfo project, PublishProfile profile, CancellationToken cancellationToken)
     {
-        profile[ProfileProperties.AndroidPackageFormats] = console.Prompt(new SelectionPrompt<string>()
-            .Title("Package format:")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .AddChoices("aab", "apk", "aab;apk")
-            .UseConverter(f => f switch
-            {
-                "aab" => "AAB [dim](Google Play)[/]",
-                "apk" => "APK [dim](install directly / ad-hoc)[/]",
-                _ => "Both"
-            }));
+        profile[ProfileProperties.AndroidPackageFormats] = console.Choose("Package format", ["aab", "apk", "aab;apk"], f => f switch
+        {
+            "aab" => "AAB [dim](Google Play)[/]",
+            "apk" => "APK [dim](install directly / ad-hoc)[/]",
+            _ => "Both"
+        });
 
         const string existing = "Use an existing keystore";
         const string create = "Create a new keystore";
         const string unsigned = "Don't sign [dim](debug key; can't be uploaded to Google Play)[/]";
 
-        var signing = console.Prompt(new SelectionPrompt<string>()
-            .Title("Signing:")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .AddChoices(existing, create, unsigned));
+        var signing = console.Choose("Signing", [existing, create, unsigned], choice => choice);
 
         if (signing == unsigned)
         {
@@ -72,17 +65,15 @@ public sealed class MauiProfilePage(IAnsiConsole console, AndroidKeystore keysto
 
         if (signing == existing)
         {
-            keystorePath = CommonPrompts.AskForFile(console, "Keystore file:", ".keystore", ".jks");
-            alias = console.Prompt(new TextPrompt<string>("Key alias:"));
+            keystorePath = CommonPrompts.AskForFile(console, "Keystore file", ".keystore", ".jks");
+            alias = console.Ask("Key alias");
         }
         else
         {
             keystorePath = Path.Combine(project.Directory, $"{project.Name.ToLowerInvariant()}.keystore");
-            alias = console.Prompt(new TextPrompt<string>("Key alias:").DefaultValue(project.Name.ToLowerInvariant()));
-            var owner = console.Prompt(new TextPrompt<string>("Your name or organization [dim](for the certificate)[/]:"));
-            createdPassword = console.Prompt(new TextPrompt<string>("Keystore password [dim](at least 6 characters)[/]:")
-                .Secret()
-                .Validate(p => p.Length >= 6 ? ValidationResult.Success() : ValidationResult.Error("[red]At least 6 characters[/]")));
+            alias = console.Ask("Key alias", defaultValue: project.Name.ToLowerInvariant());
+            var owner = console.Ask("Your name or organization", hint: "for the certificate");
+            createdPassword = console.AskSecret("Keystore password", hint: "at least 6 characters", validate: p => p.Length >= 6 ? null : "At least 6 characters");
 
             await keystores.CreateAsync(keystorePath, alias, createdPassword, $"CN={owner}", cancellationToken);
             console.MarkupLine($"{Widgets.SuccessCheckMarkup} Created {keystorePath.EscapeMarkup()}");
@@ -99,17 +90,13 @@ public sealed class MauiProfilePage(IAnsiConsole console, AndroidKeystore keysto
     {
         var identities = await appleSigning.ListIdentitiesAsync(cancellationToken);
         profile[ProfileProperties.CodesignKey] = identities.Count > 0
-            ? console.Prompt(new SelectionPrompt<string>().Title("Signing identity:").HighlightStyle(new Style(Widgets.PrimaryColor)).AddChoices(identities))
-            : console.Prompt(new TextPrompt<string>("Signing identity [dim](e.g. Apple Distribution: Contoso (TEAMID))[/]:"));
+            ? console.Choose("Signing identity", identities)
+            : console.Ask("Signing identity", hint: "e.g. Apple Distribution: Contoso (TEAMID)");
 
         var provisioningProfiles = await appleSigning.ListProvisioningProfilesAsync(cancellationToken);
         profile[ProfileProperties.CodesignProvision] = provisioningProfiles.Count > 0
-            ? console.Prompt(new SelectionPrompt<ProvisioningProfile>()
-                .Title("Provisioning profile:")
-                .HighlightStyle(new Style(Widgets.PrimaryColor))
-                .AddChoices(provisioningProfiles)
-                .UseConverter(p => $"{p.Name.EscapeMarkup()} [dim]expires {p.ExpiresOn:yyyy-MM-dd}[/]")).Name
-            : console.Prompt(new TextPrompt<string>("Provisioning profile name:"));
+            ? console.Choose("Provisioning profile", provisioningProfiles, p => $"{p.Name.EscapeMarkup()} [dim]expires {p.ExpiresOn:yyyy-MM-dd}[/]").Name
+            : console.Ask("Provisioning profile name");
 
         profile[ProfileProperties.RuntimeIdentifier] = "ios-arm64";
         profile[ProfileProperties.ArchiveOnBuild] = "true";
@@ -118,8 +105,8 @@ public sealed class MauiProfilePage(IAnsiConsole console, AndroidKeystore keysto
 
     private void AskVersion(PublishProfile profile)
     {
-        var displayVersion = console.Prompt(new TextPrompt<string>("App version [dim](optional, e.g. 1.2.0; empty = keep the project's)[/]:").AllowEmpty());
-        var buildNumber = console.Prompt(new TextPrompt<string>("Build number [dim](optional, e.g. 42)[/]:").AllowEmpty());
+        var displayVersion = console.Ask("App version", hint: "optional, e.g. 1.2.0; empty = keep the project's", optional: true);
+        var buildNumber = console.Ask("Build number", hint: "optional, e.g. 42", optional: true);
         profile[ProfileProperties.ApplicationDisplayVersion] = displayVersion.Length > 0 ? displayVersion : null;
         profile[ProfileProperties.ApplicationVersion] = buildNumber.Length > 0 ? buildNumber : null;
     }

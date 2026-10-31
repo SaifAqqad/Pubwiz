@@ -14,10 +14,8 @@ public sealed class FolderProfilePage(IAnsiConsole console)
         var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
         var configuration = CommonPrompts.ChooseConfiguration(console);
 
-        var folder = console.Prompt(new TextPrompt<string>("Publish to folder:")
-            .DefaultValue($"bin/{configuration}/{targetFramework}/publish/"));
-
-        var deleteExisting = console.Confirm("Delete existing files in the folder before publishing?", defaultValue: false);
+        var folder = console.Ask("Publish to folder", defaultValue: $"bin/{configuration}/{targetFramework}/publish/");
+        var deleteExisting = console.AskYesNo("Delete existing files in the folder before publishing?", defaultValue: false);
 
         // Both folder properties are written: web projects read PublishUrl, other projects read PublishDir.
         var profile = new PublishProfile("FolderProfile");

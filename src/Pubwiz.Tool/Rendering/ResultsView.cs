@@ -54,19 +54,19 @@ public sealed class ResultsView(IAnsiConsole console)
             switch (choice)
             {
                 case MenuChoice.ExportLogs:
-                    var folder = AskForPath("Folder for the log files:", $"pubwiz-logs-{timestamp}");
+                    var folder = AskForPath("Folder for the log files", $"pubwiz-logs-{timestamp}");
                     var files = PublishExporter.WriteLogs(jobs, folder);
                     console.MarkupLine($"Wrote {files.Count} log file(s) to [{Widgets.PrimaryColorMarkup}]{folder.EscapeMarkup()}[/]");
                     break;
 
                 case MenuChoice.ExportJson:
-                    var jsonPath = AskForPath("Report file:", $"pubwiz-report-{timestamp}.json");
+                    var jsonPath = AskForPath("Report file", $"pubwiz-report-{timestamp}.json");
                     PublishExporter.WriteJsonReport(jobs, jsonPath);
                     console.MarkupLine($"Wrote [{Widgets.PrimaryColorMarkup}]{jsonPath.EscapeMarkup()}[/]");
                     break;
 
                 case MenuChoice.ExportCsv:
-                    var csvPath = AskForPath("Report file:", $"pubwiz-report-{timestamp}.csv");
+                    var csvPath = AskForPath("Report file", $"pubwiz-report-{timestamp}.csv");
                     PublishExporter.WriteCsvReport(jobs, csvPath);
                     console.MarkupLine($"Wrote [{Widgets.PrimaryColorMarkup}]{csvPath.EscapeMarkup()}[/]");
                     break;
@@ -79,7 +79,7 @@ public sealed class ResultsView(IAnsiConsole console)
 
     private string AskForPath(string question, string defaultValue)
     {
-        var answer = console.Prompt(new TextPrompt<string>(question).DefaultValue(defaultValue));
+        var answer = console.Ask(question, defaultValue: defaultValue);
         return Path.GetFullPath(answer);
     }
 

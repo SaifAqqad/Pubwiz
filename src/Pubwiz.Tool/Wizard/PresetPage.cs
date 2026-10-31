@@ -7,7 +7,8 @@ namespace Pubwiz.Tool.Wizard;
 /// <param name="Selections">Projects with their profiles.</param>
 /// <param name="Configuration">A configuration override from a preset.</param>
 /// <param name="Parallel">A parallelism setting from a preset.</param>
-public sealed record PublishBatch(IReadOnlyList<PublishSelection> Selections, string? Configuration = null, int? Parallel = null);
+/// <param name="PresetFilePath">Where the selection can be saved as a preset; <c>null</c> when it came from a preset or the command line.</param>
+public sealed record PublishBatch(IReadOnlyList<PublishSelection> Selections, string? Configuration = null, int? Parallel = null, string? PresetFilePath = null);
 
 /// <summary>
 /// Runs and saves batch presets (<c>pubwiz.json</c>).
@@ -62,23 +63,31 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         return choice == chooseProjects ? null : await ResolveAsync(choice, file.Presets[choice], filePath, cancellationToken);
     }
 
-    /// <summary>Offers to save the wizard's choices as a preset, in the <c>pubwiz.json</c> of the workspace.</summary>
-    public void OfferSave(IReadOnlyList<PublishSelection> selections, Workspace workspace, string startDirectory)
+    /// <summary>
+    /// The <c>pubwiz.json</c> that presets are saved to: an existing one in the start folder or a parent folder,
+    /// otherwise a new one next to the solution (or in the start folder).
+    /// </summary>
+    /// <param name="workspace">The loaded workspace.</param>
+    /// <param name="startPath">The folder, solution or project Pubwiz was started with.</param>
+    public static string GetPresetFilePath(Workspace workspace, string startPath)
     {
-        if (!console.Confirm("Save this selection as a preset for next time?", defaultValue: false))
-        {
-            return;
-        }
+        var fullPath = Path.GetFullPath(startPath);
+        var startDirectory = Directory.Exists(fullPath) ? fullPath : Path.GetDirectoryName(fullPath)!;
 
-        // An existing pubwiz.json wins; otherwise it goes next to the solution (or in the start folder).
-        var filePath = PresetFile.Find(startDirectory)
-                       ?? Path.Combine(workspace.SolutionPath is null ? Path.GetFullPath(startDirectory) : Path.GetDirectoryName(workspace.SolutionPath)!, PresetFile.FileName);
+        return PresetFile.Find(startDirectory)
+               ?? Path.Combine(workspace.SolutionPath is null ? startDirectory : Path.GetDirectoryName(workspace.SolutionPath)!, PresetFile.FileName);
+    }
+
+    /// <summary>Asks for a name and saves the selection as a preset.</summary>
+    /// <param name="selections">The projects and profiles to save.</param>
+    /// <param name="filePath">From <see cref="GetPresetFilePath"/>.</param>
+    /// <param name="suggestedName">The default name, if any.</param>
+    public void Save(IReadOnlyList<PublishSelection> selections, string filePath, string? suggestedName = null)
+    {
         var file = PresetFile.LoadOrCreate(filePath);
+        var name = console.Ask("Preset name", defaultValue: suggestedName, validate: n => string.IsNullOrWhiteSpace(n) ? "Enter a name" : null);
 
-        var name = console.Prompt(new TextPrompt<string>("Preset name:")
-            .Validate(n => string.IsNullOrWhiteSpace(n) ? ValidationResult.Error("[red]Enter a name[/]") : ValidationResult.Success()));
-
-        if (file.Presets.ContainsKey(name) && !console.Confirm($"Replace the existing preset '{name.EscapeMarkup()}'?", defaultValue: false))
+        if (file.Presets.ContainsKey(name) && !console.AskYesNo($"Replace the existing preset '{name}'?", defaultValue: false))
         {
             return;
         }

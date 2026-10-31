@@ -20,8 +20,8 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         profile[ProfileProperties.WebPublishMethod] = "Container";
 
         var builder = ChooseBuilder(project, profile);
-        var repository = console.Prompt(new TextPrompt<string>("Image name:").DefaultValue(project.Name.ToLowerInvariant()));
-        var tags = console.Prompt(new TextPrompt<string>("Tags [dim](comma separated)[/]:").DefaultValue("latest"));
+        var repository = console.Ask("Image name", defaultValue: project.Name.ToLowerInvariant());
+        var tags = console.Ask("Tags", hint: "comma separated", defaultValue: "latest");
         profile[ProfileProperties.ContainerRepository] = repository;
         profile[ProfileProperties.ContainerImageTags] = string.Join(';', tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
@@ -38,7 +38,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
                 break;
 
             case PublishTargetType.ContainerTarball:
-                profile[ProfileProperties.ContainerArchiveOutputPath] = console.Prompt(new TextPrompt<string>("Tarball file or folder:").DefaultValue("bin/container/"));
+                profile[ProfileProperties.ContainerArchiveOutputPath] = console.Ask("Tarball file or folder", defaultValue: "bin/container/");
                 profile = profile.CopyAs($"{repository} - tarball", filePath: null);
                 break;
 
@@ -68,10 +68,8 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
             return ContainerBuilder.Sdk;
         }
 
-        var useDockerfile = console.Prompt(new SelectionPrompt<string>()
-            .Title("This project has a Dockerfile. How should the image be built?")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .AddChoices(".NET SDK (no Dockerfile needed)", "Dockerfile (docker/podman build)")) != ".NET SDK (no Dockerfile needed)";
+        const string sdk = ".NET SDK (no Dockerfile needed)";
+        var useDockerfile = console.Choose("Build the image with", [sdk, "Dockerfile (docker/podman build)"]) != sdk;
 
         if (!useDockerfile)
         {
@@ -82,7 +80,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         profile[ProfileProperties.PubwizDockerfile] = "Dockerfile";
 
         // Visual Studio's Dockerfiles copy paths relative to the solution folder, which is usually one level up.
-        profile[ProfileProperties.PubwizDockerContext] = console.Prompt(new TextPrompt<string>("Build context, relative to the project [dim](.. for Visual Studio style Dockerfiles)[/]:").DefaultValue(".."));
+        profile[ProfileProperties.PubwizDockerContext] = console.Ask("Build context", hint: "relative to the project; .. for Visual Studio style Dockerfiles", defaultValue: "..");
         return ContainerBuilder.Dockerfile;
     }
 
@@ -93,7 +91,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         {
             0 => throw new UserErrorException("Neither docker nor podman is running. Start one of them, or publish the image to a tarball or registry with the .NET SDK instead."),
             1 => tools[0],
-            _ => console.Prompt(new SelectionPrompt<ContainerTool>().Title("Container tool:").HighlightStyle(new Style(Widgets.PrimaryColor)).AddChoices(tools))
+            _ => console.Choose("Container tool", tools)
         };
     }
 
@@ -103,10 +101,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         const string acr = "Azure Container Registry (sign in with az)";
         const string other = "Another registry (Docker Hub, GitHub, GitLab, ...)";
 
-        var useAcr = !allowOtherRegistries || console.Prompt(new SelectionPrompt<string>()
-            .Title("Registry:")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .AddChoices(acr, other)) == acr;
+        var useAcr = !allowOtherRegistries || console.Choose("Registry", [acr, other]) == acr;
 
         string registry;
         if (useAcr)
@@ -118,16 +113,13 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
                 throw new UserErrorException("No Azure Container Registries were found in this subscription.");
             }
 
-            registry = console.Prompt(new SelectionPrompt<AzureContainerRegistry>()
-                .Title("Azure Container Registry:")
-                .HighlightStyle(new Style(Widgets.PrimaryColor))
-                .AddChoices(registries)
-                .UseConverter(r => $"{r.LoginServer.EscapeMarkup()} [dim]{r.ResourceGroup.EscapeMarkup()}[/]")).LoginServer;
+            registry = console.Choose("Azure Container Registry", registries,
+                r => $"{r.LoginServer.EscapeMarkup()} [dim]{r.ResourceGroup.EscapeMarkup()}[/]").LoginServer;
         }
         else
         {
-            registry = console.Prompt(new TextPrompt<string>("Registry host [dim](e.g. docker.io, ghcr.io)[/]:"));
-            var userName = console.Prompt(new TextPrompt<string>("User name [dim](empty = use your existing docker login)[/]:").AllowEmpty());
+            registry = console.Ask("Registry host", hint: "e.g. docker.io, ghcr.io");
+            var userName = console.Ask("User name", hint: "empty = use your existing docker login", optional: true);
             profile[ProfileProperties.UserName] = userName.Length > 0 ? userName : null;
         }
 
@@ -149,8 +141,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
                 throw new UserErrorException($"No container App Service apps were found in '{subscription.Name}'.");
             }
 
-            var app = console.Prompt(new SelectionPrompt<AzureWebApp>().Title("App Service app:").HighlightStyle(new Style(Widgets.PrimaryColor))
-                .AddChoices(apps).UseConverter(a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]"));
+            var app = console.Choose("App Service app", apps, a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]");
             (name, resourceGroup) = (app.Name, app.ResourceGroup);
             profile[ProfileProperties.PubwizAzureContainerHost] = "AppService";
             profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{app.DefaultHostName}";
@@ -163,8 +154,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
                 throw new UserErrorException($"No Container Apps were found in '{subscription.Name}'.");
             }
 
-            var app = console.Prompt(new SelectionPrompt<AzureContainerApp>().Title("Container App:").HighlightStyle(new Style(Widgets.PrimaryColor))
-                .AddChoices(apps).UseConverter(a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]"));
+            var app = console.Choose("Container App", apps, a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]");
             (name, resourceGroup) = (app.Name, app.ResourceGroup);
             profile[ProfileProperties.PubwizAzureContainerHost] = "ContainerApp";
             profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = app.Fqdn is null ? null : $"https://{app.Fqdn}";

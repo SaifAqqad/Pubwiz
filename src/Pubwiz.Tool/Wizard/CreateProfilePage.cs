@@ -62,6 +62,7 @@ public sealed class CreateProfilePage(
                 }
             }
 
+            console.Section(target.DisplayName);
             var created = await CreateForTargetAsync(project, target, cancellationToken);
 
             // Each page names its profile (FolderProfile, "contoso - Zip Deploy", ...); that's the suggested name.
@@ -85,6 +86,7 @@ public sealed class CreateProfilePage(
                 return profile;
 
             case WebDeployAlternativesPrompt.Choice.Alternative { Type: var type }:
+                console.Section(FindTarget(project, type).DisplayName);
                 var defaults = new FileTransferDefaults(endpoint?.ServiceUrl.Host, profile[ProfileProperties.UserName], profile[ProfileProperties.SiteUrlToLaunchAfterPublish]);
                 var created = type switch
                 {
@@ -177,14 +179,12 @@ public sealed class CreateProfilePage(
 
     private PublishProfile Save(ProjectInfo project, PublishProfile profile, string defaultName)
     {
-        var name = console.Prompt(new TextPrompt<string>("Profile name:")
-            .DefaultValue(NextFreeName(project, defaultName))
-            .Validate(value => PublishProfileStore.Exists(project.Directory, value)
-                ? ValidationResult.Error("[red]A profile with that name already exists[/]")
-                : ValidationResult.Success()));
+        console.WriteLine();
+        var name = console.Ask("Profile name", defaultValue: NextFreeName(project, defaultName),
+            validate: value => PublishProfileStore.Exists(project.Directory, value) ? "A profile with that name already exists" : null);
 
         var saved = PublishProfileStore.Save(project.Directory, profile.CopyAs(PublishProfileStore.ToValidName(name), filePath: null));
-        console.MarkupLine($"Saved [{Widgets.PrimaryColorMarkup}]{Path.GetRelativePath(project.Directory, saved.FilePath!).EscapeMarkup()}[/]");
+        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved [{Widgets.PrimaryColorMarkup}]{Path.GetRelativePath(project.Directory, saved.FilePath!).EscapeMarkup()}[/]");
         return saved;
     }
 

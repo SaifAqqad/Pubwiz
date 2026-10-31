@@ -97,11 +97,7 @@ public sealed class TransformCommand(IAnsiConsole console, WorkspacePage workspa
         {
             0 => throw new UserErrorException("No project with a web.config was found."),
             1 => candidates[0],
-            _ => console.Prompt(new SelectionPrompt<ProjectInfo>()
-                .Title("Which project's web.config?")
-                .HighlightStyle(new Style(Widgets.PrimaryColor))
-                .AddChoices(candidates)
-                .UseConverter(p => p.Name.EscapeMarkup()))
+            _ => console.Choose("Project", candidates, p => p.Name.EscapeMarkup())
         };
     }
 
@@ -114,17 +110,14 @@ public sealed class TransformCommand(IAnsiConsole console, WorkspacePage workspa
         }
 
         const string none = "(no profile)";
-        var choice = console.Prompt(new SelectionPrompt<string>()
-            .Title("Publish profile [dim](its transforms are applied too)[/]:")
-            .HighlightStyle(new Style(Widgets.PrimaryColor))
-            .AddChoices([none, .. profiles.Select(p => p.Name)]));
+        var choice = console.Choose("Publish profile (its transforms are applied too)", [none, .. profiles.Select(p => p.Name)]);
 
         return choice == none ? null : choice;
     }
 
     private string? AskForEnvironment()
     {
-        var environment = console.Prompt(new TextPrompt<string>("Environment [dim](optional, e.g. Staging)[/]:").AllowEmpty());
+        var environment = console.Ask("Environment", hint: "optional, e.g. Staging", optional: true);
         return environment.Length > 0 ? environment : null;
     }
 

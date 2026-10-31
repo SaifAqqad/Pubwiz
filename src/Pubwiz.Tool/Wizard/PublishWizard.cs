@@ -3,8 +3,8 @@ using Pubwiz.Tool.Prompts;
 
 namespace Pubwiz.Tool.Wizard;
 
-/// <summary>What the wizard chose, and the workspace it chose from.</summary>
-public sealed record WizardResult(Workspace Workspace, IReadOnlyList<PublishSelection> Selections);
+/// <summary>What the wizard chose, the workspace it chose from, and where a preset of it would be saved.</summary>
+public sealed record WizardResult(Workspace Workspace, IReadOnlyList<PublishSelection> Selections, string PresetFilePath);
 
 /// <summary>
 /// The interactive flow: find the workspace, pick projects, then choose (or create) a profile for each one.
@@ -22,6 +22,10 @@ public sealed class PublishWizard(IAnsiConsole console, WorkspacePage workspaceP
         }
 
         var projects = candidates.Count == 1 ? candidates : await PickProjectsAsync(candidates, cancellationToken);
+        var presetFilePath = PresetPage.GetPresetFilePath(workspace, options.Path);
+
+        // With one project, its profile list can save a profile as a preset; batches are saved before publishing.
+        var profileOptions = new ProfilePageOptions(projects.Count == 1 ? presetFilePath : null);
 
         var selections = new List<PublishSelection>();
         foreach (var project in projects)
@@ -31,11 +35,11 @@ public sealed class PublishWizard(IAnsiConsole console, WorkspacePage workspaceP
                 console.Write(new Rule($"[{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/]").LeftJustified());
             }
 
-            var profile = await profilePage.ChooseAsync(project, cancellationToken);
+            var profile = await profilePage.ChooseAsync(project, profileOptions, cancellationToken);
             selections.Add(new PublishSelection(project, profile));
         }
 
-        return new WizardResult(workspace, selections);
+        return new WizardResult(workspace, selections, presetFilePath);
     }
 
     /// <summary>

@@ -18,10 +18,10 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
     /// <returns>An unsaved profile.</returns>
     public PublishProfile Create(ProjectInfo project, bool sftp, FileTransferDefaults? defaults = null)
     {
-        var host = console.Prompt(WithDefault(new TextPrompt<string>("Server:"), defaults?.Host));
-        var port = console.Prompt(new TextPrompt<int>("Port:").DefaultValue(sftp ? 22 : 21));
-        var remoteFolder = console.Prompt(new TextPrompt<string>("Folder on the server [dim](e.g. /site/wwwroot)[/]:").DefaultValue("/"));
-        var userName = console.Prompt(WithDefault(new TextPrompt<string>("User name:"), defaults?.UserName));
+        var host = console.Ask("Server", hint: defaults?.Host is null ? "e.g. ftp.contoso.com" : null, defaultValue: defaults?.Host);
+        var port = console.AskNumber("Port", sftp ? 22 : 21);
+        var remoteFolder = console.Ask("Folder on the server", hint: "e.g. /site/wwwroot", defaultValue: "/");
+        var userName = console.Ask("User name", defaultValue: defaults?.UserName);
 
         var profile = new PublishProfile(sftp ? "SftpProfile" : "FtpProfile");
         var scheme = sftp ? "sftp" : "ftp";
@@ -33,11 +33,7 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
         }
         else
         {
-            var security = console.Prompt(new SelectionPrompt<FtpSecurity>()
-                .Title("Encryption:")
-                .HighlightStyle(new Style(Widgets.PrimaryColor))
-                .AddChoices(FtpSecurity.Explicit, FtpSecurity.Auto, FtpSecurity.Implicit, FtpSecurity.None)
-                .UseConverter(DescribeSecurity));
+            var security = console.Choose("Encryption", [FtpSecurity.Explicit, FtpSecurity.Auto, FtpSecurity.Implicit, FtpSecurity.None], DescribeSecurity);
 
             if (security == FtpSecurity.Explicit)
             {
@@ -46,8 +42,8 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
 
             profile[ProfileProperties.WebPublishMethod] = "FTP";
             profile[ProfileProperties.PubwizFtpSecurity] = security.ToString();
-            profile[ProfileProperties.FtpPassiveMode] = console.Confirm("Use passive mode?") ? "true" : "false";
-            profile[ProfileProperties.AllowUntrustedCertificate] = security != FtpSecurity.None && console.Confirm("Allow an untrusted (self-signed) certificate?", defaultValue: false) ? "true" : null;
+            profile[ProfileProperties.FtpPassiveMode] = console.AskYesNo("Use passive mode?", defaultValue: true) ? "true" : "false";
+            profile[ProfileProperties.AllowUntrustedCertificate] = security != FtpSecurity.None && console.AskYesNo("Allow an untrusted (self-signed) certificate?", defaultValue: false) ? "true" : null;
         }
 
         profile[ProfileProperties.PublishUrl] = $"{scheme}://{host}:{port}/{remoteFolder.Trim('/')}";
@@ -55,14 +51,14 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
 
         if (sftp)
         {
-            var keyFile = console.Prompt(new TextPrompt<string>("Private key file [dim](leave empty to use a password)[/]:").AllowEmpty());
+            var keyFile = console.Ask("Private key file", hint: "empty = use a password", optional: true);
             profile[ProfileProperties.PubwizSshPrivateKeyFile] = keyFile.Length > 0 ? Path.GetFullPath(keyFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))) : null;
         }
 
-        profile[ProfileProperties.DeleteExistingFiles] = console.Confirm("Delete files on the server that aren't part of the app?", defaultValue: false) ? "true" : "false";
-        profile[ProfileProperties.PubwizUseAppOffline] = console.Confirm("Take the app offline (app_offline.htm) while uploading? [dim](IIS)[/]", defaultValue: false) ? "true" : null;
+        profile[ProfileProperties.DeleteExistingFiles] = console.AskYesNo("Delete files on the server that aren't part of the app?", defaultValue: false) ? "true" : "false";
+        profile[ProfileProperties.PubwizUseAppOffline] = console.AskYesNo("Take the app offline while uploading?", defaultValue: false, hint: "IIS, app_offline.htm") ? "true" : null;
 
-        var siteUrl = console.Prompt(WithDefault(new TextPrompt<string>("Site URL [dim](optional, shown after publishing)[/]:").AllowEmpty(), defaults?.SiteUrl));
+        var siteUrl = console.Ask("Site URL", hint: "optional, shown after publishing", defaultValue: defaults?.SiteUrl, optional: true);
         profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = siteUrl.Length > 0 ? siteUrl : null;
 
         var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
@@ -71,9 +67,6 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
         profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
         return profile;
     }
-
-    private static TextPrompt<string> WithDefault(TextPrompt<string> prompt, string? value) =>
-        value is null ? prompt : prompt.DefaultValue(value);
 
     private static string DescribeSecurity(FtpSecurity security) => security switch
     {

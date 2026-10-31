@@ -17,8 +17,7 @@ public sealed class ZipFileProfilePage(IAnsiConsole console)
         var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
         var configuration = CommonPrompts.ChooseConfiguration(console);
 
-        var zipFile = console.Prompt(new TextPrompt<string>("Zip file [dim](relative to the project folder)[/]:")
-            .DefaultValue($"bin/{configuration}/{project.Name}.zip"));
+        var zipFile = console.Ask("Zip file", hint: "relative to the project folder", defaultValue: $"bin/{configuration}/{project.Name}.zip");
 
         var folder = $"bin/{configuration}/{targetFramework}/publish/";
         var profile = new PublishProfile("ZipProfile");
