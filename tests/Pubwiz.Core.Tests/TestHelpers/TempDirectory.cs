@@ -8,11 +8,12 @@ public sealed class TempDirectory : IDisposable
     public string Path { get; } = Directory.CreateTempSubdirectory("pubwiz-tests-").FullName;
 
     /// <summary>
-    /// Creates a file (and its parent folders) relative to the temp folder and returns its full path.
+    /// Creates a file (and its parent folders) relative to the temp folder and returns its full path,
+    /// with the platform's separators ("src/Api" becomes "src\Api" on Windows).
     /// </summary>
     public string CreateFile(string relativePath, string content = "")
     {
-        var fullPath = System.IO.Path.Combine(Path, relativePath);
+        var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(Path, relativePath));
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fullPath)!);
         File.WriteAllText(fullPath, content);
         return fullPath;

@@ -48,7 +48,7 @@ public sealed class WebDeployTargetTests
 
         Assert.Equal(PublishTargetType.WebDeploy, job.TargetType);
         Assert.Empty(job.Steps);
-        Assert.Equal(MsDeployLocator.GetMissingReason(), job.Error);
+        Assert.Equal(MsDeployLocator.MissingReason, job.Error);
     }
 
     [Fact]

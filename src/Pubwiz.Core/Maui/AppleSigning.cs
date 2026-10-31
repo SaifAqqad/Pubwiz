@@ -88,6 +88,6 @@ public sealed partial class AppleSigning(IProcessRunner processRunner)
         }
     }
 
-    [GeneratedRegex("""^\s*\d+\)\s+[0-9A-F]{40}\s+"(?<name>[^"]+)"$""", RegexOptions.Multiline)]
+    [GeneratedRegex("""^\s*\d+\)\s+[0-9A-F]{40}\s+"(?<name>[^"]+)"\r?$""", RegexOptions.Multiline)]
     private static partial Regex IdentityLine();
 }

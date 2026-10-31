@@ -20,12 +20,10 @@ public static class MsDeployLocator
     /// <remarks>Checked in order: the installer's registry entry, the default install folders, then <c>PATH</c>.</remarks>
     public static string? Find() => OperatingSystem.IsWindows() ? GetWindowsCandidates().FirstOrDefault(File.Exists) : null;
 
-    /// <summary>A short explanation of why Web Deploy can't be used here, or <c>null</c> when msdeploy.exe was found.</summary>
-    public static string? GetMissingReason() => Find() is not null
-        ? null
-        : OperatingSystemInfo.IsWindows
-            ? $"Web Deploy isn't installed. Install it from {DownloadUrl}."
-            : "Web Deploy (msdeploy.exe) only runs on Windows. Publish from Windows, or use an FTP, SFTP or Zip file profile from this machine.";
+    /// <summary>What to tell the user when msdeploy.exe isn't available: install it (Windows), or use something else.</summary>
+    public static string MissingReason => OperatingSystemInfo.IsWindows
+        ? $"Web Deploy isn't installed. Install it from {DownloadUrl}."
+        : "Web Deploy (msdeploy.exe) only runs on Windows. Publish from Windows, or use an FTP, SFTP or Zip file profile from this machine.";
 
     [SupportedOSPlatform("windows")]
     private static IEnumerable<string> GetWindowsCandidates()

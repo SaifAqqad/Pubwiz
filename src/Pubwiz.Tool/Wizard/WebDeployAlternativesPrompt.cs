@@ -27,7 +27,7 @@ public sealed class WebDeployAlternativesPrompt(IAnsiConsole console)
     /// <param name="keepLabel">The "use Web Deploy anyway" option, as markup.</param>
     public Choice Ask(WebDeployEndpoint? endpoint, string keepLabel)
     {
-        console.MarkupLine($"[yellow]{(MsDeployLocator.GetMissingReason() ?? string.Empty).EscapeMarkup()}[/]");
+        console.MarkupLine($"[yellow]{MsDeployLocator.MissingReason.EscapeMarkup()}[/]");
 
         var alternatives = WebDeployAlternatives.SuggestFor(endpoint).Select(type => new Choice.Alternative(type));
         var server = endpoint is null ? "the server" : endpoint.ServiceUrl.Host;

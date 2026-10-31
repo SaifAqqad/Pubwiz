@@ -90,7 +90,9 @@ public sealed class MauiTests : IDisposable
                  2 valid identities found
             """;
 
-        Assert.Equal(["Apple Development: Saif (ABCDE12345)", "Apple Distribution: Contoso (TEAM123456)"], AppleSigning.ParseIdentities(output));
+        string[] expected = ["Apple Development: Saif (ABCDE12345)", "Apple Distribution: Contoso (TEAM123456)"];
+        Assert.Equal(expected, AppleSigning.ParseIdentities(output.ReplaceLineEndings("\n")));
+        Assert.Equal(expected, AppleSigning.ParseIdentities(output.ReplaceLineEndings("\r\n")));
     }
 
     [Fact]

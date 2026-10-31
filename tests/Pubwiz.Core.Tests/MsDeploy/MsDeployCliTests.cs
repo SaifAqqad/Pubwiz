@@ -128,7 +128,7 @@ public sealed class MsDeployCliTests
         if (!OperatingSystem.IsWindows())
         {
             Assert.Null(MsDeployLocator.Find());
-            Assert.Contains("only runs on Windows", MsDeployLocator.GetMissingReason());
+            Assert.Contains("only runs on Windows", MsDeployLocator.MissingReason);
         }
     }
 

@@ -99,6 +99,7 @@ public class ContainerProfileTests
 
         var path = ContainerTarget.ResolveArchivePath(new PublishRequest(project, profile), ContainerProfile.Read(profile, "api"));
 
-        Assert.Equal(expected.Replace('/', Path.DirectorySeparatorChar), path);
+        // GetFullPath adds the current drive on Windows ("/src" becomes "D:\src").
+        Assert.Equal(Path.GetFullPath(expected), path);
     }
 }

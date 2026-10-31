@@ -27,7 +27,7 @@ public sealed class MsDeployCli(IProcessRunner processRunner, string? executable
     public async Task SyncAsync(MsDeploySyncOptions options, Action<ProcessOutputLine> onOutput, CancellationToken cancellationToken)
     {
         var executable = executablePath
-            ?? throw new PrerequisiteMissingException(MsDeployLocator.ExecutableName, MsDeployLocator.GetMissingReason() ?? string.Empty);
+            ?? throw new PrerequisiteMissingException(MsDeployLocator.ExecutableName, MsDeployLocator.MissingReason);
 
         var spec = new ProcessSpec(executable, []) { CommandLine = BuildSyncCommandLine(options) };
         var result = await processRunner.RunAsync(spec, onOutput, cancellationToken);

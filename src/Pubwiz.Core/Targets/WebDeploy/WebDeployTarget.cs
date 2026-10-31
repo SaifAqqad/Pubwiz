@@ -29,7 +29,7 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy) : IP
     {
         if (!msdeploy.IsInstalled)
         {
-            return MsDeployLocator.GetMissingReason();
+            return MsDeployLocator.MissingReason;
         }
 
         try
