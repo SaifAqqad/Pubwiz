@@ -29,7 +29,9 @@ public static partial class Widgets
 
     public static IRenderable Warning(string message) => new Markup($"[yellow bold]Warning[/] {message.EscapeMarkup()}");
 
-    public static IRenderable SuccessCheck { get; } = new Markup("[green]✓[/]");
+    public const string SuccessCheckMarkup = "[green]✓[/]";
+
+    public static IRenderable SuccessCheck { get; } = new Markup(SuccessCheckMarkup);
 
     public static IRenderable FailureCross { get; } = new Markup("[red]✕[/]");
 

@@ -16,6 +16,9 @@ app.Configure(config =>
     config.SetApplicationName(ToolInfo.CommandName);
     config.SetApplicationVersion(ToolInfo.Version);
     config.SetExceptionHandler((exception, _) => HandleException(exception));
+
+    config.AddCommand<TransformCommand>("transform")
+        .WithDescription("Write a transformed web.config (same transforms as publishing) without publishing");
 });
 
 var exitCode = await app.RunAsync(args);
