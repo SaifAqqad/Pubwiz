@@ -30,7 +30,8 @@
 - Uses your existing `.pubxml` profiles, or imports `.publishsettings`
 - Publishes several projects at once, with live progress
 - Saves batches as presets you can commit and run in CI
-- Keeps passwords in your OS keychain
+- Keeps passwords in your OS keychain, or gets them from Azure for App Service profiles
+- Shows your git branch, last commit and commits waiting to be pulled before you publish
 
 ## Install
 
@@ -140,13 +141,15 @@ dotnet pubwiz --preset release --yes --report artifacts/publish.json --log-dir a
 dotnet pubwiz --project Shop.Api --project Shop.Worker --profile Staging --yes
 ```
 
-- **Passwords** are read from `PUBWIZ_PASSWORD_<PROFILE>` (the profile name in upper case, other characters as `_`), then `PUBWIZ_PASSWORD`, then the OS keychain.
+- **Passwords** are read from `PUBWIZ_PASSWORD_<PROFILE>` (the profile name in upper case, other characters as `_`), then `PUBWIZ_PASSWORD`, then Azure (for App Service profiles, with `az`), then the OS keychain.
 - **Azure** profiles sign in with `az`; in CI, use `az login --service-principal` or a workload identity.
 - **Exit codes:** `0` success, `1` a publish failed, `2` a required tool is missing, `3` invalid input, `130` cancelled.
 
 ## Passwords and secrets
 
 Pubwiz never writes passwords into profiles. When a target needs one, it asks once and can save it in your OS keychain: `libsecret` on Linux, the Keychain on macOS, and Credential Manager on Windows.
+
+For Azure App Service profiles that use publishing credentials (Zip Deploy, or Web Deploy to an App Service, e.g. from Visual Studio or a `.publishsettings` file), Pubwiz gets the password from Azure with the signed-in `az` instead of asking.
 
 ## web.config transforms
 

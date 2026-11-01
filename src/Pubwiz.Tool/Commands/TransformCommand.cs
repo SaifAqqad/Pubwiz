@@ -49,7 +49,7 @@ public sealed class TransformCommand(IAnsiConsole console, WorkspacePage workspa
     {
         Widgets.WriteHeader();
 
-        var workspace = await workspacePage.LoadAsync(settings.Path ?? Directory.GetCurrentDirectory(), cancellationToken);
+        var workspace = await workspacePage.LoadAsync(settings.Path ?? Directory.GetCurrentDirectory(), includeAll: true, cancellationToken);
         var project = ChooseProject(workspace);
         var webConfig = FindWebConfig(project) ?? throw new UserErrorException($"{project.Name} has no web.config.");
 

@@ -178,6 +178,7 @@ public sealed class PublishCommand(
             if (await gitInfo is { } info)
             {
                 console.MarkupLine(GitSummary.ToMarkup(info, DateTimeOffset.Now, maxWidth: console.Profile.Width - 1));
+                console.WriteLine();
             }
 
             return !interactive || settings.Yes || confirmPage.Confirm(batch, "Cancel") ? batch : null;

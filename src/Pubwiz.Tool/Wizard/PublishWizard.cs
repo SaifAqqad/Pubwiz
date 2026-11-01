@@ -25,7 +25,7 @@ public sealed class PublishWizard(
     /// <returns>What to publish, or <c>null</c> when the user chose Exit.</returns>
     public async Task<PublishBatch?> RunAsync(WizardOptions options, CancellationToken cancellationToken)
     {
-        var workspace = await workspacePage.LoadAsync(options.Path, cancellationToken);
+        var workspace = await workspacePage.LoadAsync(options.Path, options.IncludeAll, cancellationToken);
 
         var candidates = (options.IncludeAll ? workspace.Projects : workspace.Projects.Where(p => p.IsPublishable))
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)

@@ -28,7 +28,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     public string? Hint { get; init; }
 
     /// <summary>
-    /// A line of markup above the title that stays visible while choosing (e.g. the git branch).
+    /// A line of markup above the title that stays visible while choosing (e.g. the git branch), followed by a blank line.
     /// The page size counts it as one line, so it should fit the terminal's width.
     /// </summary>
     public string? Header { get; init; }
@@ -63,7 +63,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     public async Task<MultiSelectResult<T>?> ShowAsync(IAnsiConsole console, CancellationToken cancellationToken)
     {
         var searchTexts = items.Select(item => string.Join(' ', columns(item))).ToList();
-        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - (Header is null ? 0 : 1), hasExitRow: ExitLabel is not null);
+        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - (Header is null ? 0 : 2), hasExitRow: ExitLabel is not null);
 
         console.Cursor.Hide();
         try
@@ -210,6 +210,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         if (Header is not null)
         {
             rows.Add(new Markup(Header));
+            rows.Add(new Text(string.Empty));
         }
 
         rows.AddRange([new Markup(title), RenderSearch(state)]);

@@ -20,7 +20,7 @@ public sealed class ArgumentSelection(WorkspacePage workspacePage)
             throw new UserErrorException("--project needs --profile to say which publish profile to use.");
         }
 
-        var workspace = await workspacePage.LoadAsync(path, cancellationToken);
+        var workspace = await workspacePage.LoadAsync(path, includeAll: true, cancellationToken);
         var selections = new List<PublishSelection>();
 
         foreach (var name in projectNames)
