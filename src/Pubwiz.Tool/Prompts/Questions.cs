@@ -53,19 +53,11 @@ public static class Questions
             .ShowDefaultValue(false)
             .DefaultValue(defaultValue));
 
-    /// <summary>Asks for a password; the typed characters are masked.</summary>
+    /// <summary>Asks for a password; the typed characters are masked, and Esc throws <see cref="PromptCancelledException"/>.</summary>
     public static string AskSecret(this IAnsiConsole console, string question, string? hint = null, Func<string, string?>? validate = null)
     {
-        var prompt = new TextPrompt<string>(Label(question, hint, defaultValue: null) + ":")
-            .PromptStyle(AnswerStyle)
-            .Secret();
-
-        if (validate is not null)
-        {
-            prompt.Validate(answer => validate(answer) is { } error ? ValidationResult.Error($"[red]{error.EscapeMarkup()}[/]") : ValidationResult.Success());
-        }
-
-        return console.Prompt(prompt);
+        var fullHint = hint is null ? "Esc to cancel" : $"{hint} · Esc to cancel";
+        return console.Prompt(new SecretPrompt(Label(question, fullHint, defaultValue: null) + ":") { Validate = validate, MaskStyle = AnswerStyle });
     }
 
     /// <summary>Asks a yes/no question, e.g. "Use passive mode? [Y/n]".</summary>
@@ -91,10 +83,63 @@ public static class Questions
             .AddChoices(choices)
             .UseConverter(describe));
 
-        // The list disappears once answered, so write the answer the way text answers look.
-        var separator = question.EndsWith('?') ? " " : ": ";
-        console.MarkupLine($"[bold]{question.EscapeMarkup()}[/]{separator}[{Widgets.PrimaryColorMarkup}]{Markup.Remove(describe(answer)).EscapeMarkup()}[/]");
+        WriteAnswer(console, question, describe(answer));
         return answer;
+    }
+
+    /// <summary>
+    /// Like <see cref="Choose{T}"/>, for a list loaded from somewhere else (e.g. the apps in an Azure subscription):
+    /// the list ends with a "Refresh" item that loads it again, for things created while the wizard is open.
+    /// When nothing is found, <paramref name="emptyMessage"/> is shown with only Refresh to pick (Esc goes back).
+    /// </summary>
+    /// <param name="console">The console.</param>
+    /// <param name="question">e.g. "App Service app".</param>
+    /// <param name="loadingText">Shown with a spinner while loading, e.g. "Loading apps...".</param>
+    /// <param name="load">Loads the items.</param>
+    /// <param name="describe">How an item is listed (markup).</param>
+    /// <param name="emptyMessage">Why the list is empty and what to do about it (plain text).</param>
+    /// <param name="cancellationToken">Cancels loading.</param>
+    public static async Task<T> ChooseWithRefreshAsync<T>(this IAnsiConsole console, string question, string loadingText,
+        Func<CancellationToken, Task<IReadOnlyList<T>>> load, Func<T, string> describe, string emptyMessage, CancellationToken cancellationToken)
+        where T : class
+    {
+        while (true)
+        {
+            var items = await console.Status()
+                .Spinner(Spinner.Known.Dots)
+                .SpinnerStyle(AnswerStyle)
+                .StartAsync(loadingText, _ => load(cancellationToken));
+
+            if (items.Count == 0)
+            {
+                console.Write(Widgets.Warning(emptyMessage));
+                console.WriteLine();
+            }
+
+            var refresh = new Refreshable<T>(null);
+            var answer = console.Prompt(Menu<Refreshable<T>>($"[bold]{question.EscapeMarkup()}[/]")
+                .WrapAround()
+                .AddChoices(items.Select(item => new Refreshable<T>(item)))
+                .AddChoices(refresh)
+                .UseConverter(choice => choice.Item is { } item ? describe(item) : "[dim]↻ Refresh the list[/]"));
+
+            if (answer.Item is { } chosen)
+            {
+                WriteAnswer(console, question, describe(chosen));
+                return chosen;
+            }
+        }
+    }
+
+    /// <summary>An item of <see cref="ChooseWithRefreshAsync{T}"/>'s list; <c>null</c> is the Refresh item.</summary>
+    private sealed record Refreshable<T>(T? Item)
+        where T : class;
+
+    /// <summary>A list disappears once answered, so its answer is written the way text answers look.</summary>
+    private static void WriteAnswer(IAnsiConsole console, string question, string answerMarkup)
+    {
+        var separator = question.EndsWith('?') ? " " : ": ";
+        console.MarkupLine($"[bold]{question.EscapeMarkup()}[/]{separator}[{Widgets.PrimaryColorMarkup}]{Markup.Remove(answerMarkup).EscapeMarkup()}[/]");
     }
 
     /// <summary>

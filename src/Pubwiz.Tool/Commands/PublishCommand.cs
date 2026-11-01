@@ -1,3 +1,4 @@
+using Pubwiz.Core.Infrastructure.Git;
 using Pubwiz.Core.Infrastructure.Platform;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Reporting;
@@ -20,6 +21,7 @@ public sealed class PublishCommand(
     ArgumentSelection argumentSelection,
     PasswordProvider passwords,
     PublishRunner runner,
+    GitCli git,
     PublishDashboard dashboard,
     ResultsView results) : AsyncCommand<PublishCommand.Settings>
 {
@@ -107,6 +109,8 @@ public sealed class PublishCommand(
         // No terminal (output piped, CI): never prompt, fail with a clear message instead.
         var interactive = console.Profile.Capabilities.Interactive && !EnvironmentVariables.IsCi;
 
+        await WriteGitSummaryAsync(settings, cancellationToken);
+
         if (await ChooseBatchAsync(settings, interactive, cancellationToken) is not { } batch)
         {
             return ExitCodes.Cancelled;
@@ -128,6 +132,22 @@ public sealed class PublishCommand(
         return GetExitCode(jobs);
     }
 
+    /// <summary>Shows the branch and last commit of the start folder's repository, if it's in one.</summary>
+    private async Task WriteGitSummaryAsync(Settings settings, CancellationToken cancellationToken)
+    {
+        if (await git.GetInfoAsync(GetStartDirectory(settings), cancellationToken) is { } info)
+        {
+            console.MarkupLine(GitSummary.ToMarkup(info, DateTimeOffset.Now));
+            console.WriteLine();
+        }
+    }
+
+    private static string GetStartDirectory(Settings settings)
+    {
+        var path = System.IO.Path.GetFullPath(settings.Path ?? Directory.GetCurrentDirectory());
+        return Directory.Exists(path) ? path : System.IO.Path.GetDirectoryName(path)!;
+    }
+
     /// <summary>
     /// Chooses what to publish (a preset, the command line or the wizard) and asks before publishing.
     /// </summary>
@@ -135,7 +155,7 @@ public sealed class PublishCommand(
     private async Task<PublishBatch?> ChooseBatchAsync(Settings settings, bool interactive, CancellationToken cancellationToken)
     {
         var path = settings.Path ?? Directory.GetCurrentDirectory();
-        var startDirectory = Directory.Exists(path) ? path : System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!;
+        var startDirectory = GetStartDirectory(settings);
 
         if (settings.Preset is not null || settings.PresetFile is not null)
         {
@@ -169,13 +189,12 @@ public sealed class PublishCommand(
         foreach (var (project, profile) in batch.Selections)
         {
             // A job that can't run here fails straight away, so don't ask for its password.
-            var target = runner.FindTarget(profile);
-            var needsPassword = target is not null && target.GetSetupError(profile) is null && target.RequiresPassword(profile);
             requests.Add(new PublishRequest(project, profile)
             {
                 Configuration = settings.Configuration ?? batch.Configuration,
                 Verbose = settings.Verbose,
-                Password = needsPassword ? await passwords.GetAsync(project, profile, allowPrompt: interactive, cancellationToken) : null
+                Password = runner.NeedsPassword(profile) ? await passwords.GetAsync(project, profile, allowPrompt: interactive, cancellationToken) : null,
+                Git = await git.GetInfoAsync(project.Directory, cancellationToken)
             });
         }
 
@@ -211,13 +230,13 @@ public sealed class PublishCommand(
                 PublishExporter.WriteJsonReport(jobs, reportPath);
             }
 
-            console.MarkupLine($"Report: {DisplayText.ShortPath(reportPath).EscapeMarkup()}");
+            console.MarkupLine($"Report: {DisplayText.Link(reportPath)}");
         }
 
         if (settings.LogDirectory is { } logDirectory)
         {
             var files = PublishExporter.WriteLogs(jobs, System.IO.Path.GetFullPath(logDirectory));
-            console.MarkupLine($"Logs: {files.Count} file(s) in {DisplayText.ShortPath(System.IO.Path.GetFullPath(logDirectory)).EscapeMarkup()}");
+            console.MarkupLine($"Logs: {files.Count} file(s) in {DisplayText.Link(System.IO.Path.GetFullPath(logDirectory))}");
         }
     }
 

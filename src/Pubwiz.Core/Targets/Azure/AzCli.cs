@@ -139,6 +139,28 @@ public sealed class AzCli(IProcessRunner processRunner)
         EnsureSucceeded(result, "az containerapp update");
     }
 
+    /// <summary>
+    /// The app's publishing profiles as .publishsettings XML (<c>az webapp deployment list-publishing-profiles --xml</c>),
+    /// which include the publishing user name and password. Works for Function Apps too.
+    /// </summary>
+    public async Task<string> GetPublishingProfilesXmlAsync(AzureAppReference app, CancellationToken cancellationToken = default)
+    {
+        List<string> arguments = ["webapp", "deployment", "list-publishing-profiles", "--name", app.Name, "--resource-group", app.ResourceGroup, "--xml"];
+        if (app.Slot is not null)
+        {
+            arguments.AddRange(["--slot", app.Slot]);
+        }
+
+        if (app.SubscriptionId is not null)
+        {
+            arguments.AddRange(["--subscription", app.SubscriptionId]);
+        }
+
+        var result = await RunAsync(arguments, onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az webapp deployment list-publishing-profiles");
+        return result.Output;
+    }
+
     /// <summary>An Entra ID access token for Azure Resource Manager, which Kudu also accepts.</summary>
     public async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken = default)
     {

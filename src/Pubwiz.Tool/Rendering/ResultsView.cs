@@ -26,13 +26,14 @@ public sealed class ResultsView(IAnsiConsole console)
 
         foreach (var job in jobs)
         {
-            var result = job.Status == JobStatus.Succeeded && job.Result is { } location ? DisplayText.ShortPath(location) : job.Error;
+            // Output folders, files and site URLs are links; errors are plain text.
+            var result = job.Status == JobStatus.Succeeded && job.Result is { } location ? DisplayText.Link(location) : (job.Error ?? string.Empty).EscapeMarkup();
             table.AddRow(
                 job.Request.Project.Name.EscapeMarkup(),
                 job.Request.Profile.Name.EscapeMarkup(),
                 StatusIcons.JobStatusText(job.Status),
                 StatusIcons.FormatDuration(job.Duration),
-                (result ?? string.Empty).EscapeMarkup());
+                result);
         }
 
         console.Write(table);
@@ -55,19 +56,19 @@ public sealed class ResultsView(IAnsiConsole console)
                 case MenuChoice.ExportLogs:
                     var folder = AskForPath("Folder for the log files", $"pubwiz-logs-{timestamp}");
                     var files = PublishExporter.WriteLogs(jobs, folder);
-                    console.MarkupLine($"Wrote {files.Count} log file(s) to [{Widgets.PrimaryColorMarkup}]{folder.EscapeMarkup()}[/]");
+                    console.MarkupLine($"Wrote {files.Count} log file(s) to [{Widgets.PrimaryColorMarkup}]{DisplayText.Link(folder)}[/]");
                     break;
 
                 case MenuChoice.ExportJson:
                     var jsonPath = AskForPath("Report file", $"pubwiz-report-{timestamp}.json");
                     PublishExporter.WriteJsonReport(jobs, jsonPath);
-                    console.MarkupLine($"Wrote [{Widgets.PrimaryColorMarkup}]{jsonPath.EscapeMarkup()}[/]");
+                    console.MarkupLine($"Wrote [{Widgets.PrimaryColorMarkup}]{DisplayText.Link(jsonPath)}[/]");
                     break;
 
                 case MenuChoice.ExportCsv:
                     var csvPath = AskForPath("Report file", $"pubwiz-report-{timestamp}.csv");
                     PublishExporter.WriteCsvReport(jobs, csvPath);
-                    console.MarkupLine($"Wrote [{Widgets.PrimaryColorMarkup}]{csvPath.EscapeMarkup()}[/]");
+                    console.MarkupLine($"Wrote [{Widgets.PrimaryColorMarkup}]{DisplayText.Link(csvPath)}[/]");
                     break;
 
                 default:

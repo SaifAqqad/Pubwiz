@@ -106,14 +106,10 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         if (useAcr)
         {
             await azureSession.EnsureReadyAsync(cancellationToken);
-            var registries = await console.Status().StartAsync("Loading registries...", _ => az.ListContainerRegistriesAsync(cancellationToken));
-            if (registries.Count == 0)
-            {
-                throw new UserErrorException("No Azure Container Registries were found in this subscription.");
-            }
-
-            registry = console.Choose("Azure Container Registry", registries,
-                r => $"{r.LoginServer.EscapeMarkup()} [dim]{r.ResourceGroup.EscapeMarkup()}[/]").LoginServer;
+            registry = (await console.ChooseWithRefreshAsync("Azure Container Registry", "Loading registries...", az.ListContainerRegistriesAsync,
+                r => $"{r.LoginServer.EscapeMarkup()} [dim]{r.ResourceGroup.EscapeMarkup()}[/]",
+                emptyMessage: "No Azure Container Registries were found in this subscription. Create one, then refresh.",
+                cancellationToken)).LoginServer;
         }
         else
         {
@@ -134,26 +130,21 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
 
         if (destination == PublishTargetType.AzureAppServiceContainer)
         {
-            var apps = (await console.Status().StartAsync("Loading apps...", _ => az.ListWebAppsAsync(cancellationToken))).Where(a => a.IsContainer).ToList();
-            if (apps.Count == 0)
-            {
-                throw new UserErrorException($"No container App Service apps were found in '{subscription.Name}'.");
-            }
-
-            var app = console.Choose("App Service app", apps, a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]");
+            var app = await console.ChooseWithRefreshAsync<AzureWebApp>("App Service app", "Loading apps...",
+                async token => (await az.ListWebAppsAsync(token)).Where(a => a.IsContainer).ToList(),
+                a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]",
+                emptyMessage: $"No container App Service apps were found in '{subscription.Name}'. Create one, then refresh.",
+                cancellationToken);
             (name, resourceGroup) = (app.Name, app.ResourceGroup);
             profile[ProfileProperties.PubwizAzureContainerHost] = "AppService";
             profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{app.DefaultHostName}";
         }
         else
         {
-            var apps = await console.Status().StartAsync("Loading container apps...", _ => az.ListContainerAppsAsync(cancellationToken));
-            if (apps.Count == 0)
-            {
-                throw new UserErrorException($"No Container Apps were found in '{subscription.Name}'.");
-            }
-
-            var app = console.Choose("Container App", apps, a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]");
+            var app = await console.ChooseWithRefreshAsync("Container App", "Loading container apps...", az.ListContainerAppsAsync,
+                a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]",
+                emptyMessage: $"No Container Apps were found in '{subscription.Name}'. Create one, then refresh.",
+                cancellationToken);
             (name, resourceGroup) = (app.Name, app.ResourceGroup);
             profile[ProfileProperties.PubwizAzureContainerHost] = "ContainerApp";
             profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = app.Fqdn is null ? null : $"https://{app.Fqdn}";

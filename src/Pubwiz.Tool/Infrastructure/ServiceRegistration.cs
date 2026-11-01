@@ -3,6 +3,7 @@ using Pubwiz.Core;
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Dotnet;
 using Pubwiz.Core.Infrastructure;
+using Pubwiz.Core.Infrastructure.Git;
 using Pubwiz.Core.Infrastructure.Processes;
 using Pubwiz.Core.Infrastructure.Secrets;
 using Pubwiz.Core.Presets;
@@ -30,6 +31,7 @@ public static class ServiceRegistration
     {
         services.AddSingleton(console);
         services.AddSingleton<IProcessRunner, ProcessRunner>();
+        services.AddSingleton<GitCli>();
         services.AddSingleton(CreateDotnetCli);
         services.AddSingleton(sp => SecretStoreFactory.Create(sp.GetRequiredService<IProcessRunner>()));
 
@@ -42,6 +44,7 @@ public static class ServiceRegistration
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromMinutes(30) });
         services.AddSingleton<KuduClient>();
         services.AddSingleton<KuduCredentialsProvider>();
+        services.AddSingleton<AzurePublishingCredentials>();
         services.AddSingleton<ContainerCli>();
         services.AddSingleton(sp => new MsDeployCli(sp.GetRequiredService<IProcessRunner>(), MsDeployLocator.Find()));
         services.AddSingleton<AndroidKeystore>();

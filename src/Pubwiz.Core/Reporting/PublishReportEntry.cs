@@ -19,7 +19,11 @@ public sealed record PublishReportEntry(
     string? Error,
     string? OutputDirectory,
     string? Destination,
-    int LogLines)
+    int LogLines,
+    string? GitBranch,
+    string? GitCommit,
+    DateTimeOffset? GitCommitDate,
+    bool? GitHasChanges)
 {
     public static PublishReportEntry FromJob(PublishJob job) => new(
         Project: job.Request.Project.Name,
@@ -35,5 +39,9 @@ public sealed record PublishReportEntry(
         Error: job.Error,
         OutputDirectory: job.OutputDirectory,
         Destination: job.Destination,
-        LogLines: job.Log.Count);
+        LogLines: job.Log.Count,
+        GitBranch: job.Request.Git?.Branch,
+        GitCommit: job.Request.Git?.Commit,
+        GitCommitDate: job.Request.Git?.CommitDate,
+        GitHasChanges: job.Request.Git?.HasChanges);
 }

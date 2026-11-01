@@ -54,16 +54,6 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
 
     private async Task<AzureWebApp> ChooseAppAsync(AzureAppKind kind, AzureSubscription subscription, CancellationToken cancellationToken)
     {
-        var apps = await console.Status().StartAsync("Loading apps...", _ => az.ListWebAppsAsync(cancellationToken));
-
-        // Container apps run an image, so a zip deploy wouldn't change what they run.
-        var matching = apps.Where(a => !a.IsContainer && a.IsFunctionApp == (kind == AzureAppKind.FunctionApp)).ToList();
-        if (matching.Count == 0)
-        {
-            var what = kind == AzureAppKind.FunctionApp ? "Function Apps" : "App Service apps";
-            throw new UserErrorException($"No {what} were found in '{subscription.Name}'. Create one in the Azure portal or with az, then run this again.");
-        }
-
         var question = kind switch
         {
             AzureAppKind.WebJob => "App Service app to host the WebJob",
@@ -71,8 +61,18 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
             _ => "App Service app"
         };
 
-        return console.Choose(question, matching,
-            a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()} · {(a.IsLinux ? "Linux" : "Windows")} · {a.State}[/]");
+        var what = kind == AzureAppKind.FunctionApp ? "Function Apps" : "App Service apps";
+        return await console.ChooseWithRefreshAsync(question, "Loading apps...", LoadMatchingAsync,
+            a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()} · {(a.IsLinux ? "Linux" : "Windows")} · {a.State}[/]",
+            emptyMessage: $"No {what} were found in '{subscription.Name}'. Create one in the Azure portal or with az, then refresh.",
+            cancellationToken);
+
+        async Task<IReadOnlyList<AzureWebApp>> LoadMatchingAsync(CancellationToken token)
+        {
+            // Container apps run an image, so a zip deploy wouldn't change what they run.
+            var apps = await az.ListWebAppsAsync(token);
+            return apps.Where(a => !a.IsContainer && a.IsFunctionApp == (kind == AzureAppKind.FunctionApp)).ToList();
+        }
     }
 
     private void AskWebJobSettings(ProjectInfo project, PublishProfile profile)

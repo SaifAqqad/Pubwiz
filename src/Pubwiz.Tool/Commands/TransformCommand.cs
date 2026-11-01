@@ -78,7 +78,7 @@ public sealed class TransformCommand(IAnsiConsole console, WorkspacePage workspa
             console.WriteLine();
         }
 
-        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Wrote [{Widgets.PrimaryColorMarkup}]{DisplayText.ShortPath(output).EscapeMarkup()}[/]");
+        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Wrote [{Widgets.PrimaryColorMarkup}]{DisplayText.Link(output)}[/]");
         if (settings.Print)
         {
             // Written to the raw output writer: the console's word wrapping would break up long XML lines.
@@ -130,7 +130,7 @@ public sealed class TransformCommand(IAnsiConsole console, WorkspacePage workspa
 
         for (var i = 0; i < transforms.Count; i++)
         {
-            table.AddRow((i + 1).ToString(), DisplayText.ShortPath(transforms[i].FilePath).EscapeMarkup(), transforms[i].Kind.ToString());
+            table.AddRow((i + 1).ToString(), DisplayText.Link(transforms[i].FilePath), transforms[i].Kind.ToString());
         }
 
         console.Write(table);

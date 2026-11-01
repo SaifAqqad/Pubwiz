@@ -55,7 +55,7 @@ public static class PublishExporter
     {
         CreateParentFolder(filePath);
         var csv = new StringBuilder();
-        csv.AppendLine("Project,ProjectPath,Profile,Target,Configuration,Status,StartedAt,FinishedAt,DurationSeconds,FailedStep,Error,OutputDirectory,Destination,LogLines");
+        csv.AppendLine("Project,ProjectPath,Profile,Target,Configuration,Status,StartedAt,FinishedAt,DurationSeconds,FailedStep,Error,OutputDirectory,Destination,LogLines,GitBranch,GitCommit,GitCommitDate,GitHasChanges");
 
         foreach (var entry in jobs.Select(PublishReportEntry.FromJob))
         {
@@ -65,7 +65,9 @@ public static class PublishExporter
                 entry.StartedAt?.ToString("o"), entry.FinishedAt?.ToString("o"),
                 entry.DurationSeconds?.ToString(CultureInfo.InvariantCulture),
                 entry.FailedStep, entry.Error, entry.OutputDirectory, entry.Destination,
-                entry.LogLines.ToString(CultureInfo.InvariantCulture)
+                entry.LogLines.ToString(CultureInfo.InvariantCulture),
+                entry.GitBranch, entry.GitCommit, entry.GitCommitDate?.ToString("o"),
+                entry.GitHasChanges is { } hasChanges ? (hasChanges ? "true" : "false") : null
             ];
 
             csv.AppendLine(string.Join(',', values.Select(EscapeCsv)));

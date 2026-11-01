@@ -1,24 +1,36 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Infrastructure.Secrets;
 using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Targets.Azure;
 
 namespace Pubwiz.Tool.Credentials;
 
 /// <summary>
-/// Gets deployment passwords, in this order: an environment variable (for CI), the OS secret store,
-/// then asking (and offering to save the answer).
+/// Gets deployment passwords, in this order: an environment variable (for CI), Azure (for App Service profiles,
+/// through the signed-in az), the OS secret store, then asking (and offering to save the answer).
 /// </summary>
 /// <remarks>
+/// An answer is remembered for the rest of the run, so the wizard can ask before it hands over the batch
+/// (where Esc goes back to the project list) without being asked again when publishing.
+/// Esc in the password prompt throws <see cref="PromptCancelledException"/>.
+/// <para>
+/// Azure comes before the secret store because it's always current: a saved password goes stale when the app's
+/// publishing credentials are reset.
+/// </para>
+/// <para>
 /// A broken secret store (no keyring running, access denied, ...) never stops publishing:
 /// it's reported as a warning and the password is asked for instead.
+/// </para>
 /// </remarks>
-public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store)
+public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, AzurePublishingCredentials azure)
 {
     /// <summary>Where passwords are saved, for messages.</summary>
     public string StoreName => store.Name;
 
     /// <summary>Used for every profile when no profile-specific variable is set.</summary>
     public const string PasswordVariable = "PUBWIZ_PASSWORD";
+
+    private readonly Dictionary<string, string> _asked = new(StringComparer.Ordinal);
 
     /// <param name="project">The project being published.</param>
     /// <param name="profile">The saved profile.</param>
@@ -32,7 +44,19 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store)
             return fromEnvironment;
         }
 
-        if (await TryReadAsync(SecretKeys.ForProfile(profile), cancellationToken) is { } saved)
+        var key = SecretKeys.ForProfile(profile);
+        if (_asked.TryGetValue(key, out var asked))
+        {
+            return asked;
+        }
+
+        if (await TryFetchFromAzureAsync(profile, cancellationToken) is { } fromAzure)
+        {
+            _asked[key] = fromAzure;
+            return fromAzure;
+        }
+
+        if (await TryReadAsync(key, cancellationToken) is { } saved)
         {
             return saved;
         }
@@ -52,6 +76,7 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store)
             await TrySaveAsync(project, profile, password, cancellationToken);
         }
 
+        _asked[key] = password;
         return password;
     }
 
@@ -96,6 +121,27 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store)
     {
         var value = Environment.GetEnvironmentVariable(ProfileVariable(profile)) ?? Environment.GetEnvironmentVariable(PasswordVariable);
         return string.IsNullOrEmpty(value) ? null : value;
+    }
+
+    private async Task<string?> TryFetchFromAzureAsync(PublishProfile profile, CancellationToken cancellationToken)
+    {
+        if (!AzurePublishingCredentials.Applies(profile))
+        {
+            return null;
+        }
+
+        var fetched = await console.Status()
+            .Spinner(Spinner.Known.Dots)
+            .SpinnerStyle(new Style(Widgets.PrimaryColor))
+            .StartAsync($"Getting the publishing credentials of {profile.Name.EscapeMarkup()} from Azure...", _ => azure.TryGetAsync(profile, cancellationToken));
+
+        if (fetched is not { } credentials)
+        {
+            return null;
+        }
+
+        console.MarkupLine($"[dim]Using the publishing credentials of {credentials.AppName.EscapeMarkup()} from Azure for {profile.Name.EscapeMarkup()}[/]");
+        return credentials.Password;
     }
 
     private async Task<string?> TryReadAsync(string key, CancellationToken cancellationToken)

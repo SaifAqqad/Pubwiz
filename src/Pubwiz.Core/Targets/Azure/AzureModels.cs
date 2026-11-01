@@ -39,6 +39,41 @@ public sealed record AzureWebApp(
     }
 }
 
+/// <summary>Where an App Service app is, as needed by <c>az webapp</c> commands.</summary>
+/// <param name="SubscriptionId">The subscription, or <c>null</c> for the active one.</param>
+/// <param name="ResourceGroup">The app's resource group.</param>
+/// <param name="Name">The app's name.</param>
+/// <param name="Slot">The deployment slot, or <c>null</c> for the production slot.</param>
+public sealed record AzureAppReference(string? SubscriptionId, string ResourceGroup, string Name, string? Slot = null)
+{
+    /// <summary>
+    /// Parses <c>/subscriptions/{id}/resourceGroups/{group}/providers/Microsoft.Web/sites/{app}[/slots/{slot}]</c>.
+    /// </summary>
+    /// <returns>The app, or <c>null</c> when <paramref name="resourceId"/> isn't an App Service resource ID.</returns>
+    public static AzureAppReference? TryParseResourceId(string? resourceId)
+    {
+        if (string.IsNullOrWhiteSpace(resourceId))
+        {
+            return null;
+        }
+
+        var parts = resourceId.Trim().Trim('/').Split('/');
+        string? Segment(string name)
+        {
+            var index = Array.FindIndex(parts, p => p.Equals(name, StringComparison.OrdinalIgnoreCase));
+            return index >= 0 && index + 1 < parts.Length ? parts[index + 1] : null;
+        }
+
+        var providerIndex = Array.FindIndex(parts, p => p.Equals("Microsoft.Web", StringComparison.OrdinalIgnoreCase));
+        if (providerIndex < 0 || Segment("resourceGroups") is not { } group || Segment("sites") is not { } site)
+        {
+            return null;
+        }
+
+        return new AzureAppReference(Segment("subscriptions"), group, site, Segment("slots"));
+    }
+}
+
 /// <summary>An Azure Container Registry (<c>az acr list</c>).</summary>
 /// <param name="LoginServer">e.g. <c>contoso.azurecr.io</c>.</param>
 public sealed record AzureContainerRegistry(

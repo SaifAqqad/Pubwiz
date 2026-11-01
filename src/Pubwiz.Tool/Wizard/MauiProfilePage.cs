@@ -1,6 +1,7 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets.Maui;
+using Pubwiz.Tool.Rendering;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -76,7 +77,7 @@ public sealed class MauiProfilePage(IAnsiConsole console, AndroidKeystore keysto
             createdPassword = console.AskSecret("Keystore password", hint: "at least 6 characters", validate: p => p.Length >= 6 ? null : "At least 6 characters");
 
             await keystores.CreateAsync(keystorePath, alias, createdPassword, $"CN={owner}", cancellationToken);
-            console.MarkupLine($"{Widgets.SuccessCheckMarkup} Created {keystorePath.EscapeMarkup()}");
+            console.MarkupLine($"{Widgets.SuccessCheckMarkup} Created {DisplayText.Link(keystorePath)}");
             console.MarkupLine("[yellow]Back up this keystore and its password: updates on Google Play must be signed with the same key.[/]");
         }
 

@@ -4,6 +4,7 @@ using Pubwiz.Core.Targets;
 using Pubwiz.Core.Targets.Maui;
 using Pubwiz.Core.Targets.WebDeploy;
 using Pubwiz.Tool.Credentials;
+using Pubwiz.Tool.Rendering;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -183,7 +184,7 @@ public sealed class CreateProfilePage(
             validate: value => PublishProfileStore.Exists(project.Directory, value) ? "A profile with that name already exists" : null);
 
         var saved = PublishProfileStore.Save(project.Directory, profile.CopyAs(PublishProfileStore.ToValidName(name), filePath: null));
-        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved [{Widgets.PrimaryColorMarkup}]{Path.GetRelativePath(project.Directory, saved.FilePath!).EscapeMarkup()}[/]");
+        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved [{Widgets.PrimaryColorMarkup}]{DisplayText.Link(saved.FilePath!, Path.GetRelativePath(project.Directory, saved.FilePath!))}[/]");
         return saved;
     }
 

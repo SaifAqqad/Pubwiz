@@ -50,6 +50,15 @@ public static class ProfileProperties
     /// <summary>The value of <see cref="PublishProvider"/> for Azure App Service.</summary>
     public const string AzureWebSiteProvider = "AzureWebSite";
 
+    /// <summary>
+    /// The app's Azure resource ID, written by Visual Studio, e.g.
+    /// <c>/subscriptions/{id}/resourceGroups/{group}/providers/Microsoft.Web/sites/{app}</c> (or <c>.../slots/{slot}</c>).
+    /// </summary>
+    public const string ResourceId = nameof(ResourceId);
+
+    /// <summary>The app's resource group, written by Visual Studio.</summary>
+    public const string ResourceGroup = nameof(ResourceGroup);
+
     // Azure WebJobs (same names as the Web SDK's OneDeploy task)
 
     /// <summary>The WebJob's name; when set, a Zip/One deploy profile deploys a WebJob instead of the app.</summary>

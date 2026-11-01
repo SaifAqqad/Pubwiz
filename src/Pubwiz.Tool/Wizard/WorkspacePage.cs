@@ -1,4 +1,5 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Tool.Rendering;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -9,7 +10,7 @@ public sealed class WorkspacePage(IAnsiConsole console, WorkspaceLoader loader)
 {
     public async Task<Workspace> LoadAsync(string path, CancellationToken cancellationToken)
     {
-        var scan = Scan(path);
+        var scan = await ScanAsync(path, cancellationToken);
         var solutionPath = scan.SolutionPaths.Count switch
         {
             0 => null,
@@ -26,13 +27,13 @@ public sealed class WorkspacePage(IAnsiConsole console, WorkspaceLoader loader)
         return workspace;
     }
 
-    private static WorkspaceScanResult Scan(string path)
+    private static async Task<WorkspaceScanResult> ScanAsync(string path, CancellationToken cancellationToken)
     {
         try
         {
-            var result = WorkspaceScanner.Scan(path);
+            var result = await WorkspaceScanner.ScanAsync(path, cancellationToken);
             return result.IsEmpty
-                ? throw new UserErrorException($"No solution or project was found in '{path}' (searched {WorkspaceScanner.MaxDepth} folders deep).")
+                ? throw new UserErrorException($"No solution or project was found in '{path}' (searched its parent folders, and {WorkspaceScanner.MaxDepth} folders deep).")
                 : result;
         }
         catch (Exception ex) when (ex is DirectoryNotFoundException or ArgumentException)
@@ -51,8 +52,11 @@ public sealed class WorkspacePage(IAnsiConsole console, WorkspaceLoader loader)
 
     private void WriteSummary(Workspace workspace)
     {
-        var source = workspace.SolutionPath is null ? "the current folder" : Path.GetFileName(workspace.SolutionPath);
-        console.MarkupLine($"Found [{Widgets.PrimaryColorMarkup}]{workspace.Projects.Count}[/] project(s) in {source.EscapeMarkup()}");
+        // A solution found in a parent folder is shown as ../App.sln, so it's clear where it came from.
+        var source = workspace.SolutionPath is { } solution
+            ? DisplayText.Link(solution, Path.GetRelativePath(Directory.GetCurrentDirectory(), solution))
+            : "the current folder";
+        console.MarkupLine($"Found [{Widgets.PrimaryColorMarkup}]{workspace.Projects.Count}[/] project(s) in {source}");
 
         foreach (var failed in workspace.Projects.Where(p => p.EvaluationError is not null))
         {

@@ -14,6 +14,13 @@ public sealed class PublishRunner(IEnumerable<IPublishTarget> targets)
     public IPublishTarget? FindTarget(PublishProfile profile) => _targets.FirstOrDefault(t => t.CanPublish(profile));
 
     /// <summary>
+    /// <c>true</c> when publishing with <paramref name="profile"/> needs a deployment password. A profile that can't
+    /// publish from here fails straight away, so it never needs one.
+    /// </summary>
+    public bool NeedsPassword(PublishProfile profile) =>
+        FindTarget(profile) is { } target && target.GetSetupError(profile) is null && target.RequiresPassword(profile);
+
+    /// <summary>
     /// Creates a job for a request. A profile no target supports (or can't run here) gives a job that fails straight away,
     /// so a batch still runs the other projects.
     /// </summary>

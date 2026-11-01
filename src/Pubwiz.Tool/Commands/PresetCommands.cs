@@ -40,7 +40,7 @@ public sealed class PresetsListCommand(IAnsiConsole console) : Command<PresetSet
             table.AddRow(name.EscapeMarkup(), projects.EscapeMarkup(), preset.Configuration ?? "[dim]profile[/]", preset.Parallel?.ToString() ?? "1");
         }
 
-        console.MarkupLine($"[dim]{DisplayText.ShortPath(path).EscapeMarkup()}[/]");
+        console.MarkupLine($"[dim]{DisplayText.Link(Path.GetFullPath(path))}[/]");
         console.Write(table);
         return ExitCodes.Success;
     }
@@ -78,7 +78,7 @@ public sealed class PresetsExportCommand(IAnsiConsole console) : Command<Presets
         }
 
         file.Export(settings.Name).Save(output);
-        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Exported [{Widgets.PrimaryColorMarkup}]{settings.Name.EscapeMarkup()}[/] to {DisplayText.ShortPath(output).EscapeMarkup()}");
+        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Exported [{Widgets.PrimaryColorMarkup}]{settings.Name.EscapeMarkup()}[/] to {DisplayText.Link(output)}");
         console.MarkupLine($"[dim]Run it with: {ToolInfo.CommandName} --preset-file {DisplayText.ShortPath(output).EscapeMarkup()}[/]");
         return ExitCodes.Success;
     }

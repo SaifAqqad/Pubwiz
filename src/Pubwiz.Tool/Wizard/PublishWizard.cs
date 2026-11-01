@@ -1,4 +1,6 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Publishing;
+using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Infrastructure;
 
 namespace Pubwiz.Tool.Wizard;
@@ -7,10 +9,16 @@ namespace Pubwiz.Tool.Wizard;
 /// The interactive flow: find the workspace, pick projects (the main menu), then choose (or create) a profile for each one.
 /// </summary>
 /// <remarks>
-/// Leaving the profile pages (Esc in a list, Ctrl+C, "Back" or "Cancel") comes back to the main menu,
+/// Leaving the profile pages or the password prompts (Esc, Ctrl+C, "Back" or "Cancel") comes back to the main menu,
 /// with the projects already loaded. Esc or Ctrl+C in the main menu ends Pubwiz.
 /// </remarks>
-public sealed class PublishWizard(IAnsiConsole console, WorkspacePage workspacePage, ProfilePage profilePage, ConfirmPage confirmPage)
+public sealed class PublishWizard(
+    IAnsiConsole console,
+    WorkspacePage workspacePage,
+    ProfilePage profilePage,
+    ConfirmPage confirmPage,
+    PublishRunner runner,
+    PasswordProvider passwords)
 {
     /// <returns>What to publish, or <c>null</c> when the user chose Exit.</returns>
     public async Task<PublishBatch?> RunAsync(WizardOptions options, CancellationToken cancellationToken)
@@ -97,11 +105,23 @@ public sealed class PublishWizard(IAnsiConsole console, WorkspacePage workspaceP
             }
 
             var batch = new PublishBatch(selections, PresetFilePath: presetFilePath);
-            return !options.Confirm || confirmPage.Confirm(batch, "Cancel [dim]· back to the projects[/]") ? batch : null;
+            if (options.Confirm && !confirmPage.Confirm(batch, "Cancel [dim]· back to the projects[/]"))
+            {
+                return null;
+            }
+
+            // Asked here rather than when publishing, so Esc or Ctrl+C in a password prompt also goes back to the projects.
+            // The answers are remembered, so publishing doesn't ask again.
+            foreach (var (project, profile) in batch.Selections.Where(s => runner.NeedsPassword(s.Profile)))
+            {
+                await passwords.GetAsync(project, profile, allowPrompt: true, cancellation.Token);
+            }
+
+            return batch;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            // Esc in a list (PromptCancelledException) or Ctrl+C.
+            // Esc in a list or password prompt (PromptCancelledException), or Ctrl+C.
             CtrlC.RestoreTerminal();
             console.MarkupLine("[dim]Cancelled, back to the projects[/]");
             return null;

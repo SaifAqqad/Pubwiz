@@ -1,5 +1,6 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Presets;
+using Pubwiz.Tool.Rendering;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -94,7 +95,7 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         file.Presets[name] = new PublishPreset(selections.Select(s => PresetResolver.CreateEntry(s.Project, s.Profile, baseDirectory)).ToList());
         file.Save(filePath);
 
-        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved preset [{Widgets.PrimaryColorMarkup}]{name.EscapeMarkup()}[/] in {filePath.EscapeMarkup()}");
+        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved preset [{Widgets.PrimaryColorMarkup}]{name.EscapeMarkup()}[/] in {DisplayText.Link(filePath)}");
         console.MarkupLine($"[dim]Run it with: {ToolInfo.CommandName} --preset {name.EscapeMarkup()}[/]");
     }
 
