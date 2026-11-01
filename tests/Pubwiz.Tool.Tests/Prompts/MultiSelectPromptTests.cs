@@ -108,4 +108,21 @@ public class MultiSelectPromptTests
         Assert.Null(result);
         Assert.Contains("Exit", console.Output);
     }
+
+    [Fact]
+    public async Task HeaderUpdate_IsDrawnWhileTheListIsOpen()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.Enter);
+        var prompt = new MultiSelectPrompt<string>("Pick projects", Projects, name => [name])
+        {
+            Header = "Git main",
+            HeaderUpdate = Task.FromResult<string?>("Git main · 3 commits to pull")
+        };
+
+        var result = await prompt.ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Api", result?.Highlighted);
+        Assert.Contains("3 commits to pull", console.Output);
+    }
 }

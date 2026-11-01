@@ -12,8 +12,8 @@ namespace Pubwiz.Core.Infrastructure.Git;
 /// Git is optional: when it isn't installed, the folder isn't in a repository, or the repository has no commits yet,
 /// <see cref="GetInfoAsync"/> returns <c>null</c>. Results are cached per repository for the rest of the run.
 /// <para>
-/// To know about commits that haven't been pulled, the branch's remote can be fetched first. The fetch never asks for
-/// credentials and gives up after <see cref="FetchTimeout"/>; the counts are then as of the last fetch.
+/// To know about commits that haven't been pulled, <see cref="FetchAsync"/> fetches the branch's remote in the background.
+/// The fetch never asks for credentials and gives up after <see cref="FetchTimeout"/>; the counts are then as of the last fetch.
 /// </para>
 /// </remarks>
 public sealed class GitCli(IProcessRunner processRunner)
@@ -28,12 +28,11 @@ public sealed class GitCli(IProcessRunner processRunner)
 
     private readonly Lazy<string?> _executable = new(() => ExecutableLocator.FindInPath("git"));
 
+    /// <summary>Reads the repository's state as it is locally (no network): fast enough to show straight away.</summary>
     /// <param name="folder">Any folder inside the repository.</param>
-    /// <param name="fetch">Fetch the branch's remote first, for an up-to-date <see cref="GitInfo.Behind"/> count
-    /// (only the first call for a repository fetches; later ones reuse its result).</param>
     /// <param name="cancellationToken">Cancels the git commands.</param>
     /// <returns>The repository's state, or <c>null</c> when there's no git repository (or no git).</returns>
-    public async Task<GitInfo?> GetInfoAsync(string folder, bool fetch = false, CancellationToken cancellationToken = default)
+    public async Task<GitInfo?> GetInfoAsync(string folder, CancellationToken cancellationToken = default)
     {
         if (_executable.Value is not { } git || !Directory.Exists(folder))
         {
@@ -49,7 +48,7 @@ public sealed class GitCli(IProcessRunner processRunner)
             }
 
             var repositoryRoot = Path.GetFullPath(root.Trim());
-            return await _byRepository.GetOrAdd(repositoryRoot, _ => ReadAsync(git, repositoryRoot, fetch, cancellationToken));
+            return await _byRepository.GetOrAdd(repositoryRoot, _ => ReadAsync(git, repositoryRoot, cancellationToken));
         }
         catch (ProcessStartException)
         {
@@ -57,19 +56,48 @@ public sealed class GitCli(IProcessRunner processRunner)
         }
     }
 
-    private async Task<GitInfo?> ReadAsync(string git, string repositoryRoot, bool fetch, CancellationToken cancellationToken)
+    /// <summary>
+    /// Fetches the branch's remote, then returns <paramref name="info"/> with up-to-date <see cref="GitInfo.Ahead"/> and
+    /// <see cref="GitInfo.Behind"/> counts (later <see cref="GetInfoAsync"/> calls return it too). Slow: run it in the
+    /// background. A failed or timed out fetch gives the counts as of the last fetch.
+    /// </summary>
+    public async Task<GitInfo> FetchAsync(GitInfo info, CancellationToken cancellationToken = default)
     {
-        if (fetch)
+        if (_executable.Value is not { } git)
         {
-            await FetchAsync(git, repositoryRoot, cancellationToken);
+            return info;
         }
 
+        try
+        {
+            await FetchRemoteAsync(git, info.RepositoryRoot, cancellationToken);
+            var (upstream, ahead, behind) = await ReadUpstreamAsync(git, info.RepositoryRoot, cancellationToken);
+            var updated = info with { Upstream = upstream, Ahead = ahead, Behind = behind };
+            _byRepository[info.RepositoryRoot] = Task.FromResult<GitInfo?>(updated);
+            return updated;
+        }
+        catch (ProcessStartException)
+        {
+            return info;
+        }
+    }
+
+    private async Task<(string? Upstream, int Ahead, int Behind)> ReadUpstreamAsync(string git, string repositoryRoot, CancellationToken cancellationToken)
+    {
         var upstream = RunAsync(git, repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cancellationToken);
         var counts = RunAsync(git, repositoryRoot, ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cancellationToken);
+        var upstreamName = (await upstream)?.Trim();
+        var (ahead, behind) = ParseCounts(await counts);
+        return (string.IsNullOrEmpty(upstreamName) ? null : upstreamName, ahead, behind);
+    }
+
+    private async Task<GitInfo?> ReadAsync(string git, string repositoryRoot, CancellationToken cancellationToken)
+    {
+        var upstream = ReadUpstreamAsync(git, repositoryRoot, cancellationToken);
         var branch = RunAsync(git, repositoryRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"], cancellationToken);
         var log = RunAsync(git, repositoryRoot, ["log", "-1", "--format=%H%x1f%h%x1f%cI%x1f%an%x1f%s"], cancellationToken);
         var status = RunAsync(git, repositoryRoot, ["status", "--porcelain"], cancellationToken);
-        await Task.WhenAll(branch, log, status, upstream, counts);
+        await Task.WhenAll(branch, log, status, upstream);
 
         // No commits yet (or a broken repository): nothing worth showing.
         if (await log is not { } logOutput || ParseLog(logOutput) is not { } last)
@@ -78,8 +106,7 @@ public sealed class GitCli(IProcessRunner processRunner)
         }
 
         var branchName = (await branch)?.Trim();
-        var upstreamName = (await upstream)?.Trim();
-        var (ahead, behind) = ParseCounts(await counts);
+        var (upstreamName, ahead, behind) = await upstream;
         return new GitInfo(
             repositoryRoot,
             string.IsNullOrEmpty(branchName) ? null : branchName,
@@ -89,13 +116,13 @@ public sealed class GitCli(IProcessRunner processRunner)
             last.Author,
             last.Date,
             HasChanges: !string.IsNullOrWhiteSpace(await status),
-            Upstream: string.IsNullOrEmpty(upstreamName) ? null : upstreamName,
+            Upstream: upstreamName,
             Ahead: ahead,
             Behind: behind);
     }
 
     /// <summary>Fetches the current branch's remote, quietly; a failure or timeout just leaves the old counts.</summary>
-    private async Task FetchAsync(string git, string repositoryRoot, CancellationToken cancellationToken)
+    private async Task FetchRemoteAsync(string git, string repositoryRoot, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(FetchTimeout);

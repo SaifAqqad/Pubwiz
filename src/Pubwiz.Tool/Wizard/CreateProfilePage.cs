@@ -1,4 +1,5 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Infrastructure;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets;
 using Pubwiz.Core.Targets.Maui;
@@ -64,7 +65,11 @@ public sealed class CreateProfilePage(
             }
 
             console.Section(target.DisplayName);
-            var created = await CreateForTargetAsync(project, target, cancellationToken);
+            if (await TryCreateAsync(() => CreateForTargetAsync(project, target, cancellationToken)) is not { } created)
+            {
+                // Something the target needs is missing (or the user chose another target): back to the targets.
+                continue;
+            }
 
             // Each page names its profile (FolderProfile, "contoso - Zip Deploy", ...); that's the suggested name.
             return await SaveAsync(project, created, defaultName: created.Profile.Name, cancellationToken);
@@ -89,17 +94,46 @@ public sealed class CreateProfilePage(
             case WebDeployAlternativesPrompt.Choice.Alternative { Type: var type }:
                 console.Section(FindTarget(project, type).DisplayName);
                 var defaults = new FileTransferDefaults(endpoint?.ServiceUrl.Host, profile[ProfileProperties.UserName], profile[ProfileProperties.SiteUrlToLaunchAfterPublish]);
-                var created = type switch
+                var created = await TryCreateAsync(async () => type switch
                 {
                     PublishTargetType.Ftp => new CreatedProfile(fileTransferPage.Create(project, sftp: false, defaults)),
                     PublishTargetType.Sftp => new CreatedProfile(fileTransferPage.Create(project, sftp: true, defaults)),
                     _ => await CreateForTargetAsync(project, FindTarget(project, type), cancellationToken)
-                };
+                });
+
+                if (created is null)
+                {
+                    return null;
+                }
 
                 return await SaveAsync(project, created, defaultName: $"{profile.Name}-{type}", cancellationToken);
 
             default:
                 return null;
+        }
+    }
+
+    /// <summary>
+    /// Runs a target's settings page. When it can't go on (no docker, az missing, no matching apps, ...), the error is
+    /// shown and <c>null</c> is returned, so the wizard goes back instead of ending Pubwiz.
+    /// </summary>
+    private async Task<CreatedProfile?> TryCreateAsync(Func<Task<CreatedProfile>> create)
+    {
+        try
+        {
+            return await create();
+        }
+        catch (BackToTargetsException)
+        {
+            console.WriteLine();
+            return null;
+        }
+        catch (Exception ex) when (ex is UserErrorException or PrerequisiteMissingException)
+        {
+            console.Write(Widgets.Error(ex.Message));
+            console.WriteLine();
+            console.WriteLine();
+            return null;
         }
     }
 

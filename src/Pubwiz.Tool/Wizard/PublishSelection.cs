@@ -1,5 +1,5 @@
 using Pubwiz.Core.Discovery;
-using Pubwiz.Core.Infrastructure.Git;
+using Pubwiz.Tool.Rendering;
 using Pubwiz.Core.Profiles;
 
 namespace Pubwiz.Tool.Wizard;
@@ -15,5 +15,5 @@ public sealed record PublishSelection(ProjectInfo Project, PublishProfile Profil
 /// <param name="Path">Folder, solution or project to start from.</param>
 /// <param name="IncludeAll">Also list projects that normally can't be published (libraries, tests, ...).</param>
 /// <param name="Confirm">Ask "Publish now?" before returning the selection.</param>
-/// <param name="Git">The start folder's git state, shown above the project list.</param>
-public sealed record WizardOptions(string Path, bool IncludeAll, bool Confirm, Task<GitInfo?>? Git = null);
+/// <param name="Git">The start folder's git state, shown above the project list (and updated there after the fetch).</param>
+public sealed record WizardOptions(string Path, bool IncludeAll, bool Confirm, GitStatus? Git = null);

@@ -58,7 +58,19 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
                     break;
 
                 case Choice.Import:
-                    var imported = await importPage.ImportAsync(project, cancellationToken);
+                    IReadOnlyList<PublishProfile> imported;
+                    try
+                    {
+                        imported = await importPage.ImportAsync(project, cancellationToken);
+                    }
+                    catch (UserErrorException ex)
+                    {
+                        // e.g. a file with no supported profiles: say so and show the profile list again.
+                        console.Write(Widgets.Error(ex.Message));
+                        console.WriteLine();
+                        break;
+                    }
+
                     if (imported.Count == 1)
                     {
                         return imported[0];

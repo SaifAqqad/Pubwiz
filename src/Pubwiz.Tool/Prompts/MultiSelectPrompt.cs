@@ -57,13 +57,24 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     /// </summary>
     public bool SingleSelect { get; init; }
 
+    /// <summary>
+    /// A newer <see cref="Header"/>, drawn as soon as it's ready while the list stays open (e.g. the git line once a
+    /// background fetch is done). <c>null</c> or a failed task keeps the current header.
+    /// </summary>
+    public Task<string?>? HeaderUpdate { get; init; }
+
+    /// <summary>The header being shown: <see cref="Header"/>, then <see cref="HeaderUpdate"/>'s result.</summary>
+    private string? _header;
+
     public MultiSelectResult<T>? Show(IAnsiConsole console) => ShowAsync(console, CancellationToken.None).GetAwaiter().GetResult();
 
     /// <returns>The chosen items, or <c>null</c> when the exit row was chosen.</returns>
     public async Task<MultiSelectResult<T>?> ShowAsync(IAnsiConsole console, CancellationToken cancellationToken)
     {
         var searchTexts = items.Select(item => string.Join(' ', columns(item))).ToList();
-        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - (Header is null ? 0 : 2), hasExitRow: ExitLabel is not null);
+        var headerHeight = Header is null && HeaderUpdate is null ? 0 : 2;
+        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - headerHeight, hasExitRow: ExitLabel is not null);
+        _header = Header;
 
         console.Cursor.Hide();
         try
@@ -73,9 +84,26 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
                 // A live display draws nothing until it's refreshed, so show the list before waiting for a key.
                 context.Refresh();
 
+                var headerUpdate = HeaderUpdate;
+                Task<ConsoleKeyInfo?>? keyRead = null;
                 while (true)
                 {
-                    var key = await console.Input.ReadKeyAsync(intercept: true, cancellationToken);
+                    // The same key read is kept while waiting for the header, so no key press is lost.
+                    keyRead ??= console.Input.ReadKeyAsync(intercept: true, cancellationToken);
+                    if (headerUpdate is not null && (headerUpdate.IsCompleted || await Task.WhenAny(keyRead, headerUpdate) == headerUpdate))
+                    {
+                        if (headerUpdate.IsCompletedSuccessfully && headerUpdate.Result is { } newHeader)
+                        {
+                            _header = newHeader;
+                            context.UpdateTarget(Render(state, console));
+                        }
+
+                        headerUpdate = null;
+                        continue;
+                    }
+
+                    var key = await keyRead;
+                    keyRead = null;
                     if (key is not null && HandleKey(key.Value, state, out var result))
                     {
                         return result;
@@ -207,9 +235,9 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         }
 
         var rows = new List<IRenderable>();
-        if (Header is not null)
+        if (_header is not null)
         {
-            rows.Add(new Markup(Header));
+            rows.Add(new Markup(_header));
             rows.Add(new Text(string.Empty));
         }
 

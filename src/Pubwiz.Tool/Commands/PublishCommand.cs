@@ -146,8 +146,9 @@ public sealed class PublishCommand(
         var path = settings.Path ?? Directory.GetCurrentDirectory();
         var startDirectory = GetStartDirectory(settings);
 
-        // Started now so it runs while the projects load. The fetch (for commits to pull) is skipped in CI.
-        var gitInfo = git.GetInfoAsync(startDirectory, fetch: interactive, cancellationToken);
+        // Started now so it runs while the projects load. The fetch (for commits to pull) runs in the background and
+        // updates the git line when it's done; it's skipped in CI.
+        var gitStatus = GitStatus.Start(git, startDirectory, fetch: interactive, cancellationToken);
 
         if (settings.Preset is not null || settings.PresetFile is not null)
         {
@@ -171,11 +172,12 @@ public sealed class PublishCommand(
 
         // The wizard asks before publishing itself, since cancelling there goes back to its project list.
         // It shows the git line above its project list.
-        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes, Git: gitInfo), cancellationToken);
+        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes, Git: gitStatus), cancellationToken);
 
         async Task<PublishBatch?> ConfirmAsync(PublishBatch batch)
         {
-            if (await gitInfo is { } info)
+            // Whatever is known now: the confirm question doesn't wait for the fetch.
+            if (await gitStatus.GetLatestAsync() is { } info)
             {
                 console.MarkupLine(GitSummary.ToMarkup(info, DateTimeOffset.Now, maxWidth: console.Profile.Width - 1));
                 console.WriteLine();

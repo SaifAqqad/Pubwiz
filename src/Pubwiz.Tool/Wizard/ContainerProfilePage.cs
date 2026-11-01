@@ -19,16 +19,18 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         profile[ProfileProperties.WebPublishMethod] = "Container";
 
         var builder = ChooseBuilder(project, profile);
-        var repository = console.Ask("Image name", defaultValue: project.Name.ToLowerInvariant());
-        var tags = console.Ask("Tags", hint: "comma separated", defaultValue: "latest");
-        profile[ProfileProperties.ContainerRepository] = repository;
-        profile[ProfileProperties.ContainerImageTags] = string.Join(';', tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
         // A Dockerfile build always needs a local tool; the SDK only needs one for local images.
+        // Checked before the other questions, so nothing is typed in vain when neither is running.
         if (builder == ContainerBuilder.Dockerfile || destination == PublishTargetType.LocalContainer)
         {
             profile[ProfileProperties.LocalRegistry] = (await ChooseToolAsync(cancellationToken)).ToString();
         }
+
+        var repository = console.Ask("Image name", defaultValue: project.Name.ToLowerInvariant());
+        var tags = console.Ask("Tags", hint: "comma separated", defaultValue: "latest");
+        profile[ProfileProperties.ContainerRepository] = repository;
+        profile[ProfileProperties.ContainerImageTags] = string.Join(';', tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
         switch (destination)
         {
@@ -83,15 +85,37 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         return ContainerBuilder.Dockerfile;
     }
 
+    /// <summary>
+    /// The local container tool. When neither docker nor podman is running, the user can start one and check again,
+    /// or go back to the targets (<see cref="BackToTargetsException"/>).
+    /// </summary>
     private async Task<ContainerTool> ChooseToolAsync(CancellationToken cancellationToken)
     {
-        var tools = await console.Status().StartAsync("Looking for docker and podman...", _ => containers.DetectAsync(cancellationToken));
-        return tools.Count switch
+        const string checkAgain = "Check again [dim]· after starting Docker or Podman[/]";
+        const string otherTarget = "Choose another target [dim]· a tarball or registry built by the .NET SDK needs neither[/]";
+
+        while (true)
         {
-            0 => throw new UserErrorException("Neither docker nor podman is running. Start one of them, or publish the image to a tarball or registry with the .NET SDK instead."),
-            1 => tools[0],
-            _ => console.Choose("Container tool", tools)
-        };
+            var tools = await console.Status().StartAsync("Looking for docker and podman...", _ => containers.DetectAsync(cancellationToken));
+            switch (tools.Count)
+            {
+                case 1:
+                    return tools[0];
+                case > 1:
+                    return console.Choose("Container tool", tools);
+            }
+
+            console.Write(Widgets.Warning("Neither docker nor podman is running."));
+            console.WriteLine();
+            var choice = console.Prompt(Questions.Menu<string>("[bold]What now?[/]")
+                .AddChoices(checkAgain, otherTarget)
+                .UseConverter(text => text));
+
+            if (choice == otherTarget)
+            {
+                throw new BackToTargetsException();
+            }
+        }
     }
 
     /// <returns>The registry host written to the profile.</returns>

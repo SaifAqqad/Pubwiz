@@ -2,6 +2,7 @@ using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Infrastructure;
+using Pubwiz.Core.Infrastructure.Git;
 using Pubwiz.Tool.Rendering;
 
 namespace Pubwiz.Tool.Wizard;
@@ -39,8 +40,8 @@ public sealed class PublishWizard(
         while (true)
         {
             // Read each time the list is shown, so the "x ago" stays right after going back to it.
-            var gitHeader = options.Git is not null && await options.Git is { } git ? GitSummary.ToMarkup(git, DateTimeOffset.Now, maxWidth: console.Profile.Width - 1) : null;
-            if (await PickProjectsAsync(candidates, gitHeader, cancellationToken) is not { } projects)
+            var (gitHeader, gitHeaderUpdate) = await GetGitHeaderAsync(options.Git);
+            if (await PickProjectsAsync(candidates, gitHeader, gitHeaderUpdate, cancellationToken) is not { } projects)
             {
                 return null;
             }
@@ -59,13 +60,32 @@ public sealed class PublishWizard(
     /// publishes only the highlighted project.
     /// </summary>
     /// <returns>The projects to publish, or <c>null</c> when the user chose Exit.</returns>
-    private async Task<IReadOnlyList<ProjectInfo>?> PickProjectsAsync(IReadOnlyList<ProjectInfo> projects, string? header, CancellationToken cancellationToken)
+    /// <summary>
+    /// The git line for the project list: what's known now, and (while the background fetch runs) the line to show once
+    /// it's done, so the list never waits for the network.
+    /// </summary>
+    private async Task<(string? Header, Task<string?>? Update)> GetGitHeaderAsync(GitStatus? git)
+    {
+        if (git is null || await git.GetLatestAsync() is not { } now)
+        {
+            return (null, null);
+        }
+
+        return (ToMarkup(now), git.PendingFetch is { } pending ? ToMarkupAsync(pending) : null);
+
+        string ToMarkup(GitInfo info) => GitSummary.ToMarkup(info, DateTimeOffset.Now, maxWidth: console.Profile.Width - 1);
+        async Task<string?> ToMarkupAsync(Task<GitInfo?> fetch) => await fetch is { } fetched ? ToMarkup(fetched) : null;
+    }
+
+    private async Task<IReadOnlyList<ProjectInfo>?> PickProjectsAsync(IReadOnlyList<ProjectInfo> projects, string? header, Task<string?>? headerUpdate,
+        CancellationToken cancellationToken)
     {
         var prompt = new MultiSelectPrompt<ProjectInfo>("Which projects do you want to publish?", projects, ProjectColumns)
         {
             IsSelectable = p => p.EvaluationError is null,
             ExitLabel = "Exit",
             Header = header,
+            HeaderUpdate = headerUpdate,
             Hint = "Select several projects to publish them as a batch, or press enter to publish only the highlighted one."
         };
 
