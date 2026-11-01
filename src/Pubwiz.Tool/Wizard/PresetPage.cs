@@ -1,6 +1,7 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Presets;
 using Pubwiz.Tool.Rendering;
+using Pubwiz.Tool.Infrastructure;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -22,7 +23,7 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
     /// <exception cref="UserErrorException">The file or preset doesn't exist, or an entry can't be resolved.</exception>
     public async Task<PublishBatch> LoadAsync(string? presetName, string? presetFilePath, string startDirectory, CancellationToken cancellationToken)
     {
-        var filePath = presetFilePath is not null ? Path.GetFullPath(presetFilePath) : PresetFile.Find(startDirectory);
+        var filePath = presetFilePath is not null ? UserPath.ToFullPath(presetFilePath) : PresetFile.Find(startDirectory);
         if (filePath is null || !File.Exists(filePath))
         {
             throw new UserErrorException(presetFilePath is null

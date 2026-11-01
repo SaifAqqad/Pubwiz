@@ -70,7 +70,7 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
         async Task<IReadOnlyList<AzureWebApp>> LoadMatchingAsync(CancellationToken token)
         {
             // Container apps run an image, so a zip deploy wouldn't change what they run.
-            var apps = await az.ListWebAppsAsync(token);
+            var apps = await az.ListWebAppsAsync(cancellationToken: token);
             return apps.Where(a => !a.IsContainer && a.IsFunctionApp == (kind == AzureAppKind.FunctionApp)).ToList();
         }
     }

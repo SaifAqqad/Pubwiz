@@ -1,6 +1,7 @@
 using Pubwiz.Core.Presets;
 using Pubwiz.Tool.Rendering;
 using System.ComponentModel;
+using Pubwiz.Tool.Infrastructure;
 
 namespace Pubwiz.Tool.Commands;
 
@@ -14,7 +15,7 @@ public class PresetSettings : CommandSettings
     /// <exception cref="UserErrorException">No preset file was found.</exception>
     public string ResolvePresetFile()
     {
-        var path = PresetFile is not null ? Path.GetFullPath(PresetFile) : Core.Presets.PresetFile.Find(Directory.GetCurrentDirectory());
+        var path = PresetFile is not null ? UserPath.ToFullPath(PresetFile) : Core.Presets.PresetFile.Find(Directory.GetCurrentDirectory());
         return path is not null && File.Exists(path)
             ? path
             : throw new UserErrorException($"No {Core.Presets.PresetFile.FileName} was found. Save a preset from the wizard first.");
@@ -70,7 +71,7 @@ public sealed class PresetsExportCommand(IAnsiConsole console) : Command<Presets
         }
 
         // Paths in a preset are relative to its file, so the export goes in the same folder unless asked otherwise.
-        var output = Path.GetFullPath(settings.Output ?? Path.Combine(Path.GetDirectoryName(sourcePath)!, $"{settings.Name}.pubwiz.json"));
+        var output = settings.Output is not null ? UserPath.ToFullPath(settings.Output) : Path.Combine(Path.GetDirectoryName(sourcePath)!, $"{settings.Name}.pubwiz.json");
         if (!string.Equals(Path.GetDirectoryName(output), Path.GetDirectoryName(sourcePath), StringComparison.Ordinal))
         {
             console.Write(Widgets.Warning("The export is in another folder than the original, but its project paths are relative to the original folder."));

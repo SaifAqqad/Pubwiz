@@ -1,5 +1,6 @@
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Reporting;
+using Pubwiz.Tool.Infrastructure;
 
 namespace Pubwiz.Tool.Rendering;
 
@@ -80,7 +81,7 @@ public sealed class ResultsView(IAnsiConsole console)
     private string AskForPath(string question, string defaultValue)
     {
         var answer = console.Ask(question, defaultValue: defaultValue);
-        return Path.GetFullPath(answer);
+        return UserPath.ToFullPath(answer);
     }
 
     private static string Describe(MenuChoice choice) => choice switch

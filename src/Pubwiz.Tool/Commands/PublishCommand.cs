@@ -20,6 +20,7 @@ public sealed class PublishCommand(
     ConfirmPage confirmPage,
     ArgumentSelection argumentSelection,
     PasswordProvider passwords,
+    AppOfflinePrompt appOffline,
     PublishRunner runner,
     GitCli git,
     PublishDashboard dashboard,
@@ -109,8 +110,6 @@ public sealed class PublishCommand(
         // No terminal (output piped, CI): never prompt, fail with a clear message instead.
         var interactive = console.Profile.Capabilities.Interactive && !EnvironmentVariables.IsCi;
 
-        await WriteGitSummaryAsync(settings, cancellationToken);
-
         if (await ChooseBatchAsync(settings, interactive, cancellationToken) is not { } batch)
         {
             return ExitCodes.Cancelled;
@@ -132,16 +131,6 @@ public sealed class PublishCommand(
         return GetExitCode(jobs);
     }
 
-    /// <summary>Shows the branch and last commit of the start folder's repository, if it's in one.</summary>
-    private async Task WriteGitSummaryAsync(Settings settings, CancellationToken cancellationToken)
-    {
-        if (await git.GetInfoAsync(GetStartDirectory(settings), cancellationToken) is { } info)
-        {
-            console.MarkupLine(GitSummary.ToMarkup(info, DateTimeOffset.Now));
-            console.WriteLine();
-        }
-    }
-
     private static string GetStartDirectory(Settings settings)
     {
         var path = System.IO.Path.GetFullPath(settings.Path ?? Directory.GetCurrentDirectory());
@@ -157,14 +146,17 @@ public sealed class PublishCommand(
         var path = settings.Path ?? Directory.GetCurrentDirectory();
         var startDirectory = GetStartDirectory(settings);
 
+        // Started now so it runs while the projects load. The fetch (for commits to pull) is skipped in CI.
+        var gitInfo = git.GetInfoAsync(startDirectory, fetch: interactive, cancellationToken);
+
         if (settings.Preset is not null || settings.PresetFile is not null)
         {
-            return Confirm(await presets.LoadAsync(settings.Preset, settings.PresetFile, startDirectory, cancellationToken));
+            return await ConfirmAsync(await presets.LoadAsync(settings.Preset, settings.PresetFile, startDirectory, cancellationToken));
         }
 
         if (settings.Projects.Length > 0)
         {
-            return Confirm(await argumentSelection.SelectAsync(path, settings.Projects, settings.Profile, cancellationToken));
+            return await ConfirmAsync(await argumentSelection.SelectAsync(path, settings.Projects, settings.Profile, cancellationToken));
         }
 
         if (!interactive)
@@ -174,13 +166,22 @@ public sealed class PublishCommand(
 
         if (await presets.OfferAsync(startDirectory, cancellationToken) is { } preset)
         {
-            return Confirm(preset);
+            return await ConfirmAsync(preset);
         }
 
         // The wizard asks before publishing itself, since cancelling there goes back to its project list.
-        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes), cancellationToken);
+        // It shows the git line above its project list.
+        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes, Git: gitInfo), cancellationToken);
 
-        PublishBatch? Confirm(PublishBatch batch) => !interactive || settings.Yes || confirmPage.Confirm(batch, "Cancel") ? batch : null;
+        async Task<PublishBatch?> ConfirmAsync(PublishBatch batch)
+        {
+            if (await gitInfo is { } info)
+            {
+                console.MarkupLine(GitSummary.ToMarkup(info, DateTimeOffset.Now, maxWidth: console.Profile.Width - 1));
+            }
+
+            return !interactive || settings.Yes || confirmPage.Confirm(batch, "Cancel") ? batch : null;
+        }
     }
 
     private async Task<List<PublishRequest>> CreateRequestsAsync(PublishBatch batch, Settings settings, bool interactive, CancellationToken cancellationToken)
@@ -189,12 +190,15 @@ public sealed class PublishCommand(
         foreach (var (project, profile) in batch.Selections)
         {
             // A job that can't run here fails straight away, so don't ask for its password.
+            // With --yes (or no terminal), Web Deploy uses the profile's app offline setting.
+            var askAppOffline = interactive && !settings.Yes;
             requests.Add(new PublishRequest(project, profile)
             {
+                TakeAppOffline = askAppOffline ? appOffline.Ask(project, profile, showProjectName: batch.Selections.Count > 1) : null,
                 Configuration = settings.Configuration ?? batch.Configuration,
                 Verbose = settings.Verbose,
                 Password = runner.NeedsPassword(profile) ? await passwords.GetAsync(project, profile, allowPrompt: interactive, cancellationToken) : null,
-                Git = await git.GetInfoAsync(project.Directory, cancellationToken)
+                Git = await git.GetInfoAsync(project.Directory, cancellationToken: cancellationToken)
             });
         }
 
@@ -220,7 +224,7 @@ public sealed class PublishCommand(
     {
         if (settings.Report is { } report)
         {
-            var reportPath = System.IO.Path.GetFullPath(report);
+            var reportPath = UserPath.ToFullPath(report);
             if (reportPath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
             {
                 PublishExporter.WriteCsvReport(jobs, reportPath);
@@ -235,8 +239,9 @@ public sealed class PublishCommand(
 
         if (settings.LogDirectory is { } logDirectory)
         {
-            var files = PublishExporter.WriteLogs(jobs, System.IO.Path.GetFullPath(logDirectory));
-            console.MarkupLine($"Logs: {files.Count} file(s) in {DisplayText.Link(System.IO.Path.GetFullPath(logDirectory))}");
+            var logFolder = UserPath.ToFullPath(logDirectory);
+            var files = PublishExporter.WriteLogs(jobs, logFolder);
+            console.MarkupLine($"Logs: {files.Count} file(s) in {DisplayText.Link(logFolder)}");
         }
     }
 

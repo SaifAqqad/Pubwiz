@@ -27,12 +27,22 @@ public class GitCliTests
         Assert.Null(GitCli.ParseLog(output));
     }
 
+    [Theory]
+    [InlineData("2\t3\n", 2, 3)]
+    [InlineData("0\t0", 0, 0)]
+    [InlineData(null, 0, 0)]
+    [InlineData("garbage", 0, 0)]
+    public void ParseCounts_ReadsAheadAndBehind(string? output, int ahead, int behind)
+    {
+        Assert.Equal((ahead, behind), GitCli.ParseCounts(output));
+    }
+
     [Fact]
     public async Task GetInfoAsync_ReadsTheRepositoryOfThisCheckout()
     {
         var git = new GitCli(new ProcessRunner());
 
-        var info = await git.GetInfoAsync(AppContext.BaseDirectory, TestContext.Current.CancellationToken);
+        var info = await git.GetInfoAsync(AppContext.BaseDirectory, cancellationToken: TestContext.Current.CancellationToken);
 
         // Tests run from a git checkout locally; a source archive (or no git) gives null, which is fine too.
         if (info is not null)
@@ -50,7 +60,7 @@ public class GitCliTests
         var folder = Directory.CreateTempSubdirectory("pubwiz-git-").FullName;
         try
         {
-            Assert.Null(await git.GetInfoAsync(folder, TestContext.Current.CancellationToken));
+            Assert.Null(await git.GetInfoAsync(folder, cancellationToken: TestContext.Current.CancellationToken));
         }
         finally
         {

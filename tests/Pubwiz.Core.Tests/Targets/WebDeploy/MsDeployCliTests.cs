@@ -116,6 +116,18 @@ public sealed class MsDeployCliTests
     }
 
     [Fact]
+    public async Task SyncAsync_ReportsTheErrorCode()
+    {
+        const string output = "Error Code: ERROR_FILE_IN_USE\nMore Information: Web Deploy cannot modify the file 'AspNetCore.dll' on the destination because it is locked by an external process.\nError count: 1.\n";
+        var cli = new MsDeployCli(new RecordingRunner(new ProcessResult(-1, string.Empty, output)), @"C:\msdeploy.exe");
+
+        var error = await Assert.ThrowsAsync<MsDeployException>(() => cli.SyncAsync(Options(), _ => { }, TestContext.Current.CancellationToken));
+
+        Assert.Equal(MsDeployException.FileInUse, error.ErrorCode);
+        Assert.StartsWith("ERROR_FILE_IN_USE: Web Deploy cannot modify", error.Message);
+    }
+
+    [Fact]
     public async Task SyncAsync_NeedsMsDeploy()
     {
         var cli = new MsDeployCli(new RecordingRunner(new ProcessResult(0, string.Empty, string.Empty)), executablePath: null);

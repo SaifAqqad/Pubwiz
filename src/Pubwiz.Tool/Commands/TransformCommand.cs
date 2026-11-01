@@ -4,6 +4,7 @@ using Pubwiz.Core.Transforms;
 using Pubwiz.Tool.Rendering;
 using Pubwiz.Tool.Wizard;
 using System.ComponentModel;
+using Pubwiz.Tool.Infrastructure;
 
 namespace Pubwiz.Tool.Commands;
 
@@ -57,7 +58,7 @@ public sealed class TransformCommand(IAnsiConsole console, WorkspacePage workspa
         var environment = settings.Environment ?? AskForEnvironment();
 
         var transforms = WebConfigTransformPlanner.Plan(project.Directory, configuration, profile, environment).ToList();
-        transforms.AddRange(settings.Transforms.Select(t => new PlannedTransform(TransformKind.Custom, Path.GetFullPath(t))));
+        transforms.AddRange(settings.Transforms.Select(t => new PlannedTransform(TransformKind.Custom, UserPath.ToFullPath(t))));
 
         if (transforms.Count == 0)
         {
@@ -69,7 +70,7 @@ public sealed class TransformCommand(IAnsiConsole console, WorkspacePage workspa
             WarnAboutCasing(transforms);
         }
 
-        var output = Path.GetFullPath(settings.Output ?? Path.Combine(project.Directory, "obj", "pubwiz", "transformed", "web.config"));
+        var output = settings.Output is not null ? UserPath.ToFullPath(settings.Output) : Path.Combine(project.Directory, "obj", "pubwiz", "transformed", "web.config");
         var warnings = WebConfigTransformer.Transform(webConfig, transforms.Select(t => t.FilePath).ToList(), output);
 
         foreach (var warning in warnings)

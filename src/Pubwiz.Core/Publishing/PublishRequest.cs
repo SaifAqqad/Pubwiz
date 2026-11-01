@@ -17,6 +17,9 @@ public sealed record PublishRequest(ProjectInfo Project, PublishProfile Profile)
     /// <summary>Use detailed build output.</summary>
     public bool Verbose { get; init; }
 
+    /// <summary>Overrides the profile's "take the app offline while publishing" setting (Web Deploy), when set.</summary>
+    public bool? TakeAppOffline { get; init; }
+
     /// <summary>The deployment password (Web Deploy, FTP, ...), when the target needs one.</summary>
     public string? Password { get; init; }
 

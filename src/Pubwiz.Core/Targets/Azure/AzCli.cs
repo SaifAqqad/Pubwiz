@@ -81,12 +81,15 @@ public sealed class AzCli(IProcessRunner processRunner)
 
     /// <summary>App Service apps and Function Apps in the active subscription, sorted by name.</summary>
     /// <remarks><c>az webapp list</c> leaves Function Apps out, so both lists are read and merged.</remarks>
-    public async Task<IReadOnlyList<AzureWebApp>> ListWebAppsAsync(CancellationToken cancellationToken = default)
+    /// <param name="subscriptionId">Another subscription than the active one.</param>
+    /// <param name="cancellationToken">Cancels the az commands.</param>
+    public async Task<IReadOnlyList<AzureWebApp>> ListWebAppsAsync(string? subscriptionId = null, CancellationToken cancellationToken = default)
     {
         const string query = "[].{name:name, resourceGroup:resourceGroup, kind:kind, defaultHostName:defaultHostName, state:state}";
+        string[] subscription = subscriptionId is null ? [] : ["--subscription", subscriptionId];
 
-        var webApps = RunAsync(["webapp", "list", "--query", query, "-o", "json"], onOutput: null, cancellationToken);
-        var functionApps = RunAsync(["functionapp", "list", "--query", query, "-o", "json"], onOutput: null, cancellationToken);
+        var webApps = RunAsync(["webapp", "list", "--query", query, "-o", "json", .. subscription], onOutput: null, cancellationToken);
+        var functionApps = RunAsync(["functionapp", "list", "--query", query, "-o", "json", .. subscription], onOutput: null, cancellationToken);
         var results = await Task.WhenAll(webApps, functionApps);
 
         EnsureSucceeded(results[0], "az webapp list");
@@ -140,12 +143,15 @@ public sealed class AzCli(IProcessRunner processRunner)
     }
 
     /// <summary>
-    /// The app's publishing profiles as .publishsettings XML (<c>az webapp deployment list-publishing-profiles --xml</c>),
-    /// which include the publishing user name and password. Works for Function Apps too.
+    /// The app's publishing profiles (<c>az webapp deployment list-publishing-profiles</c>), which include the
+    /// publishing user name and password. Works for Function Apps too.
     /// </summary>
-    public async Task<string> GetPublishingProfilesXmlAsync(AzureAppReference app, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// Read as JSON: with <c>--xml</c>, az prints the XML as a quoted JSON string unless <c>-o tsv</c> is added too.
+    /// </remarks>
+    public async Task<IReadOnlyList<AzurePublishingProfile>> ListPublishingProfilesAsync(AzureAppReference app, CancellationToken cancellationToken = default)
     {
-        List<string> arguments = ["webapp", "deployment", "list-publishing-profiles", "--name", app.Name, "--resource-group", app.ResourceGroup, "--xml"];
+        List<string> arguments = ["webapp", "deployment", "list-publishing-profiles", "--name", app.Name, "--resource-group", app.ResourceGroup, "-o", "json"];
         if (app.Slot is not null)
         {
             arguments.AddRange(["--slot", app.Slot]);
@@ -158,7 +164,7 @@ public sealed class AzCli(IProcessRunner processRunner)
 
         var result = await RunAsync(arguments, onOutput: null, cancellationToken);
         EnsureSucceeded(result, "az webapp deployment list-publishing-profiles");
-        return result.Output;
+        return Deserialize<List<AzurePublishingProfile>>(result.Output) ?? [];
     }
 
     /// <summary>An Entra ID access token for Azure Resource Manager, which Kudu also accepts.</summary>

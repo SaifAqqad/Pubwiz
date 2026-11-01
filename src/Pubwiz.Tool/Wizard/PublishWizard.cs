@@ -2,6 +2,7 @@ using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Infrastructure;
+using Pubwiz.Tool.Rendering;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -18,7 +19,8 @@ public sealed class PublishWizard(
     ProfilePage profilePage,
     ConfirmPage confirmPage,
     PublishRunner runner,
-    PasswordProvider passwords)
+    PasswordProvider passwords,
+    AppOfflinePrompt appOffline)
 {
     /// <returns>What to publish, or <c>null</c> when the user chose Exit.</returns>
     public async Task<PublishBatch?> RunAsync(WizardOptions options, CancellationToken cancellationToken)
@@ -34,7 +36,9 @@ public sealed class PublishWizard(
         var presetFilePath = PresetPage.GetPresetFilePath(workspace, options.Path);
         while (true)
         {
-            if (await PickProjectsAsync(candidates, cancellationToken) is not { } projects)
+            // Read each time the list is shown, so the "x ago" stays right after going back to it.
+            var gitHeader = options.Git is not null && await options.Git is { } git ? GitSummary.ToMarkup(git, DateTimeOffset.Now, maxWidth: console.Profile.Width - 1) : null;
+            if (await PickProjectsAsync(candidates, gitHeader, cancellationToken) is not { } projects)
             {
                 return null;
             }
@@ -53,12 +57,13 @@ public sealed class PublishWizard(
     /// publishes only the highlighted project.
     /// </summary>
     /// <returns>The projects to publish, or <c>null</c> when the user chose Exit.</returns>
-    private async Task<IReadOnlyList<ProjectInfo>?> PickProjectsAsync(IReadOnlyList<ProjectInfo> projects, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<ProjectInfo>?> PickProjectsAsync(IReadOnlyList<ProjectInfo> projects, string? header, CancellationToken cancellationToken)
     {
         var prompt = new MultiSelectPrompt<ProjectInfo>("Which projects do you want to publish?", projects, ProjectColumns)
         {
             IsSelectable = p => p.EvaluationError is null,
             ExitLabel = "Exit",
+            Header = header,
             Hint = "Select several projects to publish them as a batch, or press enter to publish only the highlighted one."
         };
 
@@ -110,11 +115,19 @@ public sealed class PublishWizard(
                 return null;
             }
 
-            // Asked here rather than when publishing, so Esc or Ctrl+C in a password prompt also goes back to the projects.
+            // Asked here rather than when publishing, so Esc or Ctrl+C in these prompts also goes back to the projects.
             // The answers are remembered, so publishing doesn't ask again.
-            foreach (var (project, profile) in batch.Selections.Where(s => runner.NeedsPassword(s.Profile)))
+            foreach (var (project, profile) in batch.Selections)
             {
-                await passwords.GetAsync(project, profile, allowPrompt: true, cancellation.Token);
+                if (options.Confirm)
+                {
+                    appOffline.Ask(project, profile, showProjectName: batch.Selections.Count > 1);
+                }
+
+                if (runner.NeedsPassword(profile))
+                {
+                    await passwords.GetAsync(project, profile, allowPrompt: true, cancellation.Token);
+                }
             }
 
             return batch;

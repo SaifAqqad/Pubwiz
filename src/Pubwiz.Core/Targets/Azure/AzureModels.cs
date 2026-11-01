@@ -39,6 +39,14 @@ public sealed record AzureWebApp(
     }
 }
 
+/// <summary>One of an app's publishing profiles (<c>az webapp deployment list-publishing-profiles</c>).</summary>
+/// <param name="PublishMethod">e.g. <c>MSDeploy</c>, <c>FTP</c>, <c>ZipDeploy</c>.</param>
+public sealed record AzurePublishingProfile(
+    [property: JsonPropertyName("profileName")] string? ProfileName,
+    [property: JsonPropertyName("publishMethod")] string? PublishMethod,
+    [property: JsonPropertyName("userName")] string? UserName,
+    [property: JsonPropertyName("userPWD")] string? Password);
+
 /// <summary>Where an App Service app is, as needed by <c>az webapp</c> commands.</summary>
 /// <param name="SubscriptionId">The subscription, or <c>null</c> for the active one.</param>
 /// <param name="ResourceGroup">The app's resource group.</param>

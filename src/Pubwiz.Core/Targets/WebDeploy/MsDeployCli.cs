@@ -5,7 +5,15 @@ using System.Text;
 namespace Pubwiz.Core.Targets.WebDeploy;
 
 /// <summary>Thrown when msdeploy.exe fails, or can't be given a value.</summary>
-public sealed class MsDeployException(string message) : Exception(message);
+/// <param name="message">A one-line reason.</param>
+/// <param name="errorCode">msdeploy's error code, e.g. <c>ERROR_FILE_IN_USE</c>, when it printed one.</param>
+public sealed class MsDeployException(string message, string? errorCode = null) : Exception(message)
+{
+    /// <summary>A file on the server is locked by the running app.</summary>
+    public const string FileInUse = "ERROR_FILE_IN_USE";
+
+    public string? ErrorCode { get; } = errorCode;
+}
 
 /// <summary>
 /// Wrapper around <c>msdeploy.exe</c> (Windows only) for syncing a published app to an IIS server.
@@ -34,7 +42,7 @@ public sealed class MsDeployCli(IProcessRunner processRunner, string? executable
         var result = await processRunner.RunAsync(spec, onOutput, cancellationToken);
         if (!result.Succeeded)
         {
-            throw new MsDeployException(DescribeFailure(result));
+            throw new MsDeployException(DescribeFailure(result), GetErrorCode(result));
         }
     }
 
@@ -133,6 +141,15 @@ public sealed class MsDeployCli(IProcessRunner processRunner, string? executable
 
         var error = lines.FirstOrDefault(line => line.StartsWith("Error:", StringComparison.Ordinal) && !line.StartsWith("Error count", StringComparison.Ordinal));
         return error?["Error:".Length..]?.Trim() ?? code ?? $"msdeploy.exe failed with exit code {result.ExitCode}";
+    }
+
+    /// <summary>The <c>Error Code:</c> value, or a known code at the start of an error line.</summary>
+    internal static string? GetErrorCode(ProcessResult result)
+    {
+        var lines = (result.Error + "\n" + result.Output)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return ValueAfter(lines, "Error Code:")
+               ?? (lines.Any(line => line.Contains(MsDeployException.FileInUse, StringComparison.Ordinal)) ? MsDeployException.FileInUse : null);
     }
 
     private static string? ValueAfter(IEnumerable<string> lines, string prefix) =>

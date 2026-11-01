@@ -5,22 +5,25 @@ namespace Pubwiz.Core.Tests.Targets.Azure;
 
 public class AzurePublishingCredentialsTests
 {
-    private const string PublishSettings = """
-        <publishData>
-          <publishProfile profileName="contoso - Web Deploy" publishMethod="MSDeploy" publishUrl="contoso.scm.azurewebsites.net:443"
-                          msdeploySite="contoso" userName="$contoso" userPWD="web-deploy-secret" destinationAppUrl="https://contoso.azurewebsites.net" />
-          <publishProfile profileName="contoso - FTP" publishMethod="FTP" publishUrl="ftps://waws.ftp.azurewebsites.windows.net/site/wwwroot"
-                          userName="contoso\$contoso" userPWD="ftp-secret" />
-        </publishData>
+    /// <summary>What <c>az webapp deployment list-publishing-profiles -o json</c> prints (trimmed).</summary>
+    private const string AzOutput = """
+        [
+          { "profileName": "contoso - Web Deploy", "publishMethod": "MSDeploy", "publishUrl": "contoso.scm.azurewebsites.net:443",
+            "msdeploySite": "contoso", "userName": "$contoso", "userPWD": "web-deploy-secret" },
+          { "profileName": "contoso - FTP", "publishMethod": "FTP", "publishUrl": "ftps://waws.ftp.azurewebsites.windows.net/site/wwwroot",
+            "userName": "contoso\\$contoso", "userPWD": "ftp-secret" },
+          { "profileName": "contoso - Zip Deploy", "publishMethod": "ZipDeploy", "publishUrl": "contoso.scm.azurewebsites.net:443",
+            "userName": "$contoso", "userPWD": "web-deploy-secret" }
+        ]
         """;
 
     [Fact]
     public void PickPassword_UsesTheEntryWithTheProfilesUserName()
     {
-        var entries = PublishSettingsImporter.ReadXml(PublishSettings);
+        var profiles = AzCli.Deserialize<List<AzurePublishingProfile>>(AzOutput)!;
 
-        Assert.Equal("web-deploy-secret", AzurePublishingCredentials.PickPassword(entries, "$contoso"));
-        Assert.Null(AzurePublishingCredentials.PickPassword(entries, "someone-else"));
+        Assert.Equal("web-deploy-secret", AzurePublishingCredentials.PickPassword(profiles, "$contoso"));
+        Assert.Null(AzurePublishingCredentials.PickPassword(profiles, "someone-else"));
     }
 
     [Fact]

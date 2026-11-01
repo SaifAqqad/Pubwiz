@@ -131,7 +131,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         if (destination == PublishTargetType.AzureAppServiceContainer)
         {
             var app = await console.ChooseWithRefreshAsync<AzureWebApp>("App Service app", "Loading apps...",
-                async token => (await az.ListWebAppsAsync(token)).Where(a => a.IsContainer).ToList(),
+                async token => (await az.ListWebAppsAsync(cancellationToken: token)).Where(a => a.IsContainer).ToList(),
                 a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]",
                 emptyMessage: $"No container App Service apps were found in '{subscription.Name}'. Create one, then refresh.",
                 cancellationToken);

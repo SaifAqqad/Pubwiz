@@ -11,6 +11,9 @@ namespace Pubwiz.Core.Infrastructure.Git;
 /// <param name="Author">Who wrote the last commit.</param>
 /// <param name="CommitDate">When the last commit was made.</param>
 /// <param name="HasChanges"><c>true</c> when there are uncommitted changes (including untracked files).</param>
+/// <param name="Upstream">The branch it tracks, e.g. <c>origin/main</c>, or <c>null</c> when it tracks none.</param>
+/// <param name="Ahead">Commits not pushed to <paramref name="Upstream"/> yet.</param>
+/// <param name="Behind">Commits on <paramref name="Upstream"/> not pulled yet (as of the last fetch).</param>
 public sealed record GitInfo(
     string RepositoryRoot,
     string? Branch,
@@ -19,4 +22,7 @@ public sealed record GitInfo(
     string Subject,
     string Author,
     DateTimeOffset CommitDate,
-    bool HasChanges);
+    bool HasChanges,
+    string? Upstream = null,
+    int Ahead = 0,
+    int Behind = 0);

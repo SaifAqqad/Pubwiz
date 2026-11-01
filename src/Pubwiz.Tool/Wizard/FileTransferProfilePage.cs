@@ -1,6 +1,7 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets.FileTransfer;
+using Pubwiz.Tool.Infrastructure;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -52,7 +53,7 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
         if (sftp)
         {
             var keyFile = console.Ask("Private key file", hint: "empty = use a password", optional: true);
-            profile[ProfileProperties.PubwizSshPrivateKeyFile] = keyFile.Length > 0 ? Path.GetFullPath(keyFile.Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))) : null;
+            profile[ProfileProperties.PubwizSshPrivateKeyFile] = keyFile.Length > 0 ? UserPath.ToFullPath(keyFile) : null;
         }
 
         profile[ProfileProperties.DeleteExistingFiles] = console.AskYesNo("Delete files on the server that aren't part of the app?", defaultValue: false) ? "true" : "false";

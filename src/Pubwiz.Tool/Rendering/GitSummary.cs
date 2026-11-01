@@ -3,24 +3,58 @@ using Pubwiz.Core.Infrastructure.Git;
 namespace Pubwiz.Tool.Rendering;
 
 /// <summary>
-/// The one-line git summary shown before choosing what to publish, e.g.
-/// <c>Git main · 2a2755a Bump version to 0.2.0 · Saif · 2 days ago (2026-10-30 14:02) · uncommitted changes</c>.
+/// The one-line git summary shown while choosing what to publish, e.g.
+/// <c>Git main · 2a2755a · Saif · 2 days ago (2026-10-30 14:02) · 3 commits to pull · uncommitted changes</c>.
 /// </summary>
 public static class GitSummary
 {
-    private const int MaxSubjectLength = 60;
+    /// <summary>A piece of the line; the lowest <paramref name="Priority"/> is left out first when it doesn't fit.</summary>
+    private sealed record Part(string Markup, int Priority);
 
-    public static string ToMarkup(GitInfo git, DateTimeOffset now)
+    /// <param name="git">The repository state.</param>
+    /// <param name="now">For "x ago".</param>
+    /// <param name="maxWidth">Leave out the least important parts (exact date, then author, ...) until the line fits.</param>
+    public static string ToMarkup(GitInfo git, DateTimeOffset now, int? maxWidth = null)
     {
         var branch = git.Branch is null
             ? "[yellow]detached HEAD[/]"
             : $"[{Widgets.PrimaryColorMarkup}]{git.Branch.EscapeMarkup()}[/]";
 
-        var date = git.CommitDate.ToLocalTime();
-        var markup = $"[dim]Git[/] {branch} [dim]·[/] [bold]{git.ShortCommit.EscapeMarkup()}[/] " +
-                     $"{DisplayText.Truncate(git.Subject, MaxSubjectLength).EscapeMarkup()} " +
-                     $"[dim]· {git.Author.EscapeMarkup()} · {DisplayText.RelativeTime(git.CommitDate, now)} ({date:yyyy-MM-dd HH:mm})[/]";
+        List<Part> parts =
+        [
+            new($"[dim]Git[/] {branch}", 10),
+            new($"[bold]{git.ShortCommit.EscapeMarkup()}[/]", 9),
+            new($"[dim]{git.Author.EscapeMarkup()}[/]", 2),
+            new($"[dim]{DisplayText.RelativeTime(git.CommitDate, now)}[/]", 5),
+            new($"[dim]({git.CommitDate.ToLocalTime():yyyy-MM-dd HH:mm})[/]", 1)
+        ];
 
-        return git.HasChanges ? markup + " [yellow]· uncommitted changes[/]" : markup;
+        if (git.Behind > 0)
+        {
+            parts.Add(new($"[yellow]{Commits(git.Behind)} to pull[/]", 8));
+        }
+
+        if (git.Ahead > 0)
+        {
+            parts.Add(new($"[dim]{Commits(git.Ahead)} to push[/]", 4));
+        }
+
+        if (git.HasChanges)
+        {
+            parts.Add(new("[yellow]uncommitted changes[/]", 7));
+        }
+
+        while (maxWidth is { } width && parts.Count > 1 && Markup.Remove(Join(parts)).Length > width)
+        {
+            parts.Remove(parts.MinBy(p => p.Priority)!);
+        }
+
+        return Join(parts);
     }
+
+    /// <summary>"·" between parts, except before the exact date, which belongs to "x ago".</summary>
+    private static string Join(List<Part> parts) =>
+        string.Concat(parts.Select((part, i) => i == 0 ? part.Markup : part.Markup.StartsWith("[dim](", StringComparison.Ordinal) ? " " + part.Markup : " [dim]·[/] " + part.Markup));
+
+    private static string Commits(int count) => count == 1 ? "1 commit" : $"{count} commits";
 }

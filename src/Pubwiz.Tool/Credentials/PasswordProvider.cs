@@ -135,13 +135,19 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
             .SpinnerStyle(new Style(Widgets.PrimaryColor))
             .StartAsync($"Getting the publishing credentials of {profile.Name.EscapeMarkup()} from Azure...", _ => azure.TryGetAsync(profile, cancellationToken));
 
-        if (fetched is not { } credentials)
+        switch (fetched)
         {
-            return null;
-        }
+            case AzureCredentialsResult.Found found:
+                console.MarkupLine($"[dim]Using the publishing credentials of {found.AppName.EscapeMarkup()} from Azure for {profile.Name.EscapeMarkup()}[/]");
+                return found.Password;
 
-        console.MarkupLine($"[dim]Using the publishing credentials of {credentials.AppName.EscapeMarkup()} from Azure for {profile.Name.EscapeMarkup()}[/]");
-        return credentials.Password;
+            case AzureCredentialsResult.NotFound notFound:
+                console.MarkupLine($"[dim]Couldn't get the password of {profile.Name.EscapeMarkup()} from Azure: {notFound.Reason.EscapeMarkup()}[/]");
+                return null;
+
+            default:
+                return null;
+        }
     }
 
     private async Task<string?> TryReadAsync(string key, CancellationToken cancellationToken)

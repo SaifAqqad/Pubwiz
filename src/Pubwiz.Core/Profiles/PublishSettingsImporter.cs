@@ -25,9 +25,6 @@ public static class PublishSettingsImporter
     /// </summary>
     public static IReadOnlyList<PublishSettingsEntry> Read(string filePath) => Parse(XDocument.Load(filePath));
 
-    /// <summary>Like <see cref="Read"/>, for .publishsettings XML that's already in memory (e.g. from <c>az</c>).</summary>
-    public static IReadOnlyList<PublishSettingsEntry> ReadXml(string xml) => Parse(XDocument.Parse(xml));
-
     internal static IReadOnlyList<PublishSettingsEntry> Parse(XDocument document)
     {
         var entries = document.Root?.Elements("publishProfile") ?? [];

@@ -1,4 +1,5 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Tool.Infrastructure;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -27,7 +28,7 @@ public static class CommonPrompts
     {
         var answer = console.Ask(question, hint: string.Join(" or ", allowedExtensions), validate: value =>
         {
-            var path = ExpandPath(value);
+            var path = UserPath.ToFullPath(value);
             if (!File.Exists(path))
             {
                 return "File not found";
@@ -38,17 +39,6 @@ public static class CommonPrompts
                 : $"Expected a {string.Join(" or ", allowedExtensions)} file";
         });
 
-        return ExpandPath(answer);
-    }
-
-    private static string ExpandPath(string path)
-    {
-        var trimmed = path.Trim().Trim('"', '\'');
-        if (trimmed == "~" || trimmed.StartsWith("~/", StringComparison.Ordinal))
-        {
-            trimmed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), trimmed.TrimStart('~', '/'));
-        }
-
-        return Path.GetFullPath(trimmed);
+        return UserPath.ToFullPath(answer);
     }
 }

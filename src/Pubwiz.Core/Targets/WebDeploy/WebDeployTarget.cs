@@ -63,7 +63,7 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy) : IP
             AuthType = profile[ProfileProperties.AuthType],
             AllowUntrustedCertificate = IsTrue(profile[ProfileProperties.AllowUntrustedCertificate]),
             KeepExtraFiles = IsTrue(profile[ProfileProperties.SkipExtraFilesOnServer]),
-            TakeAppOffline = IsTrue(profile[ProfileProperties.EnableMSDeployAppOffline]) || IsTrue(profile[ProfileProperties.PubwizUseAppOffline]),
+            TakeAppOffline = request.TakeAppOffline ?? (IsTrue(profile[ProfileProperties.EnableMSDeployAppOffline]) || IsTrue(profile[ProfileProperties.PubwizUseAppOffline])),
             Verbose = request.Verbose
         };
     }
@@ -77,17 +77,56 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy) : IP
         {
             var options = CreateSyncOptions(context.Request, endpoint, context.OutputDirectory!);
             context.Log.AddSecret(options.Password);
-            context.Log.Info($"msdeploy {MsDeployCli.BuildSyncCommandLine(options)}");
-            context.ReportDetail($"syncing to {endpoint.ServiceUrl.Host}");
 
             try
             {
-                await msdeploy.SyncAsync(options, line => LogOutput(context, line.Text), cancellationToken);
+                await SyncAsync(context, options, cancellationToken);
+            }
+            catch (MsDeployException ex) when (ex.ErrorCode == MsDeployException.FileInUse)
+            {
+                // The running app has a file locked. Like Visual Studio suggests, take the app offline (app_offline.htm)
+                // so IIS releases it; if it already was, give it a moment to shut down.
+                if (options.TakeAppOffline)
+                {
+                    context.Log.Info($"A file is in use; retrying in {FileInUseRetryDelay.TotalSeconds:0}s");
+                    context.ReportDetail("a file is in use, retrying...");
+                    await Task.Delay(FileInUseRetryDelay, cancellationToken);
+                }
+                else
+                {
+                    context.Log.Info("A file is in use; retrying with the app taken offline (AppOffline rule)");
+                    context.ReportDetail("a file is in use, taking the app offline...");
+                    options = options with { TakeAppOffline = true };
+                }
+
+                await RetryAsync(context, options, cancellationToken);
             }
             catch (MsDeployException ex)
             {
                 throw new PublishStepException(ex.Message, ex);
             }
+        }
+
+        private static readonly TimeSpan FileInUseRetryDelay = TimeSpan.FromSeconds(5);
+
+        private async Task RetryAsync(PublishContext context, MsDeploySyncOptions options, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await SyncAsync(context, options, cancellationToken);
+            }
+            catch (MsDeployException ex)
+            {
+                var hint = ex.ErrorCode == MsDeployException.FileInUse ? " Restart the app (or its app pool) and publish again." : string.Empty;
+                throw new PublishStepException(ex.Message + hint, ex);
+            }
+        }
+
+        private async Task SyncAsync(PublishContext context, MsDeploySyncOptions options, CancellationToken cancellationToken)
+        {
+            context.Log.Info($"msdeploy {MsDeployCli.BuildSyncCommandLine(options)}");
+            context.ReportDetail($"syncing to {endpoint.ServiceUrl.Host}");
+            await msdeploy.SyncAsync(options, line => LogOutput(context, line.Text), cancellationToken);
         }
 
         private static void LogOutput(PublishContext context, string line)

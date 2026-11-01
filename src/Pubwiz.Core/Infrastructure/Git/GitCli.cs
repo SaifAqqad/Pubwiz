@@ -11,20 +11,29 @@ namespace Pubwiz.Core.Infrastructure.Git;
 /// <remarks>
 /// Git is optional: when it isn't installed, the folder isn't in a repository, or the repository has no commits yet,
 /// <see cref="GetInfoAsync"/> returns <c>null</c>. Results are cached per repository for the rest of the run.
+/// <para>
+/// To know about commits that haven't been pulled, the branch's remote can be fetched first. The fetch never asks for
+/// credentials and gives up after <see cref="FetchTimeout"/>; the counts are then as of the last fetch.
+/// </para>
 /// </remarks>
 public sealed class GitCli(IProcessRunner processRunner)
 {
     /// <summary>Separates the fields of the <c>git log</c> output (the ASCII unit separator, which never appears in commit text).</summary>
     private const char FieldSeparator = '\u001f';
 
+    /// <summary>How long a fetch may take before it's abandoned.</summary>
+    public static readonly TimeSpan FetchTimeout = TimeSpan.FromSeconds(8);
+
     private readonly ConcurrentDictionary<string, Task<GitInfo?>> _byRepository = new(StringComparer.Ordinal);
 
     private readonly Lazy<string?> _executable = new(() => ExecutableLocator.FindInPath("git"));
 
     /// <param name="folder">Any folder inside the repository.</param>
+    /// <param name="fetch">Fetch the branch's remote first, for an up-to-date <see cref="GitInfo.Behind"/> count
+    /// (only the first call for a repository fetches; later ones reuse its result).</param>
     /// <param name="cancellationToken">Cancels the git commands.</param>
     /// <returns>The repository's state, or <c>null</c> when there's no git repository (or no git).</returns>
-    public async Task<GitInfo?> GetInfoAsync(string folder, CancellationToken cancellationToken = default)
+    public async Task<GitInfo?> GetInfoAsync(string folder, bool fetch = false, CancellationToken cancellationToken = default)
     {
         if (_executable.Value is not { } git || !Directory.Exists(folder))
         {
@@ -40,7 +49,7 @@ public sealed class GitCli(IProcessRunner processRunner)
             }
 
             var repositoryRoot = Path.GetFullPath(root.Trim());
-            return await _byRepository.GetOrAdd(repositoryRoot, _ => ReadAsync(git, repositoryRoot, cancellationToken));
+            return await _byRepository.GetOrAdd(repositoryRoot, _ => ReadAsync(git, repositoryRoot, fetch, cancellationToken));
         }
         catch (ProcessStartException)
         {
@@ -48,12 +57,19 @@ public sealed class GitCli(IProcessRunner processRunner)
         }
     }
 
-    private async Task<GitInfo?> ReadAsync(string git, string repositoryRoot, CancellationToken cancellationToken)
+    private async Task<GitInfo?> ReadAsync(string git, string repositoryRoot, bool fetch, CancellationToken cancellationToken)
     {
+        if (fetch)
+        {
+            await FetchAsync(git, repositoryRoot, cancellationToken);
+        }
+
+        var upstream = RunAsync(git, repositoryRoot, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cancellationToken);
+        var counts = RunAsync(git, repositoryRoot, ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"], cancellationToken);
         var branch = RunAsync(git, repositoryRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"], cancellationToken);
         var log = RunAsync(git, repositoryRoot, ["log", "-1", "--format=%H%x1f%h%x1f%cI%x1f%an%x1f%s"], cancellationToken);
         var status = RunAsync(git, repositoryRoot, ["status", "--porcelain"], cancellationToken);
-        await Task.WhenAll(branch, log, status);
+        await Task.WhenAll(branch, log, status, upstream, counts);
 
         // No commits yet (or a broken repository): nothing worth showing.
         if (await log is not { } logOutput || ParseLog(logOutput) is not { } last)
@@ -62,6 +78,8 @@ public sealed class GitCli(IProcessRunner processRunner)
         }
 
         var branchName = (await branch)?.Trim();
+        var upstreamName = (await upstream)?.Trim();
+        var (ahead, behind) = ParseCounts(await counts);
         return new GitInfo(
             repositoryRoot,
             string.IsNullOrEmpty(branchName) ? null : branchName,
@@ -70,7 +88,34 @@ public sealed class GitCli(IProcessRunner processRunner)
             last.Subject,
             last.Author,
             last.Date,
-            HasChanges: !string.IsNullOrWhiteSpace(await status));
+            HasChanges: !string.IsNullOrWhiteSpace(await status),
+            Upstream: string.IsNullOrEmpty(upstreamName) ? null : upstreamName,
+            Ahead: ahead,
+            Behind: behind);
+    }
+
+    /// <summary>Fetches the current branch's remote, quietly; a failure or timeout just leaves the old counts.</summary>
+    private async Task FetchAsync(string git, string repositoryRoot, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(FetchTimeout);
+        try
+        {
+            await RunAsync(git, repositoryRoot, ["fetch", "--quiet", "--no-tags", "--no-recurse-submodules"], timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Too slow (or waiting on something): not worth holding up the wizard.
+        }
+    }
+
+    /// <summary>Parses <c>git rev-list --left-right --count HEAD...@{upstream}</c>: "ahead\tbehind".</summary>
+    internal static (int Ahead, int Behind) ParseCounts(string? output)
+    {
+        var parts = output?.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries) ?? [];
+        return parts.Length == 2 && int.TryParse(parts[0], CultureInfo.InvariantCulture, out var ahead) && int.TryParse(parts[1], CultureInfo.InvariantCulture, out var behind)
+            ? (ahead, behind)
+            : (0, 0);
     }
 
     /// <summary>Parses the <c>%H %h %cI %an %s</c> fields of <c>git log -1</c>.</summary>
@@ -91,7 +136,11 @@ public sealed class GitCli(IProcessRunner processRunner)
         var spec = new ProcessSpec(git, ["-C", folder, .. arguments])
         {
             // Never stop to ask for anything (credentials, pager, ...).
-            Environment = new Dictionary<string, string?> { ["GIT_TERMINAL_PROMPT"] = "0", ["GIT_PAGER"] = "cat", ["GIT_OPTIONAL_LOCKS"] = "0" }
+            // GCM_INTERACTIVE stops Git Credential Manager from opening a sign-in window during the fetch.
+            Environment = new Dictionary<string, string?>
+            {
+                ["GIT_TERMINAL_PROMPT"] = "0", ["GCM_INTERACTIVE"] = "never", ["GIT_PAGER"] = "cat", ["GIT_OPTIONAL_LOCKS"] = "0"
+            }
         };
 
         var result = await processRunner.RunAsync(spec, cancellationToken: cancellationToken);
