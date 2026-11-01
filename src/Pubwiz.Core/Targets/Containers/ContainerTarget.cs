@@ -74,7 +74,9 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
             steps.Add(new AzureImageUpdateStep(az, container, resourceGroup, appName));
         }
 
-        steps.Add(new SetDestinationStep(archivePath ?? string.Join(", ", container.ImageNames)));
+        steps.Add(archivePath is not null
+            ? new SetFileDestinationStep(archivePath, ".tar.gz", ".tgz", ".tar")
+            : new SetDestinationStep(string.Join(", ", container.ImageNames)));
         return steps;
     }
 

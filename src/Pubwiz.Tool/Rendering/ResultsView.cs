@@ -27,8 +27,7 @@ public sealed class ResultsView(IAnsiConsole console)
 
         foreach (var job in jobs)
         {
-            // Output folders, files and site URLs are links; errors are plain text.
-            var result = job.Status == JobStatus.Succeeded && job.Result is { } location ? DisplayText.Link(location) : (job.Error ?? string.Empty).EscapeMarkup();
+            var result = job.Status == JobStatus.Succeeded && job.Result is { } location ? DescribeResult(location) : (job.Error ?? string.Empty).EscapeMarkup();
             table.AddRow(
                 job.Request.Project.Name.EscapeMarkup(),
                 job.Request.Profile.Name.EscapeMarkup(),
@@ -39,6 +38,13 @@ public sealed class ResultsView(IAnsiConsole console)
 
         console.Write(table);
     }
+
+    /// <summary>
+    /// Output folders, files and site URLs are links. A single produced file (zip, tarball) shows its full path,
+    /// so it's clear where it ended up; folders are shortened.
+    /// </summary>
+    private static string DescribeResult(string location) =>
+        File.Exists(location) ? DisplayText.Link(location, text: location) : DisplayText.Link(location);
 
     /// <summary>Offers to export logs and reports until the user picks Exit.</summary>
     public void ShowMenu(IReadOnlyList<PublishJob> jobs)

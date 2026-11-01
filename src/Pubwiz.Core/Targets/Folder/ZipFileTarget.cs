@@ -27,7 +27,7 @@ public sealed class ZipFileTarget(DotnetCli dotnet) : IPublishTarget
         [
             StagingPublish.CreateStep(dotnet, request),
             new PackageZipStep(zipPath),
-            new SetDestinationStep(zipPath)
+            new SetFileDestinationStep(zipPath, ".zip")
         ];
     }
 
