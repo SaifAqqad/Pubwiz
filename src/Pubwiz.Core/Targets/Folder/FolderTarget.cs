@@ -20,6 +20,11 @@ public sealed class FolderTarget(DotnetCli dotnet) : IPublishTarget
 
     public bool RequiresPassword(PublishProfile profile) => false;
 
+    public string? GetSetupError(PublishProfile profile) =>
+        ProfileVariables.FindUnknown(profile[ProfileProperties.PublishUrl] ?? profile[ProfileProperties.PublishDir]) is { } unknown
+            ? $"The publish folder uses $({unknown}), which Pubwiz can't fill in. Use a plain path, or one of $({string.Join("), $(", ProfileVariables.Known)})."
+            : null;
+
     public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request)
     {
         var outputDirectory = GetOutputDirectory(request);
@@ -38,7 +43,8 @@ public sealed class FolderTarget(DotnetCli dotnet) : IPublishTarget
 
     /// <summary>
     /// The folder from <c>PublishUrl</c> (web) or <c>PublishDir</c> (other projects), relative to the project folder.
-    /// Visual Studio writes these with backslashes, so they're normalized.
+    /// Visual Studio writes these with backslashes (normalized here) and MSBuild variables such as <c>$(Configuration)</c>
+    /// (filled in, see <see cref="ProfileVariables"/>).
     /// </summary>
     internal static string GetOutputDirectory(PublishRequest request)
     {
@@ -46,7 +52,7 @@ public sealed class FolderTarget(DotnetCli dotnet) : IPublishTarget
                      ?? request.Profile[ProfileProperties.PublishDir]
                      ?? Path.Combine("bin", request.EffectiveConfiguration, "publish");
 
-        var normalized = folder.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+        var normalized = ProfileVariables.Expand(folder, request).Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
         return Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(request.Project.Directory, normalized)));
     }
 }

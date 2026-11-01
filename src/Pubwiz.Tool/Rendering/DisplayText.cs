@@ -38,7 +38,9 @@ public static class DisplayText
         }
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return pathOrUrl.StartsWith(home, StringComparison.Ordinal) ? "~" + pathOrUrl[home.Length..] : pathOrUrl;
+        // Windows paths aren't case-sensitive (C:\Users\Saif and c:\users\saif are the same folder).
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return pathOrUrl.StartsWith(home, comparison) ? "~" + pathOrUrl[home.Length..] : pathOrUrl;
     }
 
     /// <summary>

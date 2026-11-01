@@ -1,3 +1,4 @@
+using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Tests.TestHelpers;
 
@@ -25,6 +26,30 @@ public sealed class PubxmlSerializerTests : IDisposable
         Assert.Equal("Old", profile.Name);
         Assert.Equal(PublishMethod.FileSystem, profile.Method);
         Assert.Equal(@"bin\Release\publish\", profile[ProfileProperties.PublishUrl]);
+    }
+
+    [Fact]
+    public void EmptyElements_ReadAsUnset()
+    {
+        // A Visual Studio Zip Deploy profile that signs in with the Azure account: the user name is left empty.
+        var path = _temp.CreateFile("Zip.pubxml", """
+            <Project>
+              <PropertyGroup>
+                <WebPublishMethod>ZipDeploy</WebPublishMethod>
+                <PublishUrl>https://qa-app.scm.azurewebsites.net/</PublishUrl>
+                <UserName />
+                <_SavePWD>false</_SavePWD>
+                <SkipExtraFilesOnServer>   </SkipExtraFilesOnServer>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        var profile = PubxmlSerializer.Read(path);
+
+        Assert.Null(profile[ProfileProperties.UserName]);
+        Assert.Null(profile[ProfileProperties.SkipExtraFilesOnServer]);
+        Assert.True(AzureProfile.UsesAzCli(profile));
+        Assert.Contains(profile.Properties, p => p.Key == "UserName"); // kept, so saving doesn't change the file
     }
 
     [Fact]

@@ -77,7 +77,8 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
 
     private void AskWebJobSettings(ProjectInfo project, PublishProfile profile)
     {
-        profile[ProfileProperties.WebJobName] = console.Ask("WebJob name", defaultValue: project.Name.ToLowerInvariant());
+        // Visual Studio names the WebJob exactly like the project (same case).
+        profile[ProfileProperties.WebJobName] = console.Ask("WebJob name", defaultValue: project.Name);
 
         // Workers run all the time; console apps usually run on demand or on a schedule.
         string[] types = project.Kind == ProjectKind.Worker ? ["Continuous", "Triggered"] : ["Triggered", "Continuous"];

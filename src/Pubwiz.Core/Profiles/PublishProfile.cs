@@ -35,9 +35,15 @@ public sealed class PublishProfile
     /// Gets or sets a property by name (case-insensitive). Getting a missing property returns <c>null</c>;
     /// setting <c>null</c> removes it.
     /// </summary>
+    /// <remarks>
+    /// Values are read without surrounding whitespace (e.g. a hand-edited value on its own line), and an empty value
+    /// reads as <c>null</c>, as in MSBuild, where an empty property is an unset one: Visual Studio writes elements like
+    /// <c>&lt;UserName /&gt;</c> for profiles that sign in another way.
+    /// <see cref="Properties"/> still has them, so saving a profile keeps the file as it was.
+    /// </remarks>
     public string? this[string name]
     {
-        get => _properties.FirstOrDefault(p => IsSameName(p.Key, name)).Value;
+        get => _properties.FirstOrDefault(p => IsSameName(p.Key, name)).Value?.Trim() is { Length: > 0 } value ? value : null;
         set
         {
             var index = _properties.FindIndex(p => IsSameName(p.Key, name));

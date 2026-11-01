@@ -34,7 +34,7 @@ public sealed class ZipFileTarget(DotnetCli dotnet) : IPublishTarget
     /// <summary>The zip file's full path; relative paths are relative to the project folder.</summary>
     internal static string GetZipPath(PublishRequest request)
     {
-        var path = request.Profile[ProfileProperties.PubwizZipFile]!
+        var path = ProfileVariables.Expand(request.Profile[ProfileProperties.PubwizZipFile]!, request)
             .Replace('\\', Path.DirectorySeparatorChar)
             .Replace('/', Path.DirectorySeparatorChar);
 

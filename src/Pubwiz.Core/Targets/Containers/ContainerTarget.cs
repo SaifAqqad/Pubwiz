@@ -113,7 +113,7 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
     /// </summary>
     internal static string ResolveArchivePath(PublishRequest request, ContainerProfile container)
     {
-        var path = container.ArchivePath!.Replace('\\', '/');
+        var path = ProfileVariables.Expand(container.ArchivePath!, request).Replace('\\', '/');
         var full = Path.GetFullPath(Path.Combine(request.Project.Directory, path));
         return path.EndsWith('/') || Directory.Exists(full)
             ? Path.Combine(full, $"{container.Repository.Replace('/', '-')}.tar.gz")
