@@ -13,7 +13,21 @@ public sealed class ImportProfilePage(IAnsiConsole console, PasswordProvider pas
     /// <returns>The profiles that were saved (possibly none).</returns>
     public async Task<IReadOnlyList<PublishProfile>> ImportAsync(ProjectInfo project, CancellationToken cancellationToken)
     {
-        var file = CommonPrompts.AskForFile(console, "Profile file", PublishSettingsImporter.FileExtension, PubxmlSerializer.FileExtension);
+        console.MarkupLine("[dim]Import a .publishsettings file (Azure portal: your app → Overview → Download publish profile)[/]");
+        console.MarkupLine("[dim]or a .pubxml profile from another project. Drag the file here or type its path.[/]");
+
+        string file;
+        try
+        {
+            file = CommonPrompts.AskForFile(console, "Path to the file", hint: "e.g. ~/Downloads/contoso.PublishSettings",
+                PublishSettingsImporter.FileExtension, PubxmlSerializer.FileExtension);
+        }
+        catch (PromptCancelledException)
+        {
+            // Esc: back to the profile list.
+            console.MarkupLine("[dim]Import cancelled[/]");
+            return [];
+        }
 
         var imported = Path.GetExtension(file).Equals(PubxmlSerializer.FileExtension, StringComparison.OrdinalIgnoreCase)
             ? [new ImportedProfile(PubxmlSerializer.Read(file), Password: null)]

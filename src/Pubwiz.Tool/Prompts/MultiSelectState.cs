@@ -116,16 +116,53 @@ public sealed class MultiSelectState
         }
     }
 
-    /// <summary>Changes the search (case-insensitive, anywhere in the item's text) and moves the cursor to the first match.</summary>
+    /// <summary>
+    /// Changes the search (case-insensitive, anywhere in the item's text) and moves the cursor to the best match.
+    /// Items that start with the search come first, then items with a word that starts with it, then the rest;
+    /// each group keeps the list order.
+    /// </summary>
     public void SetSearch(string search)
     {
         Search = search;
         _visible = Enumerable.Range(0, _searchTexts.Length)
-            .Where(i => _searchTexts[i].Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Select(i => (Item: i, Rank: Rank(_searchTexts[i], search)))
+            .Where(match => match.Rank >= 0)
+            .OrderBy(match => match.Rank) // stable, so the list order stays within a group
+            .Select(match => match.Item)
             .ToList();
 
         Offset = 0;
         MoveTo(0);
+    }
+
+    /// <returns>0 for a prefix match, 1 for a word-start match, 2 for any other match, -1 for no match.</returns>
+    internal static int Rank(string text, string search)
+    {
+        if (search.Length == 0)
+        {
+            return 0;
+        }
+
+        var index = text.IndexOf(search, StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+        {
+            return -1;
+        }
+
+        if (index == 0)
+        {
+            return 0;
+        }
+
+        for (; index > 0; index = text.IndexOf(search, index + 1, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!char.IsLetterOrDigit(text[index - 1]))
+            {
+                return 1;
+            }
+        }
+
+        return 2;
     }
 
     private void KeepCursorVisible()

@@ -4,7 +4,7 @@ using Spectre.Console.Testing;
 
 namespace Pubwiz.Tool.Tests.Prompts;
 
-public class SecretPromptTests
+public class LinePromptTests
 {
     [Fact]
     public async Task ReturnsTheTypedTextAndMasksIt()
@@ -13,7 +13,7 @@ public class SecretPromptTests
         console.Input.PushText("s3cret");
         console.Input.PushKey(ConsoleKey.Enter);
 
-        var answer = await new SecretPrompt("Password:").ShowAsync(console, TestContext.Current.CancellationToken);
+        var answer = await new LinePrompt("Password:") { Secret = true }.ShowAsync(console, TestContext.Current.CancellationToken);
 
         Assert.Equal("s3cret", answer);
         Assert.DoesNotContain("s3cret", console.Output);
@@ -30,7 +30,7 @@ public class SecretPromptTests
         console.Input.PushText("c");
         console.Input.PushKey(ConsoleKey.Enter);
 
-        var answer = await new SecretPrompt("Password:").ShowAsync(console, TestContext.Current.CancellationToken);
+        var answer = await new LinePrompt("Password:") { Secret = true }.ShowAsync(console, TestContext.Current.CancellationToken);
 
         Assert.Equal("abc", answer);
     }
@@ -43,7 +43,7 @@ public class SecretPromptTests
         console.Input.PushKey(ConsoleKey.Escape);
 
         await Assert.ThrowsAsync<PromptCancelledException>(() =>
-            new SecretPrompt("Password:").ShowAsync(console, TestContext.Current.CancellationToken));
+            new LinePrompt("Password:") { Secret = true }.ShowAsync(console, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -55,10 +55,23 @@ public class SecretPromptTests
         console.Input.PushText("abcdef");
         console.Input.PushKey(ConsoleKey.Enter);
 
-        var prompt = new SecretPrompt("Password:") { Validate = p => p.Length >= 6 ? null : "At least 6 characters" };
+        var prompt = new LinePrompt("Password:") { Secret = true, Validate = p => p.Length >= 6 ? null : "At least 6 characters" };
         var answer = await prompt.ShowAsync(console, TestContext.Current.CancellationToken);
 
         Assert.Equal("abcdef", answer);
         Assert.Contains("At least 6 characters", console.Output);
+    }
+
+    [Fact]
+    public async Task ShowsTheTextWhenNotSecret()
+    {
+        var console = new TestConsole().Interactive();
+        console.Input.PushText("~/a.pubxml");
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var answer = await new LinePrompt("Path:").ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal("~/a.pubxml", answer);
+        Assert.Contains("~/a.pubxml", console.Output);
     }
 }

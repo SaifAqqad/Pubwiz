@@ -27,7 +27,9 @@ public sealed class PublishWizard(
     {
         var workspace = await workspacePage.LoadAsync(options.Path, cancellationToken);
 
-        var candidates = options.IncludeAll ? workspace.Projects : workspace.Projects.Where(p => p.IsPublishable).ToList();
+        var candidates = (options.IncludeAll ? workspace.Projects : workspace.Projects.Where(p => p.IsPublishable))
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         if (candidates.Count == 0)
         {
             throw new UserErrorException("No publishable projects were found. Use --all to include libraries and test projects.");

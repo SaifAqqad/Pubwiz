@@ -35,3 +35,18 @@ public class SecretStoreTests
         }
     }
 }
+
+public class MacKeychainStoreTests
+{
+    [Theory]
+    [InlineData("password: \"secret\"", "secret")]
+    [InlineData("password: \"deadbeef\"", "deadbeef")]
+    [InlineData("password: \"plain \"quoted\" ascii\"", "plain \"quoted\" ascii")]
+    [InlineData("password: 0x704073733A2077C3B67264202271756F74656422  \"p@ss: w\\303\\266rd \"quoted\"\"", "p@ss: wörd \"quoted\"")]
+    [InlineData("keychain: \"/Users/me/Library/Keychains/login.keychain-db\"\npassword: \"x\"\n", "x")]
+    [InlineData("password: ", "")]
+    public void ParsePasswordLine_ReadsBothForms(string output, string expected)
+    {
+        Assert.Equal(expected, MacKeychainStore.ParsePasswordLine(output));
+    }
+}

@@ -93,4 +93,25 @@ public class MultiSelectStateTests
         Assert.Equal(1, state.RowCount);
         Assert.True(state.IsOnExitRow);
     }
+
+    [Theory]
+    [InlineData("contoso-api", "con", 0)]
+    [InlineData("my-contoso", "con", 1)]
+    [InlineData("acontoso", "con", 2)]
+    [InlineData("api", "con", -1)]
+    public void Rank_PrefersPrefixesThenWordStarts(string text, string search, int rank)
+    {
+        Assert.Equal(rank, MultiSelectState.Rank(text, search));
+    }
+
+    [Fact]
+    public void SetSearch_ListsPrefixMatchesFirst()
+    {
+        var state = new MultiSelectState(["acontoso", "my-contoso", "contoso-api", "contoso-web"], [true, true, true, true], pageSize: 10);
+
+        state.SetSearch("con");
+
+        Assert.Equal([2, 3, 1, 0], state.VisibleItems);
+        Assert.Equal(2, state.CursorItem);
+    }
 }

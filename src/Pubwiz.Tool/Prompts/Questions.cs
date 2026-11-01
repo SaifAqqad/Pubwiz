@@ -57,7 +57,14 @@ public static class Questions
     public static string AskSecret(this IAnsiConsole console, string question, string? hint = null, Func<string, string?>? validate = null)
     {
         var fullHint = hint is null ? "Esc to cancel" : $"{hint} · Esc to cancel";
-        return console.Prompt(new SecretPrompt(Label(question, fullHint, defaultValue: null) + ":") { Validate = validate, MaskStyle = AnswerStyle });
+        return console.Prompt(new LinePrompt(Label(question, fullHint, defaultValue: null) + ":") { Secret = true, Validate = validate, AnswerStyle = AnswerStyle });
+    }
+
+    /// <summary>Asks for text like <see cref="Ask"/>, but Esc throws <see cref="PromptCancelledException"/>, so it can be backed out of.</summary>
+    public static string AskOrCancel(this IAnsiConsole console, string question, string? hint = null, Func<string, string?>? validate = null)
+    {
+        var fullHint = hint is null ? "Esc to cancel" : $"{hint} · Esc to cancel";
+        return console.Prompt(new LinePrompt(Label(question, fullHint, defaultValue: null) + ":") { Validate = validate, AnswerStyle = AnswerStyle });
     }
 
     /// <summary>Asks a yes/no question, e.g. "Use passive mode? [Y/n]".</summary>
@@ -88,21 +95,25 @@ public static class Questions
     }
 
     /// <summary>
-    /// Like <see cref="Choose{T}"/>, for a list loaded from somewhere else (e.g. the apps in an Azure subscription):
-    /// the list ends with a "Refresh" item that loads it again, for things created while the wizard is open.
-    /// When nothing is found, <paramref name="emptyMessage"/> is shown with only Refresh to pick (Esc goes back).
+    /// Picks one item from a list loaded from somewhere else (e.g. the apps in an Azure subscription), then writes the
+    /// question with the chosen answer. The list ends with a "Refresh" row that loads it again, for things created
+    /// while the wizard is open. Typing searches, with names that start with the text listed first.
+    /// When nothing is found, <paramref name="emptyMessage"/> is shown with only Refresh to pick.
+    /// Esc throws <see cref="PromptCancelledException"/>.
     /// </summary>
     /// <param name="console">The console.</param>
     /// <param name="question">e.g. "App Service app".</param>
     /// <param name="loadingText">Shown with a spinner while loading, e.g. "Loading apps...".</param>
     /// <param name="load">Loads the items.</param>
-    /// <param name="describe">How an item is listed (markup).</param>
+    /// <param name="columns">The item's columns as plain text; the first one (the name) is searched first and written back as the answer.</param>
     /// <param name="emptyMessage">Why the list is empty and what to do about it (plain text).</param>
     /// <param name="cancellationToken">Cancels loading.</param>
     public static async Task<T> ChooseWithRefreshAsync<T>(this IAnsiConsole console, string question, string loadingText,
-        Func<CancellationToken, Task<IReadOnlyList<T>>> load, Func<T, string> describe, string emptyMessage, CancellationToken cancellationToken)
-        where T : class
+        Func<CancellationToken, Task<IReadOnlyList<T>>> load, Func<T, IReadOnlyList<string>> columns, string emptyMessage,
+        CancellationToken cancellationToken)
+        where T : notnull
     {
+        const string refresh = "↻ Refresh the list";
         while (true)
         {
             var items = await console.Status()
@@ -114,26 +125,25 @@ public static class Questions
             {
                 console.Write(Widgets.Warning(emptyMessage));
                 console.WriteLine();
+                console.Prompt(Menu<string>($"[bold]{question.EscapeMarkup()}[/]").AddChoices(refresh).UseConverter(text => $"[dim]{text}[/]"));
+                continue;
             }
 
-            var refresh = new Refreshable<T>(null);
-            var answer = console.Prompt(Menu<Refreshable<T>>($"[bold]{question.EscapeMarkup()}[/]")
-                .WrapAround()
-                .AddChoices(items.Select(item => new Refreshable<T>(item)))
-                .AddChoices(refresh)
-                .UseConverter(choice => choice.Item is { } item ? describe(item) : "[dim]↻ Refresh the list[/]"));
-
-            if (answer.Item is { } chosen)
+            var prompt = new MultiSelectPrompt<T>($"[bold]{question.EscapeMarkup()}[/]", items, columns)
             {
-                WriteAnswer(console, question, describe(chosen));
+                SingleSelect = true,
+                ExitLabel = "Refresh the list",
+                ExitIcon = ("↻", "~"),
+                EscapeChoosesExitRow = false
+            };
+
+            if (await prompt.ShowAsync(console, cancellationToken) is { Highlighted: var chosen })
+            {
+                WriteAnswer(console, question, columns(chosen)[0].EscapeMarkup());
                 return chosen;
             }
         }
     }
-
-    /// <summary>An item of <see cref="ChooseWithRefreshAsync{T}"/>'s list; <c>null</c> is the Refresh item.</summary>
-    private sealed record Refreshable<T>(T? Item)
-        where T : class;
 
     /// <summary>A list disappears once answered, so its answer is written the way text answers look.</summary>
     private static void WriteAnswer(IAnsiConsole console, string question, string answerMarkup)

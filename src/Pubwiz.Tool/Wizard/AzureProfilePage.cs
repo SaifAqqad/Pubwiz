@@ -63,7 +63,7 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
 
         var what = kind == AzureAppKind.FunctionApp ? "Function Apps" : "App Service apps";
         return await console.ChooseWithRefreshAsync(question, "Loading apps...", LoadMatchingAsync,
-            a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()} · {(a.IsLinux ? "Linux" : "Windows")} · {a.State}[/]",
+            a => [a.Name, a.ResourceGroup, a.IsLinux ? "Linux" : "Windows", a.State ?? string.Empty],
             emptyMessage: $"No {what} were found in '{subscription.Name}'. Create one in the Azure portal or with az, then refresh.",
             cancellationToken);
 

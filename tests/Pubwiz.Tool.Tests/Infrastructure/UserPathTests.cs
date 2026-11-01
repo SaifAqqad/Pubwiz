@@ -29,4 +29,15 @@ public class UserPathTests
     {
         Assert.Equal(Path.Combine(Directory.GetCurrentDirectory(), "a~b"), UserPath.ToFullPath("a~b"));
     }
+
+    [Fact]
+    public void UnescapesDraggedPathsOnMacAndLinux()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows paths use backslashes as separators.");
+        }
+
+        Assert.Equal("/tmp/My Folder/a(1).pubxml", UserPath.ToFullPath(@"/tmp/My\ Folder/a\(1\).pubxml"));
+    }
 }

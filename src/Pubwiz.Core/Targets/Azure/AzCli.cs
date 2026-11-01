@@ -106,7 +106,7 @@ public sealed class AzCli(IProcessRunner processRunner)
     {
         var result = await RunAsync(["acr", "list", "--query", "[].{name:name, resourceGroup:resourceGroup, loginServer:loginServer}", "-o", "json"], onOutput: null, cancellationToken);
         EnsureSucceeded(result, "az acr list");
-        return Deserialize<List<AzureContainerRegistry>>(result.Output) ?? [];
+        return (Deserialize<List<AzureContainerRegistry>>(result.Output) ?? []).OrderBy(r => r.LoginServer, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>
@@ -125,7 +125,7 @@ public sealed class AzCli(IProcessRunner processRunner)
         const string query = "[].{name:name, resourceGroup:resourceGroup, fqdn:properties.configuration.ingress.fqdn}";
         var result = await RunAsync(["containerapp", "list", "--query", query, "-o", "json"], onOutput: null, cancellationToken);
         EnsureSucceeded(result, "az containerapp list");
-        return Deserialize<List<AzureContainerApp>>(result.Output) ?? [];
+        return (Deserialize<List<AzureContainerApp>>(result.Output) ?? []).OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     /// <summary>Points an App Service (container) app at a new image.</summary>

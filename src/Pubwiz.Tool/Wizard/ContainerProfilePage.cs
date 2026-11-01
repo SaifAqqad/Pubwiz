@@ -107,7 +107,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         {
             await azureSession.EnsureReadyAsync(cancellationToken);
             registry = (await console.ChooseWithRefreshAsync("Azure Container Registry", "Loading registries...", az.ListContainerRegistriesAsync,
-                r => $"{r.LoginServer.EscapeMarkup()} [dim]{r.ResourceGroup.EscapeMarkup()}[/]",
+                r => [r.LoginServer, r.ResourceGroup],
                 emptyMessage: "No Azure Container Registries were found in this subscription. Create one, then refresh.",
                 cancellationToken)).LoginServer;
         }
@@ -132,7 +132,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         {
             var app = await console.ChooseWithRefreshAsync<AzureWebApp>("App Service app", "Loading apps...",
                 async token => (await az.ListWebAppsAsync(cancellationToken: token)).Where(a => a.IsContainer).ToList(),
-                a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]",
+                a => [a.Name, a.ResourceGroup],
                 emptyMessage: $"No container App Service apps were found in '{subscription.Name}'. Create one, then refresh.",
                 cancellationToken);
             (name, resourceGroup) = (app.Name, app.ResourceGroup);
@@ -142,7 +142,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
         else
         {
             var app = await console.ChooseWithRefreshAsync("Container App", "Loading container apps...", az.ListContainerAppsAsync,
-                a => $"{a.Name.EscapeMarkup()} [dim]{a.ResourceGroup.EscapeMarkup()}[/]",
+                a => [a.Name, a.ResourceGroup],
                 emptyMessage: $"No Container Apps were found in '{subscription.Name}'. Create one, then refresh.",
                 cancellationToken);
             (name, resourceGroup) = (app.Name, app.ResourceGroup);

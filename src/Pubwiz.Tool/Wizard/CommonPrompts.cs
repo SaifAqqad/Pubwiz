@@ -24,9 +24,14 @@ public static class CommonPrompts
     /// <summary>
     /// Asks for an existing file, accepting <c>~</c> for the home folder and paths relative to the current folder.
     /// </summary>
-    public static string AskForFile(IAnsiConsole console, string question, params string[] allowedExtensions)
+    /// <param name="console">The console.</param>
+    /// <param name="question">e.g. "Path to the keystore".</param>
+    /// <param name="hint">Shown in parentheses, e.g. an example path; defaults to the extensions.</param>
+    /// <param name="allowedExtensions">e.g. <c>.keystore</c>, <c>.jks</c>.</param>
+    /// <exception cref="PromptCancelledException">Esc was pressed.</exception>
+    public static string AskForFile(IAnsiConsole console, string question, string? hint, params string[] allowedExtensions)
     {
-        var answer = console.Ask(question, hint: string.Join(" or ", allowedExtensions), validate: value =>
+        var answer = console.AskOrCancel(question, hint: hint ?? string.Join(" or ", allowedExtensions), validate: value =>
         {
             var path = UserPath.ToFullPath(value);
             if (!File.Exists(path))

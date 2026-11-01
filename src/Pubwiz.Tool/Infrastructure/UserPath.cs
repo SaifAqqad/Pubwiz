@@ -23,11 +23,15 @@ public static class UserPath
 
         if (trimmed.StartsWith("~/", StringComparison.Ordinal) || trimmed.StartsWith("~\\", StringComparison.Ordinal))
         {
-            return Path.GetFullPath(Path.Combine(Home, trimmed[2..]));
+            return Path.GetFullPath(Path.Combine(Home, Unescape(trimmed[2..])));
         }
 
-        return Path.GetFullPath(trimmed);
+        return Path.GetFullPath(Unescape(trimmed));
     }
+
+    /// <summary>Files dragged into a macOS/Linux terminal arrive shell-escaped (<c>My\ Folder/a\(1\).pubxml</c>).</summary>
+    private static string Unescape(string path) =>
+        OperatingSystem.IsWindows() ? path : System.Text.RegularExpressions.Regex.Replace(path, @"\\(.)", "$1");
 
     private static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 }

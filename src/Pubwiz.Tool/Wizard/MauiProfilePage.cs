@@ -66,7 +66,7 @@ public sealed class MauiProfilePage(IAnsiConsole console, AndroidKeystore keysto
 
         if (signing == existing)
         {
-            keystorePath = CommonPrompts.AskForFile(console, "Keystore file", ".keystore", ".jks");
+            keystorePath = CommonPrompts.AskForFile(console, "Path to the keystore", hint: null, ".keystore", ".jks");
             alias = console.Ask("Key alias");
         }
         else

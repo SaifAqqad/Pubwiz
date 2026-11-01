@@ -37,10 +37,25 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     public Func<T, bool> IsSelectable { get; init; } = _ => true;
 
     /// <summary>
-    /// Adds a row with this label after the items. Choosing it (or pressing Esc) returns <c>null</c>.
-    /// Without it, Esc throws <see cref="PromptCancelledException"/>.
+    /// Adds a row with this label after the items. Choosing it (or pressing Esc, see <see cref="EscapeChoosesExitRow"/>)
+    /// returns <c>null</c>. Without it, Esc throws <see cref="PromptCancelledException"/>.
     /// </summary>
     public string? ExitLabel { get; init; }
+
+    /// <summary>The icon of the exit row (✕ by default; plain-text fallback for terminals without Unicode).</summary>
+    public (string Unicode, string Ascii) ExitIcon { get; init; } = ("✕", "x");
+
+    /// <summary>
+    /// <c>true</c> (the default): Esc picks the exit row. <c>false</c>: Esc throws <see cref="PromptCancelledException"/>
+    /// even with an exit row, for rows that aren't a way out (e.g. "Refresh").
+    /// </summary>
+    public bool EscapeChoosesExitRow { get; init; } = true;
+
+    /// <summary>
+    /// Pick one item: no checkboxes, Space and Ctrl+A don't select, and Space can be part of the search.
+    /// The answer is <see cref="MultiSelectResult{T}.Highlighted"/>.
+    /// </summary>
+    public bool SingleSelect { get; init; }
 
     public MultiSelectResult<T>? Show(IAnsiConsole console) => ShowAsync(console, CancellationToken.None).GetAwaiter().GetResult();
 
@@ -100,11 +115,18 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             case ConsoleKey.End:
                 state.MoveTo(state.RowCount - 1);
                 break;
+            case ConsoleKey.Spacebar when SingleSelect:
+                state.SetSearch(state.Search + ' ');
+                break;
             case ConsoleKey.Spacebar:
                 state.ToggleCursor();
                 break;
             case ConsoleKey.A when key.Modifiers.HasFlag(ConsoleModifiers.Control):
-                state.ToggleAll();
+                if (!SingleSelect)
+                {
+                    state.ToggleAll();
+                }
+
                 break;
             case ConsoleKey.Backspace when state.Search.Length > 0:
                 state.SetSearch(state.Search[..^1]);
@@ -114,7 +136,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             case ConsoleKey.Escape when state.Search.Length > 0:
                 state.SetSearch(string.Empty);
                 break;
-            case ConsoleKey.Escape when state.HasExitRow:
+            case ConsoleKey.Escape when state.HasExitRow && EscapeChoosesExitRow:
                 return true;
             case ConsoleKey.Escape:
                 throw new PromptCancelledException();
@@ -220,16 +242,21 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             : "default";
 
         var pointer = isCursor ? $"[{Widgets.PrimaryColorMarkup}]{(unicode ? "❯" : ">")}[/]" : " ";
-        var checkbox = state.IsSelected(index)
-            ? $"[{Widgets.PrimaryColorMarkup}]{(unicode ? "◉" : "[[x]]")}[/]"
-            : $"[{style}]{(unicode ? "○" : "[[ ]]")}[/]";
-
         var cells = columns(items[index]).Select((text, column) =>
         {
             // Only the first column (the name) is highlighted; the rest stay dim to keep the list calm.
             var cellStyle = column == 0 || !selectable ? style : "dim";
             return new Markup($"[{cellStyle}]{HighlightSearch(text, state.Search)}[/]");
         });
+
+        if (SingleSelect)
+        {
+            return [new Markup(pointer), .. cells];
+        }
+
+        var checkbox = state.IsSelected(index)
+            ? $"[{Widgets.PrimaryColorMarkup}]{(unicode ? "◉" : "[[x]]")}[/]"
+            : $"[{style}]{(unicode ? "○" : "[[ ]]")}[/]";
 
         return [new Markup($"{pointer} {checkbox}"), .. cells];
     }
@@ -238,18 +265,22 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     {
         var style = isCursor ? $"{Widgets.PrimaryColorMarkup} bold" : "dim";
         var pointer = isCursor ? (unicode ? "❯" : ">") : " ";
-        var icon = unicode ? "✕" : "x";
+        var icon = (unicode ? ExitIcon.Unicode : ExitIcon.Ascii).EscapeMarkup();
 
         var label = new Markup($"[{style}]{ExitLabel!.EscapeMarkup()}[/]");
         var empty = Enumerable.Range(0, columnCount - 1).Select(_ => new Markup(string.Empty));
-        return [new Markup($"[{style}]{pointer} {icon}[/]"), label, .. empty];
+        return SingleSelect
+            ? [new Markup($"[{style}]{pointer}[/]"), new Markup($"[{style}]{icon} {ExitLabel.EscapeMarkup()}[/]"), .. empty]
+            : [new Markup($"[{style}]{pointer} {icon}[/]"), label, .. empty];
     }
 
     /// <summary>The key hints, with the keys in bold: <c>↑/↓ move · space select · ...</c></summary>
-    private static Markup RenderKeys(MultiSelectState state)
+    private Markup RenderKeys(MultiSelectState state)
     {
-        var escape = state.Search.Length > 0 ? "clear search" : state.HasExitRow ? "exit" : "cancel";
-        (string Key, string Action)[] keys =
+        var escape = state.Search.Length > 0 ? "clear search" : state.HasExitRow && EscapeChoosesExitRow ? "exit" : SingleSelect ? "back" : "cancel";
+        (string Key, string Action)[] keys = SingleSelect
+            ? [("↑/↓", "move"), ("enter", "choose"), ("esc", escape)]
+            :
         [
             ("↑/↓", "move"),
             ("space", "select"),
