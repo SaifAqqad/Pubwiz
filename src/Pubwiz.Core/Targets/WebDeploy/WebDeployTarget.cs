@@ -79,7 +79,8 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
             AuthType = profile[ProfileProperties.AuthType],
             AllowUntrustedCertificate = request.AllowUntrustedCertificate ?? WebDeployProfile.AllowsUntrustedCertificate(profile),
             KeepExtraFiles = IsTrue(profile[ProfileProperties.SkipExtraFilesOnServer]),
-            TakeAppOffline = request.TakeAppOffline ?? (IsTrue(profile[ProfileProperties.EnableMSDeployAppOffline]) || IsTrue(profile[ProfileProperties.PubwizUseAppOffline])),
+            // A running app keeps its DLLs locked, so the app is taken offline unless turned off for the run.
+            TakeAppOffline = request.TakeAppOffline ?? true,
             Verbose = request.Verbose
         };
     }
@@ -133,24 +134,18 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
             {
                 await SyncAsync(context, options, cancellationToken);
             }
+            catch (MsDeployException ex) when (ex.ErrorCode == MsDeployException.FileInUse && options.TakeAppOffline)
+            {
+                // The app was taken offline (app_offline.htm) but still had a file locked: give it a moment to shut down.
+                context.Log.Info($"A file is in use; retrying in {FileInUseRetryDelay.TotalSeconds:0}s");
+                context.ReportDetail("a file is in use, retrying...");
+                await Task.Delay(FileInUseRetryDelay, cancellationToken);
+                await RetryAsync(context, options, cancellationToken);
+            }
             catch (MsDeployException ex) when (ex.ErrorCode == MsDeployException.FileInUse)
             {
-                // The running app has a file locked. Like Visual Studio suggests, take the app offline (app_offline.htm)
-                // so IIS releases it; if it already was, give it a moment to shut down.
-                if (options.TakeAppOffline)
-                {
-                    context.Log.Info($"A file is in use; retrying in {FileInUseRetryDelay.TotalSeconds:0}s");
-                    context.ReportDetail("a file is in use, retrying...");
-                    await Task.Delay(FileInUseRetryDelay, cancellationToken);
-                }
-                else
-                {
-                    context.Log.Info("A file is in use; retrying with the app taken offline (AppOffline rule)");
-                    context.ReportDetail("a file is in use, taking the app offline...");
-                    options = options with { TakeAppOffline = true };
-                }
-
-                await RetryAsync(context, options, cancellationToken);
+                // --no-app-offline was given, so the app keeps running and its files stay locked.
+                throw new PublishStepException($"{ex.Message} The running app has the file locked; publish without --no-app-offline to take it offline while copying.", ex);
             }
             catch (MsDeployException ex) when (ex.ErrorCode == MsDeployException.CertificateValidationFailed)
             {
@@ -244,7 +239,7 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
 
             if (options.TakeAppOffline)
             {
-                context.Log.Info("The built-in Web Deploy client doesn't take the app offline; stop the app or its app pool first if a file is in use.");
+                context.Log.Info("The built-in Web Deploy client can't take the app offline yet; if a file is in use, stop the app or its app pool first.");
             }
         }
 

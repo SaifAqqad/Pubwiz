@@ -24,7 +24,6 @@ public sealed class WebDeployProfilePage(IAnsiConsole console)
         var allowUntrusted = console.AskYesNo("Allow an untrusted (self-signed) server certificate?", defaultValue: !endpoint.IsAzure);
         var siteUrl = console.Ask("Site URL", hint: "optional, shown after publishing", optional: true);
         var removeExtraFiles = console.AskYesNo("Delete files on the server that aren't part of the app?", defaultValue: false);
-        var takeOffline = console.AskYesNo("Take the app offline while copying?", defaultValue: true, hint: "avoids \"file in use\" errors");
 
         var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
         var configuration = CommonPrompts.ChooseConfiguration(console);
@@ -41,7 +40,8 @@ public sealed class WebDeployProfilePage(IAnsiConsole console)
         profile[ProfileProperties.SkipExtraFilesOnServer] = removeExtraFiles ? "false" : "true";
         profile[ProfileProperties.MSDeployPublishMethod] = "WMSVC";
         profile[ProfileProperties.EnableMSDeployBackup] = "false";
-        profile[ProfileProperties.EnableMSDeployAppOffline] = takeOffline ? "true" : null;
+        // Pubwiz always takes the app offline (unless --no-app-offline); this makes Visual Studio do the same.
+        profile[ProfileProperties.EnableMSDeployAppOffline] = "true";
         profile[ProfileProperties.UserName] = userName.Length > 0 ? userName : null;
         profile[ProfileProperties.AuthType] = userName.Length > 0 ? "Basic" : "NTLM";
         profile[ProfileProperties.AllowUntrustedCertificate] = allowUntrusted ? "true" : "false";

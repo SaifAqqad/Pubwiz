@@ -20,7 +20,6 @@ public sealed class PublishCommand(
     ConfirmPage confirmPage,
     ArgumentSelection argumentSelection,
     PasswordProvider passwords,
-    AppOfflinePrompt appOffline,
     CertificateTrustPrompt certificates,
     PublishRunner runner,
     GitCli git,
@@ -73,6 +72,10 @@ public sealed class PublishCommand(
         [CommandOption("--parallel")]
         [Description("How many projects to publish at the same time (default 1, or the preset's)")]
         public int? Parallel { get; init; }
+
+        [CommandOption("--no-app-offline")]
+        [Description("Keep IIS apps running while publishing, instead of taking them offline with app_offline.htm (Web Deploy, FTP, SFTP)")]
+        public bool NoAppOffline { get; init; }
 
         [CommandOption("--report <FILE>")]
         [Description("Write a report after publishing (.json or .csv)")]
@@ -197,11 +200,12 @@ public sealed class PublishCommand(
         foreach (var (project, profile) in batch.Selections)
         {
             // A job that can't run here fails straight away, so don't ask for its password.
-            // With --yes (or no terminal), Web Deploy uses the profile's app offline and certificate settings.
+            // With --yes (or no terminal), Web Deploy uses the profile's certificate setting.
             var ask = interactive && !settings.Yes;
             requests.Add(new PublishRequest(project, profile)
             {
-                TakeAppOffline = ask ? appOffline.Ask(project, profile, showProjectName: batch.Selections.Count > 1) : null,
+                // Apps are taken offline unless --no-app-offline says otherwise (see PublishRequest.TakeAppOffline).
+                TakeAppOffline = settings.NoAppOffline ? false : null,
                 AllowUntrustedCertificate = ask ? await certificates.AskAsync(profile, cancellationToken) : null,
                 Configuration = settings.Configuration ?? batch.Configuration,
                 Verbose = settings.Verbose,

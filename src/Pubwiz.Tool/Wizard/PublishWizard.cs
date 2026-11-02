@@ -21,7 +21,6 @@ public sealed class PublishWizard(
     ConfirmPage confirmPage,
     PublishRunner runner,
     PasswordProvider passwords,
-    AppOfflinePrompt appOffline,
     CertificateTrustPrompt certificates)
 {
     /// <returns>What to publish, or <c>null</c> when the user chose Exit.</returns>
@@ -145,7 +144,6 @@ public sealed class PublishWizard(
             {
                 if (options.Confirm)
                 {
-                    appOffline.Ask(project, profile, showProjectName: batch.Selections.Count > 1);
                     await certificates.AskAsync(profile, cancellation.Token);
                 }
 

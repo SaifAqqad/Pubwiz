@@ -27,7 +27,7 @@ public sealed class FileTransferTarget(DotnetCli dotnet, bool sftp) : IPublishTa
         var endpoint = FileTransferEndpoint.FromProfile(profile);
         var options = new UploadOptions(
             DeleteExtraFiles: IsTrue(profile[ProfileProperties.DeleteExistingFiles]),
-            UseAppOffline: IsTrue(profile[ProfileProperties.PubwizUseAppOffline]));
+            UseAppOffline: request.TakeAppOffline ?? IsTrue(profile[ProfileProperties.PubwizUseAppOffline]));
 
         var userName = profile[ProfileProperties.UserName] ?? string.Empty;
         Func<IFileUploader> createUploader = endpoint.IsSftp

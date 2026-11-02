@@ -1,5 +1,4 @@
 using Pubwiz.Core.Publishing;
-using Pubwiz.Core.Targets;
 using Spectre.Console.Rendering;
 
 namespace Pubwiz.Tool.Rendering;
@@ -13,6 +12,8 @@ public sealed record DashboardOptions(bool ShowLog, int LogLines);
 
 /// <summary>
 /// Shows the jobs' steps live while they run, with an optional tail of each running job's log (toggled with L).
+/// When the batch doesn't fit the terminal, finished and waiting jobs are shortened so the running ones stay in view
+/// (see <see cref="DashboardLayout"/>).
 /// </summary>
 /// <remarks>
 /// The jobs are updated by the runner on other threads; the dashboard just redraws them every
@@ -28,32 +29,54 @@ public sealed class PublishDashboard(IAnsiConsole console)
     public async Task ShowAsync(IReadOnlyList<PublishJob> jobs, Task run, DashboardOptions options)
     {
         var showLog = options.ShowLog;
-        var interactive = console.Profile.Capabilities.Interactive;
         var frame = 0;
 
-        await console.Live(Render(jobs, frame, showLog, options.LogLines, interactive, console.Profile.Width))
-            .AutoClear(true)
-            .Overflow(VerticalOverflow.Ellipsis)
-            .StartAsync(async context =>
-            {
-                while (!run.IsCompleted)
+        // Without a terminal (output piped, CI) there's nothing to update in place: only the record below is written.
+        if (console.Profile.Capabilities.Interactive)
+        {
+            await console.Live(RenderLive(jobs, frame, showLog, options.LogLines))
+                .AutoClear(true)
+                .Overflow(VerticalOverflow.Ellipsis)
+                .StartAsync(async context =>
                 {
-                    if (interactive && IsKeyPressed(ConsoleKey.L))
+                    while (!run.IsCompleted)
                     {
-                        showLog = !showLog;
+                        if (IsKeyPressed(ConsoleKey.L))
+                        {
+                            showLog = !showLog;
+                        }
+
+                        context.UpdateTarget(RenderLive(jobs, ++frame, showLog, options.LogLines));
+                        await Task.WhenAny(run, Task.Delay(RefreshInterval));
                     }
+                });
+        }
+        else
+        {
+            // Waits without throwing; the `await run` at the end reports a failure after the record is written.
+            await Task.WhenAny(run);
+        }
 
-                    context.UpdateTarget(Render(jobs, ++frame, showLog, options.LogLines, interactive, console.Profile.Width));
-                    await Task.WhenAny(run, Task.Delay(RefreshInterval));
-                }
-            });
-
-        // The live view clears itself; the final state is written as normal output (no log tails or key hints)
-        // so it stays on screen as a record of the run.
-        console.Write(Render(jobs, frame, showLog: false, options.LogLines, showHints: false, console.Profile.Width));
+        // The live view clears itself; the final state is written as normal output (no log tails or key hints), so it
+        // stays on screen as a record of the run. A batch gets one line per project: the results table follows anyway.
+        var record = new DashboardView(frame, ShowLog: false, options.LogLines, console.Profile.Width, Live: false);
+        var detail = jobs.Count > 1 ? DashboardDetail.RunningExpanded : DashboardDetail.Full;
+        console.Write(ToRows(DashboardLayout.Build(jobs, record, detail)));
+        console.WriteLine();
 
         await run;
     }
+
+    private IRenderable RenderLive(IReadOnlyList<PublishJob> jobs, int frame, bool showLog, int logLines)
+    {
+        var view = new DashboardView(frame, showLog, logLines, console.Profile.Width, Live: true);
+
+        // One line is left for the cursor, so the live area never scrolls the terminal.
+        return ToRows(DashboardLayout.Fit(jobs, view, maxLines: Math.Max(2, console.Profile.Height - 1)));
+    }
+
+    private static Rows ToRows(IReadOnlyList<string> lines) =>
+        new(lines.Select(line => line.Length == 0 ? Text.Empty : (IRenderable)new Markup(line)));
 
     private bool IsKeyPressed(ConsoleKey key)
     {
@@ -64,77 +87,5 @@ public sealed class PublishDashboard(IAnsiConsole console)
         }
 
         return pressed;
-    }
-
-    /// <param name="width">Terminal width: single-line output is cut to it so the view never jumps around.</param>
-    private static IRenderable Render(IReadOnlyList<PublishJob> jobs, int frame, bool showLog, int logLines, bool showHints, int width)
-    {
-        var rows = new List<IRenderable>();
-        foreach (var job in jobs)
-        {
-            rows.Add(RenderJobHeader(job, frame));
-            rows.AddRange(job.Steps.Select(step => RenderStep(step, frame, width)));
-
-            if (job.Steps.Count == 0 && job.Error is not null)
-            {
-                rows.Add(new Markup($"    [red]{job.Error.EscapeMarkup()}[/]"));
-            }
-
-            if (showLog && job.Status == JobStatus.Running)
-            {
-                rows.AddRange(job.Log.Tail(logLines).Select(entry => RenderLogLine(entry.Text, width)));
-            }
-
-            rows.Add(Text.Empty);
-        }
-
-        if (showHints)
-        {
-            rows.Add(new Markup($"[dim]L {(showLog ? "hide" : "show")} log · Ctrl+C cancel[/]"));
-        }
-
-        return new Rows(rows);
-    }
-
-    private static Markup RenderJobHeader(PublishJob job, int frame)
-    {
-        var target = job.TargetType is { } type ? PublishTargetCatalog.DisplayName(type) : "unsupported";
-        var elapsed = job.StartedAt is { } start ? StatusIcons.FormatDuration((job.FinishedAt ?? DateTimeOffset.Now) - start) : string.Empty;
-
-        return new Markup(
-            $"{StatusIcons.ForJob(job.Status, frame)} [bold]{job.Request.Project.Name.EscapeMarkup()}[/] " +
-            $"[dim]{job.Request.Profile.Name.EscapeMarkup()} · {target} · {job.Request.EffectiveConfiguration}[/]  [dim]{elapsed}[/]");
-    }
-
-    private static IRenderable RenderStep(PublishStep step, int frame, int width)
-    {
-        var line = $"  {StatusIcons.ForStep(step.Status, frame)} {step.Name.EscapeMarkup()}";
-
-        line += step.Status switch
-        {
-            StepStatus.Running when step.Progress is { } progress => $" [{Widgets.PrimaryColorMarkup}]{progress:P0}[/]",
-            StepStatus.Succeeded or StepStatus.Failed => $" [dim]{StatusIcons.FormatDuration(step.Duration)}[/]",
-            _ => string.Empty
-        };
-
-        if (step.Status == StepStatus.Running && step.Detail is { } detail)
-        {
-            // Room left after the indent, icon, name, progress and spacing.
-            var room = width - step.Name.Length - 12;
-            line += $"  [dim]{DisplayText.Truncate(detail, room).EscapeMarkup()}[/]";
-        }
-
-        if (step.Status == StepStatus.Failed && step.Error is { } error)
-        {
-            line += $"{Environment.NewLine}    [red]{error.EscapeMarkup()}[/]";
-        }
-
-        return new Markup(line);
-    }
-
-    private static Markup RenderLogLine(string text, int width)
-    {
-        const string prefix = "    │ ";
-        return new Markup($"[grey]{prefix}{DisplayText.Truncate(text, width - prefix.Length - 1).EscapeMarkup()}[/]");
     }
 }

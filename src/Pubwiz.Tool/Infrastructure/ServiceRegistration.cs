@@ -85,7 +85,6 @@ public static class ServiceRegistration
         services.AddSingleton<MauiProfilePage>();
         services.AddSingleton<AzureSession>();
         services.AddSingleton<PasswordProvider>();
-        services.AddSingleton<AppOfflinePrompt>();
         services.AddSingleton<CertificateTrustPrompt>();
         services.AddSingleton<PresetPage>();
         services.AddSingleton<ConfirmPage>();

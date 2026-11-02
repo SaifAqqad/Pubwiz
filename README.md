@@ -101,6 +101,7 @@ Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure
 | `-y`, `--yes` | Don't ask for confirmation, and skip the menu after publishing. |
 | `--all` | Also list projects that normally aren't published (libraries, tests, Aspire AppHosts). |
 | `--parallel <N>` | How many projects to publish at the same time (default 1, or the preset's). The wizard asks when you pick several projects. Parallel jobs build in their own folder (`obj/pubwiz-build/<profile>`), so projects that share a library don't lock each other's files. |
+| `--no-app-offline` | Keep IIS apps running while publishing. By default Web Deploy takes the app offline with `app_offline.htm` so locked files can be replaced (FTP/SFTP follow their profile). |
 | `--show-log` | Show live build output while publishing (toggle with <kbd>L</kbd>). |
 | `--log-lines <N>` | How many lines of live output to show per project (default 10). |
 | `--report <FILE>` | Write a report after publishing (`.json` or `.csv`). |

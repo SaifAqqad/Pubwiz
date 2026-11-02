@@ -123,6 +123,21 @@ public sealed class WebDeployTargetTests : IDisposable
     }
 
     [Theory]
+    [InlineData(null, null, true)] // the default, whatever the profile says
+    [InlineData("false", null, true)]
+    [InlineData("true", false, false)] // --no-app-offline
+    public void CreateSyncOptions_TakesTheAppOfflineUnlessTurnedOffForTheRun(string? profileValue, bool? requestValue, bool expected)
+    {
+        var profile = Profile();
+        profile[ProfileProperties.EnableMSDeployAppOffline] = profileValue;
+        var request = Request(profile) with { TakeAppOffline = requestValue };
+
+        var options = WebDeployTarget.CreateSyncOptions(request, WebDeployProfile.GetEndpoint(profile), "/staging");
+
+        Assert.Equal(expected, options.TakeAppOffline);
+    }
+
+    [Theory]
     [InlineData("false", true, true)] // trusted for this run
     [InlineData("true", false, false)] // the user said no
     [InlineData("true", null, true)] // not asked: the profile decides

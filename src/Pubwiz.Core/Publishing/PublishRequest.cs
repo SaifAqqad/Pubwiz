@@ -17,7 +17,11 @@ public sealed record PublishRequest(ProjectInfo Project, PublishProfile Profile)
     /// <summary>Use detailed build output.</summary>
     public bool Verbose { get; init; }
 
-    /// <summary>Overrides the profile's "take the app offline while publishing" setting (Web Deploy), when set.</summary>
+    /// <summary>
+    /// Whether to take an IIS app offline (<c>app_offline.htm</c>) while publishing, when set; <c>false</c> comes from
+    /// <c>--no-app-offline</c>. When <c>null</c>, Web Deploy takes the app offline and FTP/SFTP follow their profile
+    /// (their server may not be IIS).
+    /// </summary>
     public bool? TakeAppOffline { get; init; }
 
     /// <summary>
