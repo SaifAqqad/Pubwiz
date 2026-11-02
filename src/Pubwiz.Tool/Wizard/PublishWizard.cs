@@ -1,4 +1,5 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Infrastructure;
@@ -112,23 +113,9 @@ public sealed class PublishWizard(
 
         try
         {
-            // With one project, its profile list can save a profile as a preset; batches are saved before publishing.
-            var profileOptions = new ProfilePageOptions(projects.Count == 1 ? presetFilePath : null);
-
-            var selections = new List<PublishSelection>();
-            foreach (var project in projects)
+            if (await ChooseProfileForEachAsync(projects, presetFilePath, cancellation.Token) is not { } selections)
             {
-                if (projects.Count > 1)
-                {
-                    console.Write(new Rule($"[{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/]").LeftJustified());
-                }
-
-                if (await profilePage.ChooseAsync(project, profileOptions, cancellation.Token) is not { } profile)
-                {
-                    return null;
-                }
-
-                selections.Add(new PublishSelection(project, profile));
+                return null;
             }
 
             var parallel = options.Parallel ?? (projects.Count > 1 ? AskParallelism(projects.Count) : null);
@@ -163,6 +150,48 @@ public sealed class PublishWizard(
             console.MarkupLine("[dim]Cancelled, back to the projects[/]");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Asks for each project's profile in turn. From the second project on, the list can go back to the previous
+    /// project (e.g. after a misclick), which starts on the profile picked there before.
+    /// </summary>
+    /// <returns>A profile per project, or <c>null</c> when the user went back to the project list.</returns>
+    private async Task<IReadOnlyList<PublishSelection>?> ChooseProfileForEachAsync(IReadOnlyList<ProjectInfo> projects, string presetFilePath,
+        CancellationToken cancellationToken)
+    {
+        var chosen = new PublishProfile?[projects.Count];
+        var index = 0;
+        while (index < projects.Count)
+        {
+            var project = projects[index];
+            if (projects.Count > 1)
+            {
+                console.Write(new Rule($"[{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/] [dim]({index + 1}/{projects.Count})[/]").LeftJustified());
+            }
+
+            // With one project, its profile list can save a profile as a preset; batches are saved before publishing.
+            var options = new ProfilePageOptions(
+                PresetFilePath: projects.Count == 1 ? presetFilePath : null,
+                PreviousProject: index > 0 ? projects[index - 1].Name : null,
+                Selected: chosen[index]);
+
+            switch (await profilePage.ChooseAsync(project, options, cancellationToken))
+            {
+                case ProfilePageResult.Chosen { Profile: var profile }:
+                    chosen[index++] = profile;
+                    break;
+
+                case ProfilePageResult.PreviousProject:
+                    index--;
+                    break;
+
+                default:
+                    return null;
+            }
+        }
+
+        return projects.Select((project, i) => new PublishSelection(project, chosen[i]!)).ToList();
     }
 
     /// <summary>Asks how many of the picked projects to publish at the same time, all of them first.</summary>

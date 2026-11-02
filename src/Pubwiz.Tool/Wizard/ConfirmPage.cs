@@ -19,6 +19,11 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
     public bool Confirm(PublishBatch batch, string cancelLabel)
     {
         console.WriteLine();
+        if (batch.Selections.Count > 1)
+        {
+            WriteSummary(batch);
+        }
+
         var canSavePreset = batch.PresetFilePath is not null && batch.Selections.Count > 1;
         while (true)
         {
@@ -48,6 +53,23 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
             canSavePreset = false;
             console.WriteLine();
         }
+    }
+
+    /// <summary>Lists each project with its profile, so the whole batch can be checked before publishing.</summary>
+    private void WriteSummary(PublishBatch batch)
+    {
+        var grid = new Grid()
+            .AddColumn(new GridColumn().PadLeft(2).PadRight(3))
+            .AddColumn(new GridColumn().PadLeft(0));
+        foreach (var (project, profile) in batch.Selections)
+        {
+            grid.AddRow(
+                new Markup($"[bold]{project.Name.EscapeMarkup()}[/]"),
+                new Markup($"[{Widgets.PrimaryColorMarkup}]{profile.Name.EscapeMarkup()}[/] [dim]({profile.Method})[/]"));
+        }
+
+        console.Write(grid);
+        console.WriteLine();
     }
 
     /// <summary>e.g. "Publish 3 project(s), 2 at a time?"</summary>
