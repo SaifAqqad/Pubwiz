@@ -1,6 +1,5 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Infrastructure.Platform;
-using Pubwiz.Core.Targets.WebDeploy;
 
 namespace Pubwiz.Core.Targets;
 
@@ -59,7 +58,7 @@ public static class PublishTargetCatalog
         var types = GetTargetTypes(kind);
         return AllTargets
             .Where(target => types.Contains(target.Type))
-            .Select(target => target with { UnavailableReason = GetUnavailableReason(target.Type), Warning = GetWarning(target.Type) })
+            .Select(target => target with { UnavailableReason = GetUnavailableReason(target.Type) })
             .ToList();
     }
 
@@ -109,9 +108,4 @@ public static class PublishTargetCatalog
 
         return Implemented.Contains(type) ? null : "coming soon";
     }
-
-    private static string? GetWarning(PublishTargetType type) =>
-        type is PublishTargetType.WebDeploy && MsDeployLocator.Find() is null
-            ? OperatingSystemInfo.IsWindows ? "Web Deploy isn't installed" : "needs Windows"
-            : null;
 }

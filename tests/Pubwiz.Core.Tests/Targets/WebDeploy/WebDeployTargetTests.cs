@@ -7,6 +7,7 @@ using Pubwiz.Core.Targets;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Azure.Kudu;
 using Pubwiz.Core.Targets.WebDeploy;
+using Pubwiz.WebDeploy;
 
 namespace Pubwiz.Core.Tests.Targets.WebDeploy;
 
@@ -14,7 +15,8 @@ public sealed class WebDeployTargetTests
 {
     private static readonly DotnetCli Dotnet = new(new ProcessRunner(), "dotnet");
 
-    private static WebDeployTarget Target(bool installed) => new(Dotnet, new MsDeployCli(new ProcessRunner(), installed ? @"C:\msdeploy.exe" : null));
+    private static WebDeployTarget Target(bool installed) =>
+        new(Dotnet, new MsDeployCli(new ProcessRunner(), installed ? @"C:\msdeploy.exe" : null), new WebDeployClient());
 
     private static PublishProfile Profile(string serviceUrl = "iis.contoso.local", string? site = "Default Web Site/api")
     {
@@ -40,13 +42,26 @@ public sealed class WebDeployTargetTests
     }
 
     [Fact]
-    public void CreateJob_FailsStraightAwayWithoutMsDeploy()
+    public void CreateJob_UsesTheBuiltInClientWithoutMsDeploy()
     {
+        // A Basic-auth profile (it has a user name) publishes with the built-in client even where msdeploy.exe is missing.
         var job = new PublishRunner([Target(installed: false)]).CreateJob(Request(Profile()));
 
         Assert.Equal(PublishTargetType.WebDeploy, job.TargetType);
+        Assert.Null(job.Error);
+        Assert.Equal(["Build and publish", "Deploy (Web Deploy)", "Done"], job.Steps.Select(s => s.Name));
+    }
+
+    [Fact]
+    public void CreateJob_FailsWithoutMsDeployWhenTheProfileSignsInAsTheCurrentWindowsUser()
+    {
+        var windowsAccount = Profile();
+        windowsAccount[ProfileProperties.UserName] = null;
+
+        var job = new PublishRunner([Target(installed: false)]).CreateJob(Request(windowsAccount));
+
         Assert.Empty(job.Steps);
-        Assert.Equal(MsDeployLocator.MissingReason, job.Error);
+        Assert.Equal(WebDeployProfile.BuiltInClientBlocker(windowsAccount), job.Error);
     }
 
     [Fact]
@@ -100,16 +115,13 @@ public sealed class WebDeployTargetTests
     }
 
     [Fact]
-    public void Catalog_KeepsWebDeploySelectable_WithAWarningWhereMsDeployIsMissing()
+    public void Catalog_OffersWebDeployEverywhere_WithoutAnOsWarning()
     {
+        // The built-in client publishes from any OS, so Web Deploy is offered without a "needs Windows" caveat.
         var webDeploy = PublishTargetCatalog.For(ProjectKind.Web).Single(t => t.Type == PublishTargetType.WebDeploy);
 
         Assert.True(webDeploy.IsAvailable);
-        Assert.Equal(MsDeployLocator.Find() is null, webDeploy.Warning is not null);
-        if (!OperatingSystem.IsWindows())
-        {
-            Assert.Equal("needs Windows", webDeploy.Warning);
-        }
+        Assert.Null(webDeploy.Warning);
     }
 
     [Fact]
@@ -125,12 +137,18 @@ public sealed class WebDeployTargetTests
     }
 
     [Fact]
-    public void Alternatives_AreOnlyNeededForOnPremisesProfilesWithoutMsDeploy()
+    public void Alternatives_AreOnlyNeededWhenNoEngineCanPublishTheProfile()
     {
         var folder = new PublishProfile("Folder");
         folder[ProfileProperties.WebPublishMethod] = "FileSystem";
 
-        Assert.Equal(MsDeployLocator.Find() is null, WebDeployAlternatives.AreNeeded(Profile()));
+        var windowsAccount = Profile();
+        windowsAccount[ProfileProperties.UserName] = null;
+
+        // A Basic-auth profile is handled by the built-in client, so it never needs alternatives.
+        Assert.False(WebDeployAlternatives.AreNeeded(Profile()));
+        // A current-Windows-user profile needs msdeploy.exe; without it, alternatives are offered.
+        Assert.Equal(MsDeployLocator.Find() is null, WebDeployAlternatives.AreNeeded(windowsAccount));
         Assert.False(WebDeployAlternatives.AreNeeded(Profile("contoso.scm.azurewebsites.net:443")));
         Assert.False(WebDeployAlternatives.AreNeeded(folder));
     }

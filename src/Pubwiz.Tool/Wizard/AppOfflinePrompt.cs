@@ -1,7 +1,7 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Publishing;
-using Pubwiz.Core.Targets;
+using Pubwiz.Core.Targets.WebDeploy;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -17,10 +17,11 @@ public sealed class AppOfflinePrompt(IAnsiConsole console, PublishRunner runner)
 {
     private readonly Dictionary<PublishProfile, bool> _answers = new(ReferenceEqualityComparer.Instance);
 
-    /// <returns>The answer for a Web Deploy profile that can publish from here, or <c>null</c> for any other profile.</returns>
+    /// <returns>The answer for a Web Deploy profile published with msdeploy.exe, or <c>null</c> for any other profile.</returns>
+    /// <remarks>Only msdeploy.exe takes the app offline; the built-in cross-platform client doesn't, so it isn't asked.</remarks>
     public bool? Ask(ProjectInfo project, PublishProfile profile, bool showProjectName)
     {
-        if (runner.FindTarget(profile) is not { Type: PublishTargetType.WebDeploy } target || target.GetSetupError(profile) is not null)
+        if (runner.FindTarget(profile) is not WebDeployTarget target || target.GetSetupError(profile) is not null || !target.UsesMsDeploy)
         {
             return null;
         }

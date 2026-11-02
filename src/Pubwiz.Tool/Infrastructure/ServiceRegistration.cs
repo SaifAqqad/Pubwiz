@@ -19,6 +19,7 @@ using Pubwiz.Tool.Azure;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Rendering;
 using Pubwiz.Tool.Wizard;
+using Pubwiz.WebDeploy;
 
 namespace Pubwiz.Tool.Infrastructure;
 
@@ -47,6 +48,7 @@ public static class ServiceRegistration
         services.AddSingleton<AzurePublishingCredentials>();
         services.AddSingleton<ContainerCli>();
         services.AddSingleton(sp => new MsDeployCli(sp.GetRequiredService<IProcessRunner>(), MsDeployLocator.Find()));
+        services.AddSingleton<WebDeployClient>();
         services.AddSingleton<AndroidKeystore>();
         services.AddSingleton<AppleSigning>();
 

@@ -10,11 +10,13 @@ namespace Pubwiz.Core.Targets.WebDeploy;
 public static class WebDeployAlternatives
 {
     /// <summary>
-    /// <c>true</c> for an on-premises Web Deploy profile that can't publish from this machine.
+    /// <c>true</c> for an on-premises Web Deploy profile that can't publish from this machine: msdeploy.exe isn't
+    /// installed and the built-in client can't take over (it needs a Basic-auth user name and password).
     /// (Azure Web Deploy profiles always can: they go through Kudu.)
     /// </summary>
     public static bool AreNeeded(PublishProfile profile) =>
-        profile.Method == PublishMethod.MSDeploy && !AzureProfile.IsAppService(profile) && MsDeployLocator.Find() is null;
+        profile.Method == PublishMethod.MSDeploy && !AzureProfile.IsAppService(profile)
+        && MsDeployLocator.Find() is null && !WebDeployProfile.CanUseBuiltInClient(profile);
 
     /// <summary>
     /// The targets to suggest, best first.

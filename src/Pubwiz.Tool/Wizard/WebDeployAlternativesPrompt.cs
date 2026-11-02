@@ -23,10 +23,11 @@ public sealed class WebDeployAlternativesPrompt(IAnsiConsole console)
     }
 
     /// <param name="endpoint">The server, when known; it decides which targets are suggested.</param>
+    /// <param name="reason">Why Web Deploy can't publish from this machine, shown above the choices.</param>
     /// <param name="keepLabel">The "use Web Deploy anyway" option, as markup.</param>
-    public Choice Ask(WebDeployEndpoint? endpoint, string keepLabel)
+    public Choice Ask(WebDeployEndpoint? endpoint, string reason, string keepLabel)
     {
-        console.MarkupLine($"[yellow]{MsDeployLocator.MissingReason.EscapeMarkup()}[/]");
+        console.MarkupLine($"[yellow]{reason.EscapeMarkup()}[/]");
 
         var alternatives = WebDeployAlternatives.SuggestFor(endpoint).Select(type => new Choice.Alternative(type));
         var server = endpoint is null ? "the server" : endpoint.ServiceUrl.Host;

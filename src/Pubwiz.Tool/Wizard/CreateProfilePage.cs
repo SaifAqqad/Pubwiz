@@ -51,19 +51,6 @@ public sealed class CreateProfilePage(
                 continue;
             }
 
-            if (target is { Type: PublishTargetType.WebDeploy, Warning: not null })
-            {
-                const string keepLabel = "Create the Web Deploy profile anyway [dim]· to publish from Windows or CI[/]";
-                switch (webDeployAlternatives.Ask(endpoint: null, keepLabel))
-                {
-                    case WebDeployAlternativesPrompt.Choice.Alternative { Type: var type }:
-                        target = FindTarget(project, type);
-                        break;
-                    case WebDeployAlternativesPrompt.Choice.Back:
-                        continue;
-                }
-            }
-
             console.Section(target.DisplayName);
             if (await TryCreateAsync(() => CreateForTargetAsync(project, target, cancellationToken)) is not { } created)
             {
@@ -84,9 +71,10 @@ public sealed class CreateProfilePage(
     public async Task<PublishProfile?> OfferWebDeployAlternativeAsync(ProjectInfo project, PublishProfile profile, CancellationToken cancellationToken)
     {
         var endpoint = WebDeployAlternatives.TryGetEndpoint(profile);
+        var reason = WebDeployProfile.BuiltInClientBlocker(profile) ?? MsDeployLocator.MissingReason;
         var keepLabel = $"Use '{profile.Name.EscapeMarkup()}' anyway [dim]· it will fail on this machine[/]";
 
-        switch (webDeployAlternatives.Ask(endpoint, keepLabel))
+        switch (webDeployAlternatives.Ask(endpoint, reason, keepLabel))
         {
             case WebDeployAlternativesPrompt.Choice.KeepWebDeploy:
                 return profile;

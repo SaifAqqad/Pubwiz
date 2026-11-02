@@ -1,3 +1,4 @@
+using Pubwiz.Core.Infrastructure.Platform;
 using Pubwiz.Core.Profiles;
 using Pubwiz.WebDeploy;
 
@@ -22,4 +23,23 @@ public static class WebDeployProfile
 
         return WebDeployEndpoint.Create(serviceUrl, iisPath);
     }
+
+    /// <summary>
+    /// Whether the built-in cross-platform client can publish this profile. It authenticates with HTTP Basic
+    /// (a user name and password) only, not NTLM / the current Windows user, so it needs a user name.
+    /// </summary>
+    public static bool CanUseBuiltInClient(PublishProfile profile) =>
+        !string.IsNullOrWhiteSpace(profile[ProfileProperties.UserName])
+        && !string.Equals(profile[ProfileProperties.AuthType], "NTLM", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Why the built-in client can't publish this profile, or <c>null</c> when it can. Used when msdeploy.exe
+    /// isn't available (Linux, macOS, or Windows without Web Deploy installed).
+    /// </summary>
+    public static string? BuiltInClientBlocker(PublishProfile profile) =>
+        CanUseBuiltInClient(profile)
+            ? null
+            : OperatingSystemInfo.IsWindows
+                ? $"Web Deploy isn't installed, and the built-in client can't sign in as the current Windows user. Install Web Deploy ({MsDeployLocator.DownloadUrl}), or set a user name and password on the profile."
+                : "This profile signs in as the current Windows user (NTLM), which only works with Web Deploy on Windows. Set a user name and password on the profile to publish from here.";
 }
