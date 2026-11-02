@@ -152,6 +152,7 @@ public sealed class CreateProfilePage(
         PublishTargetType.AzureAppService => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.WebApp, cancellationToken)),
         PublishTargetType.AzureFunctions => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.FunctionApp, cancellationToken)),
         PublishTargetType.AzureWebJob => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.WebJob, cancellationToken)),
+        PublishTargetType.AzureStaticWebApp => new CreatedProfile(await azurePage.CreateStaticWebAppAsync(project, cancellationToken)),
         PublishTargetType.AwsElasticBeanstalk => new CreatedProfile(await awsPage.CreateElasticBeanstalkAsync(project, cancellationToken)),
         PublishTargetType.AwsLambda => new CreatedProfile(await awsPage.CreateLambdaAsync(project, cancellationToken)),
         PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball or PublishTargetType.ContainerRegistry

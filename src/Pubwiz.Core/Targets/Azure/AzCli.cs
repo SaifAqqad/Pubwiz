@@ -128,6 +128,28 @@ public sealed class AzCli(IProcessRunner processRunner)
         return (Deserialize<List<AzureContainerApp>>(result.Output) ?? []).OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    public async Task<IReadOnlyList<AzureStaticWebApp>> ListStaticWebAppsAsync(CancellationToken cancellationToken = default)
+    {
+        const string query = "[].{name:name, resourceGroup:resourceGroup, defaultHostname:defaultHostname, sku:sku.name}";
+        var result = await RunAsync(["staticwebapp", "list", "--query", query, "-o", "json"], onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az staticwebapp list");
+        return (Deserialize<List<AzureStaticWebApp>>(result.Output) ?? []).OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>A Static Web App's deployment token (what <c>swa deploy</c> gets the same way).</summary>
+    public async Task<string> GetStaticWebAppDeploymentTokenAsync(string resourceGroup, string name, string? subscriptionId, CancellationToken cancellationToken = default)
+    {
+        List<string> arguments = ["staticwebapp", "secrets", "list", "--name", name, "--resource-group", resourceGroup, "--query", "properties.apiKey", "-o", "tsv"];
+        if (subscriptionId is not null)
+        {
+            arguments.AddRange(["--subscription", subscriptionId]);
+        }
+
+        var result = await RunAsync(arguments, onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az staticwebapp secrets list");
+        return result.Output.Trim();
+    }
+
     /// <summary>Points an App Service (container) app at a new image.</summary>
     public async Task SetWebAppImageAsync(string resourceGroup, string appName, string image, CancellationToken cancellationToken = default)
     {
