@@ -16,6 +16,8 @@ public class ProjectKindDetectorTests
     [InlineData("""{"IsTestProject":"true","OutputType":"Exe"}""", ProjectKind.Test)]
     [InlineData("""{"OutputType":"Exe"}""", ProjectKind.Console)]
     [InlineData("""{"OutputType":"Library"}""", ProjectKind.Library)]
+    [InlineData("""{"AWSProjectType":"Lambda","OutputType":"Library"}""", ProjectKind.AwsLambda)]
+    [InlineData("""{"AWSProjectType":"Lambda","UsingMicrosoftNETSdkWeb":"true","OutputType":"Exe"}""", ProjectKind.Web)]
     [InlineData("""{}""", ProjectKind.Unknown)]
     public void Detect_UsesSdkFlagsAndOutputType(string properties, ProjectKind expected)
     {
@@ -35,5 +37,18 @@ public class ProjectKindDetectorTests
             """);
 
         Assert.Equal(ProjectKind.Test, ProjectKindDetector.Detect(evaluation));
+    }
+
+    [Fact]
+    public void Detect_RecognizesLambdaFunctionsByPackage()
+    {
+        var evaluation = DotnetCli.ParseEvaluation("""
+            {
+              "Properties": { "OutputType": "Library" },
+              "Items": { "PackageReference": [ { "Identity": "Amazon.Lambda.Core", "Version": "2.5.0" } ] }
+            }
+            """);
+
+        Assert.Equal(ProjectKind.AwsLambda, ProjectKindDetector.Detect(evaluation));
     }
 }

@@ -4,6 +4,7 @@ using Pubwiz.Core.Infrastructure.Processes;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Targets;
+using Pubwiz.Core.Targets.Aws;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Containers;
 using Pubwiz.Core.Tests.TestHelpers;
@@ -21,7 +22,7 @@ public sealed class ContainerPublishTests : IDisposable
     private readonly string _repository = $"pubwiz-test-{Guid.NewGuid():N}"[..24];
 
     private PublishRunner CreateRunner() => new(ContainerTarget.Destinations.Select(destination => (IPublishTarget)new ContainerTarget(
-        new DotnetCli(_processRunner, DotnetLocator.Find()!), new ContainerCli(_processRunner), new AzCli(_processRunner), destination)));
+        new DotnetCli(_processRunner, DotnetLocator.Find()!), new ContainerCli(_processRunner), new AzCli(_processRunner), new AwsCli(_processRunner), destination)));
 
     [Fact]
     public async Task SdkBuild_WritesATarball()

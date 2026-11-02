@@ -4,6 +4,7 @@ using Pubwiz.Core.Infrastructure.Processes;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Targets;
+using Pubwiz.Core.Targets.Aws;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Containers;
 
@@ -68,7 +69,7 @@ public class ContainerProfileTests
     [Fact]
     public void Target_PicksStepsForTheBuilderAndDestination()
     {
-        var target = new ContainerTarget(new DotnetCli(new ProcessRunner(), "dotnet"), new ContainerCli(new ProcessRunner()), new AzCli(new ProcessRunner()), PublishTargetType.ContainerRegistry);
+        var target = new ContainerTarget(new DotnetCli(new ProcessRunner(), "dotnet"), new ContainerCli(new ProcessRunner()), new AzCli(new ProcessRunner()), new AwsCli(new ProcessRunner()), PublishTargetType.ContainerRegistry);
         var project = new ProjectInfo { Name = "Api", FilePath = "/src/Api/Api.csproj", Kind = ProjectKind.Web };
 
         var sdk = target.CreateSteps(new PublishRequest(project, Profile((ProfileProperties.ContainerRegistry, "ghcr.io"))));
@@ -80,9 +81,34 @@ public class ContainerProfileTests
     }
 
     [Fact]
+    public void Read_RecognizesEcr()
+    {
+        var container = ContainerProfile.Read(Profile((ProfileProperties.ContainerRegistry, "123456789012.dkr.ecr.eu-west-1.amazonaws.com")), "app");
+
+        Assert.True(container.IsEcrRegistry);
+        Assert.Equal("eu-west-1", container.EcrRegion);
+        Assert.False(ContainerProfile.Read(Profile((ProfileProperties.ContainerRegistry, "ghcr.io")), "app").IsEcrRegistry);
+    }
+
+    [Fact]
+    public void Target_DeploysToEcsAfterPushing()
+    {
+        var target = new ContainerTarget(new DotnetCli(new ProcessRunner(), "dotnet"), new ContainerCli(new ProcessRunner()), new AzCli(new ProcessRunner()), new AwsCli(new ProcessRunner()), PublishTargetType.AwsEcs);
+        var project = new ProjectInfo { Name = "Api", FilePath = "/src/Api/Api.csproj", Kind = ProjectKind.Web };
+        var profile = Profile(
+            (ProfileProperties.ContainerRegistry, "123456789012.dkr.ecr.eu-west-1.amazonaws.com"),
+            (ProfileProperties.PubwizAwsContainerHost, "Ecs"),
+            (ProfileProperties.PubwizAwsCluster, "prod"),
+            (ProfileProperties.PubwizAwsService, "api"));
+
+        Assert.True(target.CanPublish(profile));
+        Assert.Equal(["Sign in to registry", "Build and publish", "Deploy to ECS", "Done"], target.CreateSteps(new PublishRequest(project, profile)).Select(s => s.Name));
+    }
+
+    [Fact]
     public void RequiresPassword_OnlyForRegistriesWithAUserName()
     {
-        var registry = new ContainerTarget(new DotnetCli(new ProcessRunner(), "dotnet"), new ContainerCli(new ProcessRunner()), new AzCli(new ProcessRunner()), PublishTargetType.ContainerRegistry);
+        var registry = new ContainerTarget(new DotnetCli(new ProcessRunner(), "dotnet"), new ContainerCli(new ProcessRunner()), new AzCli(new ProcessRunner()), new AwsCli(new ProcessRunner()), PublishTargetType.ContainerRegistry);
 
         Assert.False(registry.RequiresPassword(Profile((ProfileProperties.ContainerRegistry, "contoso.azurecr.io"))));
         Assert.True(registry.RequiresPassword(Profile((ProfileProperties.ContainerRegistry, "ghcr.io"), (ProfileProperties.UserName, "saif"))));

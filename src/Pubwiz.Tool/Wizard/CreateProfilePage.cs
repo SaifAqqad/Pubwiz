@@ -20,6 +20,7 @@ public sealed class CreateProfilePage(
     WebDeployAlternativesPrompt webDeployAlternatives,
     FileTransferProfilePage fileTransferPage,
     AzureProfilePage azurePage,
+    AwsProfilePage awsPage,
     ContainerProfilePage containerPage,
     MauiProfilePage mauiPage,
     PasswordProvider passwords)
@@ -151,8 +152,10 @@ public sealed class CreateProfilePage(
         PublishTargetType.AzureAppService => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.WebApp, cancellationToken)),
         PublishTargetType.AzureFunctions => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.FunctionApp, cancellationToken)),
         PublishTargetType.AzureWebJob => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.WebJob, cancellationToken)),
+        PublishTargetType.AwsElasticBeanstalk => new CreatedProfile(await awsPage.CreateElasticBeanstalkAsync(project, cancellationToken)),
+        PublishTargetType.AwsLambda => new CreatedProfile(await awsPage.CreateLambdaAsync(project, cancellationToken)),
         PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball or PublishTargetType.ContainerRegistry
-            or PublishTargetType.AzureAppServiceContainer or PublishTargetType.AzureContainerApps
+            or PublishTargetType.AzureAppServiceContainer or PublishTargetType.AzureContainerApps or PublishTargetType.AwsEcs
             => new CreatedProfile(await containerPage.CreateAsync(project, target.Type, cancellationToken)),
         PublishTargetType.MauiAndroid => await mauiPage.CreateAsync(project, MauiPlatform.Android, cancellationToken),
         PublishTargetType.MauiIos => await mauiPage.CreateAsync(project, MauiPlatform.Ios, cancellationToken),

@@ -19,6 +19,9 @@ public enum ProjectKind
     /// <summary>Azure Functions app (<c>AzureFunctionsVersion</c> is set).</summary>
     AzureFunctions,
 
+    /// <summary>AWS Lambda function (<c>AWSProjectType</c> is <c>Lambda</c>, or it uses the Lambda packages).</summary>
+    AwsLambda,
+
     /// <summary>.NET MAUI app (<c>UseMaui</c>).</summary>
     Maui,
 
@@ -51,6 +54,7 @@ public static class ProjectKindExtensions
         ProjectKind.BlazorWasm => "Blazor WebAssembly",
         ProjectKind.Worker => "Worker",
         ProjectKind.AzureFunctions => "Azure Functions",
+        ProjectKind.AwsLambda => "AWS Lambda",
         ProjectKind.Maui => "MAUI",
         ProjectKind.Desktop => "Desktop",
         ProjectKind.Console => "Console",

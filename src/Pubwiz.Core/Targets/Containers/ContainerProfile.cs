@@ -25,7 +25,8 @@ public sealed record ContainerProfile(
     ContainerTool? LocalTool,
     string Dockerfile,
     string DockerContext,
-    string? AzureHost)
+    string? AzureHost,
+    string? AwsHost = null)
 {
     /// <summary>Where this profile sends the image, which decides the target.</summary>
     public PublishTargetType Destination => this switch
@@ -34,6 +35,7 @@ public sealed record ContainerProfile(
         { Registry: null } => PublishTargetType.LocalContainer,
         { AzureHost: "AppService" } => PublishTargetType.AzureAppServiceContainer,
         { AzureHost: "ContainerApp" } => PublishTargetType.AzureContainerApps,
+        { AwsHost: "Ecs" } => PublishTargetType.AwsEcs,
         _ => PublishTargetType.ContainerRegistry
     };
 
@@ -42,6 +44,15 @@ public sealed record ContainerProfile(
 
     /// <summary>The registry name for <c>az acr</c> commands, e.g. <c>contoso</c> for <c>contoso.azurecr.io</c>.</summary>
     public string? AzureRegistryName => IsAzureRegistry ? Registry![..Registry!.IndexOf('.')] : null;
+
+    /// <summary>
+    /// <c>true</c> for Amazon Elastic Container Registry (<c>{account}.dkr.ecr.{region}.amazonaws.com</c>), where the
+    /// AWS CLI can provide a push password.
+    /// </summary>
+    public bool IsEcrRegistry => EcrRegion is not null;
+
+    /// <summary>The region of an ECR registry, e.g. <c>eu-west-1</c>, or <c>null</c> for other registries.</summary>
+    public string? EcrRegion => Registry?.Split('.') is [_, "dkr", "ecr", var region, "amazonaws", ..] ? region : null;
 
     /// <summary>Full image names, one per tag, e.g. <c>contoso.azurecr.io/api:latest</c>.</summary>
     public IReadOnlyList<string> ImageNames => Tags.Select(tag => Registry is null ? $"{Repository}:{tag}" : $"{Registry}/{Repository}:{tag}").ToList();
@@ -64,7 +75,8 @@ public sealed record ContainerProfile(
             LocalTool: Enum.TryParse<ContainerTool>(profile[ProfileProperties.LocalRegistry], ignoreCase: true, out var tool) ? tool : null,
             Dockerfile: profile[ProfileProperties.PubwizDockerfile] ?? "Dockerfile",
             DockerContext: profile[ProfileProperties.PubwizDockerContext] ?? ".",
-            AzureHost: NullIfEmpty(profile[ProfileProperties.PubwizAzureContainerHost]));
+            AzureHost: NullIfEmpty(profile[ProfileProperties.PubwizAzureContainerHost]),
+            AwsHost: NullIfEmpty(profile[ProfileProperties.PubwizAwsContainerHost]));
     }
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;

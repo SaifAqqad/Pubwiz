@@ -8,6 +8,7 @@ using Pubwiz.Core.Infrastructure.Processes;
 using Pubwiz.Core.Infrastructure.Secrets;
 using Pubwiz.Core.Presets;
 using Pubwiz.Core.Publishing;
+using Pubwiz.Core.Targets.Aws;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Azure.Kudu;
 using Pubwiz.Core.Targets.Containers;
@@ -15,6 +16,7 @@ using Pubwiz.Core.Targets.FileTransfer;
 using Pubwiz.Core.Targets.Folder;
 using Pubwiz.Core.Targets.Maui;
 using Pubwiz.Core.Targets.WebDeploy;
+using Pubwiz.Tool.Aws;
 using Pubwiz.Tool.Azure;
 using Pubwiz.Tool.Credentials;
 using Pubwiz.Tool.Rendering;
@@ -42,6 +44,7 @@ public static class ServiceRegistration
         services.AddSingleton<PresetResolver>();
         services.AddSingleton<PublishRunner>();
         services.AddSingleton<AzCli>();
+        services.AddSingleton<AwsCli>();
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromMinutes(30) });
         services.AddSingleton<KuduClient>();
         services.AddSingleton<KuduCredentialsProvider>();
@@ -61,12 +64,14 @@ public static class ServiceRegistration
         services.AddSingleton<IPublishTarget, AzureWebJobTarget>();
         services.AddSingleton<IPublishTarget, AzureAppServiceTarget>();
         services.AddSingleton<IPublishTarget, WebDeployTarget>(); // after Azure, which takes App Service Web Deploy profiles
+        services.AddSingleton<IPublishTarget, ElasticBeanstalkTarget>();
+        services.AddSingleton<IPublishTarget, LambdaTarget>();
         services.AddSingleton<IPublishTarget>(sp => new MauiTarget(sp.GetRequiredService<DotnetCli>(), MauiPlatform.Android));
         services.AddSingleton<IPublishTarget>(sp => new MauiTarget(sp.GetRequiredService<DotnetCli>(), MauiPlatform.Ios));
         foreach (var destination in ContainerTarget.Destinations)
         {
             services.AddSingleton<IPublishTarget>(sp => new ContainerTarget(
-                sp.GetRequiredService<DotnetCli>(), sp.GetRequiredService<ContainerCli>(), sp.GetRequiredService<AzCli>(), destination));
+                sp.GetRequiredService<DotnetCli>(), sp.GetRequiredService<ContainerCli>(), sp.GetRequiredService<AzCli>(), sp.GetRequiredService<AwsCli>(), destination));
         }
 
         // Wizard
@@ -84,6 +89,8 @@ public static class ServiceRegistration
         services.AddSingleton<ContainerProfilePage>();
         services.AddSingleton<MauiProfilePage>();
         services.AddSingleton<AzureSession>();
+        services.AddSingleton<AwsProfilePage>();
+        services.AddSingleton<AwsSession>();
         services.AddSingleton<PasswordProvider>();
         services.AddSingleton<CertificateTrustPrompt>();
         services.AddSingleton<PresetPage>();

@@ -187,4 +187,42 @@ public static class ProfileProperties
 
     /// <summary>After pushing, point an Azure app at the image: <c>AppService</c> or <c>ContainerApp</c>.</summary>
     public const string PubwizAzureContainerHost = nameof(PubwizAzureContainerHost);
+
+    // AWS (run through the AWS CLI)
+
+    /// <summary>The value of <see cref="PublishProvider"/> for Elastic Beanstalk profiles (with <c>WebPublishMethod=Custom</c>).</summary>
+    public const string AwsElasticBeanstalkProvider = "AwsElasticBeanstalk";
+
+    /// <summary>The value of <see cref="PublishProvider"/> for Lambda profiles (with <c>WebPublishMethod=Custom</c>).</summary>
+    public const string AwsLambdaProvider = "AwsLambda";
+
+    /// <summary>The AWS CLI profile to use (from <c>~/.aws/config</c>); empty means the default credentials.</summary>
+    public const string PubwizAwsProfile = nameof(PubwizAwsProfile);
+
+    /// <summary>The AWS region, e.g. <c>eu-west-1</c>.</summary>
+    public const string PubwizAwsRegion = nameof(PubwizAwsRegion);
+
+    /// <summary>The Elastic Beanstalk application.</summary>
+    public const string PubwizAwsApplication = nameof(PubwizAwsApplication);
+
+    /// <summary>The Elastic Beanstalk environment.</summary>
+    public const string PubwizAwsEnvironment = nameof(PubwizAwsEnvironment);
+
+    /// <summary><c>true</c> when the Elastic Beanstalk environment runs Windows Server (IIS), which needs a deployment manifest.</summary>
+    public const string PubwizAwsWindows = nameof(PubwizAwsWindows);
+
+    /// <summary>The Lambda function name.</summary>
+    public const string PubwizAwsFunction = nameof(PubwizAwsFunction);
+
+    /// <summary>After pushing to ECR, deploy the image to an ECS service: <c>Ecs</c>.</summary>
+    public const string PubwizAwsContainerHost = nameof(PubwizAwsContainerHost);
+
+    /// <summary>The ECS cluster.</summary>
+    public const string PubwizAwsCluster = nameof(PubwizAwsCluster);
+
+    /// <summary>The ECS service.</summary>
+    public const string PubwizAwsService = nameof(PubwizAwsService);
+
+    /// <summary>The container in the task definition that runs the image, when there are several.</summary>
+    public const string PubwizAwsContainerName = nameof(PubwizAwsContainerName);
 }

@@ -19,6 +19,7 @@ public static class ProjectKindDetector
         "UseWPF",
         "UseWindowsForms",
         "AzureFunctionsVersion",
+        "AWSProjectType",
         "UsingMicrosoftNETSdkWeb",
         "UsingMicrosoftNETSdkWorker",
         "UsingMicrosoftNETSdkBlazorWebAssembly"
@@ -36,6 +37,15 @@ public static class ProjectKindDetector
     private static readonly HashSet<string> TestPackages = new(StringComparer.OrdinalIgnoreCase)
     {
         "Microsoft.NET.Test.Sdk", "xunit", "xunit.v3", "NUnit", "MSTest", "MSTest.TestFramework", "TUnit"
+    };
+
+    /// <summary>
+    /// Packages of Lambda function projects. The class library templates have no <c>OutputType</c>, so without these
+    /// they would look like libraries.
+    /// </summary>
+    private static readonly HashSet<string> LambdaPackages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Amazon.Lambda.Core", "Amazon.Lambda.RuntimeSupport", "Amazon.Lambda.Annotations"
     };
 
     /// <summary>
@@ -62,6 +72,14 @@ public static class ProjectKindDetector
         if (project.GetProperty("AzureFunctionsVersion") is not null)
         {
             return ProjectKind.AzureFunctions;
+        }
+
+        // ASP.NET Core apps that can also run on Lambda stay web apps (the Lambda target is offered for those too).
+        var isLambda = string.Equals(project.GetProperty("AWSProjectType"), "Lambda", StringComparison.OrdinalIgnoreCase)
+                       || project.GetItems("PackageReference").Any(p => LambdaPackages.Contains(p.Identity));
+        if (isLambda && !project.IsTrue("UsingMicrosoftNETSdkWeb"))
+        {
+            return ProjectKind.AwsLambda;
         }
 
         if (project.IsTrue("UsingMicrosoftNETSdkBlazorWebAssembly"))

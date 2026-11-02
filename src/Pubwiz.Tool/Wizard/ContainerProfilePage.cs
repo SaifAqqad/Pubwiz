@@ -1,17 +1,19 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets;
+using Pubwiz.Core.Targets.Aws;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Containers;
+using Pubwiz.Tool.Aws;
 using Pubwiz.Tool.Azure;
 
 namespace Pubwiz.Tool.Wizard;
 
 /// <summary>
-/// Settings for the container targets: local image, tarball, registry, or registry + Azure app.
+/// Settings for the container targets: local image, tarball, registry, or registry + Azure app or ECS service.
 /// Profiles use the SDK's container properties, so <c>dotnet publish -t:PublishContainer</c> understands them too.
 /// </summary>
-public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli containers, AzureSession azureSession, AzCli az)
+public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli containers, AzureSession azureSession, AzCli az, AwsSession awsSession, AwsCli aws)
 {
     public async Task<PublishProfile> CreateAsync(ProjectInfo project, PublishTargetType destination, CancellationToken cancellationToken)
     {
@@ -27,7 +29,9 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
             profile[ProfileProperties.LocalRegistry] = (await ChooseToolAsync(cancellationToken)).ToString();
         }
 
-        var repository = console.Ask("Image name", defaultValue: project.Name.ToLowerInvariant());
+        // For ECS the image goes to an ECR repository, whose name is the image name.
+        var ecr = destination == PublishTargetType.AwsEcs ? await ChooseEcrRepositoryAsync(project, cancellationToken) : null;
+        var repository = ecr?.Name ?? console.Ask("Image name", defaultValue: project.Name.ToLowerInvariant());
         var tags = console.Ask("Tags", hint: "comma separated", defaultValue: "latest");
         profile[ProfileProperties.ContainerRepository] = repository;
         profile[ProfileProperties.ContainerImageTags] = string.Join(';', tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
@@ -46,6 +50,12 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
             case PublishTargetType.ContainerRegistry:
                 var registry = await ChooseRegistryAsync(profile, allowOtherRegistries: true, cancellationToken);
                 profile = profile.CopyAs($"{repository} - {registry}", filePath: null);
+                break;
+
+            case PublishTargetType.AwsEcs:
+                profile[ProfileProperties.ContainerRegistry] = ecr!.Registry;
+                var service = await ChooseEcsServiceAsync(profile, cancellationToken);
+                profile = profile.CopyAs($"{service} - ECS", filePath: null);
                 break;
 
             default:
@@ -144,6 +154,41 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
 
         profile[ProfileProperties.ContainerRegistry] = registry;
         return registry;
+    }
+
+    /// <summary>An ECR repository in the AWS account, or a new one.</summary>
+    private async Task<EcrRepository> ChooseEcrRepositoryAsync(ProjectInfo project, CancellationToken cancellationToken)
+    {
+        const string create = "+ Create a repository";
+        var location = await awsSession.EnsureReadyAsync(cancellationToken);
+        var repositories = await console.Status().StartAsync("Loading ECR repositories...", _ => aws.ListEcrRepositoriesAsync(location, cancellationToken));
+
+        var name = console.Choose("ECR repository", repositories.Select(r => r.Name).Append(create));
+        if (name != create)
+        {
+            return repositories.Single(r => r.Name == name);
+        }
+
+        var newName = console.Ask("Repository name", defaultValue: project.Name.ToLowerInvariant());
+        return await console.Status().StartAsync("Creating the repository...", _ => aws.CreateEcrRepositoryAsync(location, newName, cancellationToken));
+    }
+
+    /// <returns>The chosen service's name.</returns>
+    private async Task<string> ChooseEcsServiceAsync(PublishProfile profile, CancellationToken cancellationToken)
+    {
+        var location = await awsSession.EnsureReadyAsync(cancellationToken);
+        var service = await console.ChooseWithRefreshAsync("ECS service", "Loading services...",
+            token => aws.ListEcsServicesAsync(location, token),
+            s => [s.Name, s.Cluster, s.LaunchType ?? string.Empty],
+            emptyMessage: $"No ECS services were found in {location.Region}. Create one (e.g. in the AWS console), then refresh.",
+            cancellationToken);
+
+        profile[ProfileProperties.PubwizAwsContainerHost] = "Ecs";
+        profile[ProfileProperties.PubwizAwsProfile] = location.Profile;
+        profile[ProfileProperties.PubwizAwsRegion] = location.Region;
+        profile[ProfileProperties.PubwizAwsCluster] = service.Cluster;
+        profile[ProfileProperties.PubwizAwsService] = service.Name;
+        return service.Name;
     }
 
     /// <returns>The chosen app's name.</returns>

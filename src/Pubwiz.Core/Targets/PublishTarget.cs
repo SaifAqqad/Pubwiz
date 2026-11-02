@@ -12,6 +12,10 @@ public enum PublishTargetGroup
     Servers,
 
     Azure,
+
+    /// <summary>Amazon Web Services.</summary>
+    Aws,
+
     Containers,
     Mobile
 }

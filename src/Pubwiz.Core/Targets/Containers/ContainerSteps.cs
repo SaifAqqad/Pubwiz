@@ -1,16 +1,17 @@
 using Pubwiz.Core.Infrastructure.Processes;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Publishing;
+using Pubwiz.Core.Targets.Aws;
 using Pubwiz.Core.Targets.Azure;
 
 namespace Pubwiz.Core.Targets.Containers;
 
 /// <summary>
-/// Gets registry credentials before building/pushing: an az token for Azure Container Registry, or the profile's
-/// user name with the password. The SDK reads them from environment variables; docker/podman get a <c>login</c>.
-/// With neither, the tools fall back to existing <c>docker login</c> credentials.
+/// Gets registry credentials before building/pushing: an az token for Azure Container Registry, an AWS CLI password
+/// for Amazon ECR, or the profile's user name with the password. The SDK reads them from environment variables;
+/// docker/podman get a <c>login</c>. With none of these, the tools fall back to existing <c>docker login</c> credentials.
 /// </summary>
-internal sealed class RegistrySignInStep(AzCli az, ContainerCli containers, ContainerProfile container, ContainerTool? dockerfileTool) : PublishStep("Sign in to registry")
+internal sealed class RegistrySignInStep(AzCli az, AwsCli aws, ContainerCli containers, ContainerProfile container, ContainerTool? dockerfileTool) : PublishStep("Sign in to registry")
 {
     // Environment variables the .NET SDK container tooling reads registry credentials from.
     private const string SdkUserNameVariable = "DOTNET_CONTAINER_REGISTRY_UNAME";
@@ -45,6 +46,20 @@ internal sealed class RegistrySignInStep(AzCli az, ContainerCli containers, Cont
         if (profileUser is not null)
         {
             return (profileUser, context.Request.Password);
+        }
+
+        if (container.IsEcrRegistry)
+        {
+            var location = new AwsLocation(context.Request.Profile[ProfileProperties.PubwizAwsProfile], container.EcrRegion!);
+            context.ReportDetail($"aws ecr get-login-password --region {location.Region}");
+            try
+            {
+                return (AwsCli.EcrUserName, await aws.GetEcrPasswordAsync(location, cancellationToken));
+            }
+            catch (AwsCliException ex)
+            {
+                throw new PublishStepException($"Could not get a password for {container.Registry} from the AWS CLI ({ex.Message}). Sign in (aws sso login or aws configure) and try again.");
+            }
         }
 
         if (!container.IsAzureRegistry)

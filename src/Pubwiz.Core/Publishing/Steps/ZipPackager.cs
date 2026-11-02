@@ -21,4 +21,16 @@ public static class ZipPackager
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(zipPath))!);
         ZipFile.CreateFromDirectory(sourceDirectory, zipPath, CompressionLevel.Optimal, includeBaseDirectory: false);
     }
+
+    /// <summary>
+    /// Marks a file in a zip as executable on Linux (<c>rwxr-xr-x</c>). Zips made on Windows have no Unix permissions,
+    /// so a Linux host (Lambda, Elastic Beanstalk) couldn't start an executable from them otherwise.
+    /// </summary>
+    public static void MarkExecutable(ZipArchiveEntry entry)
+    {
+        // The high 16 bits hold the Unix mode: a regular file (0o100000) with permissions 0o755.
+        const int unixRegularFile = 0b1_000_000_000_000_000;
+        const int permissions = 0b111_101_101;
+        entry.ExternalAttributes = (unixRegularFile | permissions) << 16;
+    }
 }

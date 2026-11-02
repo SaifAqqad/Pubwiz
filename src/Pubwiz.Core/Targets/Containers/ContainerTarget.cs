@@ -2,16 +2,17 @@ using Pubwiz.Core.Dotnet;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Publishing.Steps;
+using Pubwiz.Core.Targets.Aws;
 using Pubwiz.Core.Targets.Azure;
 
 namespace Pubwiz.Core.Targets.Containers;
 
 /// <summary>
 /// Builds a container image with the .NET SDK or a Dockerfile, and sends it to one destination:
-/// the local Docker/Podman, a tarball, a registry, or a registry plus an Azure app that runs it.
+/// the local Docker/Podman, a tarball, a registry, or a registry plus an Azure app or ECS service that runs it.
 /// </summary>
 /// <remarks>Registered once per destination (see <see cref="ContainerProfile.Destination"/>) so jobs show the right target.</remarks>
-public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, AzCli az, PublishTargetType destination) : IPublishTarget
+public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, AzCli az, AwsCli aws, PublishTargetType destination) : IPublishTarget
 {
     /// <summary>The destinations this target can be registered for.</summary>
     public static IReadOnlyList<PublishTargetType> Destinations { get; } =
@@ -20,7 +21,8 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
         PublishTargetType.ContainerTarball,
         PublishTargetType.ContainerRegistry,
         PublishTargetType.AzureAppServiceContainer,
-        PublishTargetType.AzureContainerApps
+        PublishTargetType.AzureContainerApps,
+        PublishTargetType.AwsEcs
     ];
 
     public PublishTargetType Type => destination;
@@ -44,7 +46,7 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
             var tool = container.LocalTool ?? ContainerTool.Docker;
             if (pushes)
             {
-                steps.Add(new RegistrySignInStep(az, containers, container, tool));
+                steps.Add(new RegistrySignInStep(az, aws, containers, container, tool));
             }
 
             steps.Add(new DockerBuildStep(containers, tool, container));
@@ -61,7 +63,7 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
         {
             if (pushes)
             {
-                steps.Add(new RegistrySignInStep(az, containers, container, dockerfileTool: null));
+                steps.Add(new RegistrySignInStep(az, aws, containers, container, dockerfileTool: null));
             }
 
             steps.Add(CreateSdkPublishStep(request, archivePath));
@@ -72,6 +74,15 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
             var resourceGroup = request.Profile[ProfileProperties.PubwizAzureResourceGroup] ?? throw new ArgumentException("The profile has no PubwizAzureResourceGroup.");
             var appName = request.Profile[ProfileProperties.PubwizAzureAppName] ?? throw new ArgumentException("The profile has no PubwizAzureAppName.");
             steps.Add(new AzureImageUpdateStep(az, container, resourceGroup, appName));
+        }
+
+        if (container.AwsHost is not null)
+        {
+            var profile = request.Profile;
+            var location = new AwsLocation(profile[ProfileProperties.PubwizAwsProfile], container.EcrRegion ?? AwsProfile.GetLocation(profile).Region);
+            var cluster = profile[ProfileProperties.PubwizAwsCluster] ?? throw new ArgumentException("The profile has no PubwizAwsCluster.");
+            var service = profile[ProfileProperties.PubwizAwsService] ?? throw new ArgumentException("The profile has no PubwizAwsService.");
+            steps.Add(new EcsDeployStep(aws, location, cluster, service, container.ImageNames[0], profile[ProfileProperties.PubwizAwsContainerName]));
         }
 
         steps.Add(archivePath is not null
