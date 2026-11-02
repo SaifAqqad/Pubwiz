@@ -33,6 +33,14 @@ app.Configure(config =>
         presets.AddCommand<PresetsListCommand>("list").WithDescription("Show the saved presets");
         presets.AddCommand<PresetsExportCommand>("export").WithDescription("Write one preset to its own file");
     });
+
+    config.AddBranch("servers", servers =>
+    {
+        servers.SetDescription("Save Web Deploy logins per server; they replace the user and password of profiles for that server");
+        servers.AddCommand<ServersSetCommand>("set").WithDescription("Save the user name and password for a server");
+        servers.AddCommand<ServersListCommand>("list").WithDescription("Show the servers with a saved login");
+        servers.AddCommand<ServersRemoveCommand>("remove").WithDescription("Forget a server's login");
+    });
 });
 
 var exitCode = await app.RunAsync(args);

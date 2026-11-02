@@ -7,16 +7,24 @@ using Pubwiz.Core.Targets;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Azure.Kudu;
 using Pubwiz.Core.Targets.WebDeploy;
+using Pubwiz.Core.Tests.TestHelpers;
 using Pubwiz.WebDeploy;
 
 namespace Pubwiz.Core.Tests.Targets.WebDeploy;
 
-public sealed class WebDeployTargetTests
+public sealed class WebDeployTargetTests : IDisposable
 {
     private static readonly DotnetCli Dotnet = new(new ProcessRunner(), "dotnet");
 
-    private static WebDeployTarget Target(bool installed) =>
-        new(Dotnet, new MsDeployCli(new ProcessRunner(), installed ? @"C:\msdeploy.exe" : null), new WebDeployClient());
+    private readonly TempDirectory _temp = new();
+    private readonly ServerCredentialStore _servers;
+
+    public WebDeployTargetTests() => _servers = new ServerCredentialStore(new MemorySecretStore(), Path.Combine(_temp.Path, "servers.json"));
+
+    public void Dispose() => _temp.Dispose();
+
+    private WebDeployTarget Target(bool installed) =>
+        new(Dotnet, new MsDeployCli(new ProcessRunner(), installed ? @"C:\msdeploy.exe" : null), new WebDeployClient(), _servers);
 
     private static PublishProfile Profile(string serviceUrl = "iis.contoso.local", string? site = "Default Web Site/api")
     {
@@ -161,11 +169,11 @@ public sealed class WebDeployTargetTests
         windowsAccount[ProfileProperties.UserName] = null;
 
         // A Basic-auth profile is handled by the built-in client, so it never needs alternatives.
-        Assert.False(WebDeployAlternatives.AreNeeded(Profile()));
+        Assert.False(WebDeployAlternatives.AreNeeded(Profile(), _servers));
         // A current-Windows-user profile needs msdeploy.exe; without it, alternatives are offered.
-        Assert.Equal(MsDeployLocator.Find() is null, WebDeployAlternatives.AreNeeded(windowsAccount));
-        Assert.False(WebDeployAlternatives.AreNeeded(Profile("contoso.scm.azurewebsites.net:443")));
-        Assert.False(WebDeployAlternatives.AreNeeded(folder));
+        Assert.Equal(MsDeployLocator.Find() is null, WebDeployAlternatives.AreNeeded(windowsAccount, _servers));
+        Assert.False(WebDeployAlternatives.AreNeeded(Profile("contoso.scm.azurewebsites.net:443"), _servers));
+        Assert.False(WebDeployAlternatives.AreNeeded(folder, _servers));
     }
 
     [Fact]
@@ -174,4 +182,65 @@ public sealed class WebDeployTargetTests
         Assert.Null(WebDeployAlternatives.TryGetEndpoint(Profile(site: null)));
         Assert.Equal("iis.contoso.local", WebDeployAlternatives.TryGetEndpoint(Profile())?.ServiceUrl.Host);
     }
+
+    [Fact]
+    public async Task ServerLogin_LetsAWindowsUserProfilePublishWithoutMsDeployOrAPassword()
+    {
+        var windowsAccount = Profile("https://IIS.contoso.local:8172/msdeploy.axd");
+        windowsAccount[ProfileProperties.UserName] = null;
+        windowsAccount[ProfileProperties.AuthType] = "NTLM";
+        await _servers.SaveAsync("iis.contoso.local", "shared", "p@ss", Token);
+        var target = Target(installed: false);
+
+        var job = new PublishRunner([target]).CreateJob(Request(windowsAccount));
+
+        Assert.Null(job.Error);
+        Assert.False(target.RequiresPassword(windowsAccount));
+        Assert.False(WebDeployAlternatives.AreNeeded(windowsAccount, _servers));
+        Assert.Equal(new ServerCredential("iis.contoso.local", "shared"), target.FindServerLogin(windowsAccount));
+    }
+
+    [Fact]
+    public async Task ServerLogin_ReplacesTheProfilesUserAndPassword()
+    {
+        await _servers.SaveAsync("iis.contoso.local", "shared", "p@ss", Token);
+        var profile = Profile();
+        profile[ProfileProperties.AuthType] = "NTLM";
+        var context = CreateContext(Request(profile));
+
+        var login = new WebDeployTarget.LoginSource(_servers, _servers.Find("iis.contoso.local"));
+        var options = await login.CreateSyncOptionsAsync(context, WebDeployProfile.GetEndpoint(profile), Token);
+
+        Assert.Equal("shared", options.UserName);
+        Assert.Equal("p@ss", options.Password);
+        Assert.Equal("Basic", options.EffectiveAuthType);
+    }
+
+    [Fact]
+    public async Task ServerLogin_FailsClearlyWhenItsPasswordIsMissing()
+    {
+        await _servers.SaveAsync("iis.contoso.local", "shared", "p@ss", Token);
+        var secretsWithoutPassword = new ServerCredentialStore(new MemorySecretStore(), _servers.FilePath);
+        var context = CreateContext(Request(Profile()));
+
+        var login = new WebDeployTarget.LoginSource(secretsWithoutPassword, secretsWithoutPassword.Find("iis.contoso.local"));
+        var error = await Assert.ThrowsAsync<PublishStepException>(() => login.CreateSyncOptionsAsync(context, WebDeployProfile.GetEndpoint(Profile()), Token));
+
+        Assert.Contains("servers set iis.contoso.local", error.Message);
+    }
+
+    [Fact]
+    public async Task WithoutAServerLogin_TheProfilesUserAndPasswordAreUsed()
+    {
+        await _servers.SaveAsync("other-server", "shared", "p@ss", Token);
+        var target = Target(installed: false);
+
+        Assert.Null(target.FindServerLogin(Profile()));
+        Assert.True(target.RequiresPassword(Profile()));
+    }
+
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
+
+    private PublishContext CreateContext(PublishRequest request) =>
+        new(new PublishRunner([Target(installed: false)]).CreateJob(request)) { OutputDirectory = "/staging" };
 }

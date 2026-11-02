@@ -11,12 +11,15 @@ public static class WebDeployAlternatives
 {
     /// <summary>
     /// <c>true</c> for an on-premises Web Deploy profile that can't publish from this machine: msdeploy.exe isn't
-    /// installed and the built-in client can't take over (it needs a Basic-auth user name and password).
-    /// (Azure Web Deploy profiles always can: they go through Kudu.)
+    /// installed and the built-in client can't take over (it needs a Basic-auth user name and password, from the
+    /// profile or a login saved for the server). (Azure Web Deploy profiles always can: they go through Kudu.)
     /// </summary>
-    public static bool AreNeeded(PublishProfile profile) =>
+    /// <param name="profile">The profile.</param>
+    /// <param name="servers">The saved server logins.</param>
+    public static bool AreNeeded(PublishProfile profile, ServerCredentialStore servers) =>
         profile.Method == PublishMethod.MSDeploy && !AzureProfile.IsAppService(profile)
-        && MsDeployLocator.Find() is null && !WebDeployProfile.CanUseBuiltInClient(profile);
+        && MsDeployLocator.Find() is null && !WebDeployProfile.CanUseBuiltInClient(profile)
+        && (TryGetEndpoint(profile) is not { } endpoint || servers.Find(endpoint.ServiceUrl.Host) is null);
 
     /// <summary>
     /// The targets to suggest, best first.

@@ -10,7 +10,8 @@ public sealed record ProfilePageOptions(string? PresetFilePath);
 /// <summary>
 /// Lets the user pick one of a project's publish profiles, or create/import a new one.
 /// </summary>
-public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPage, ImportProfilePage importPage, PresetPage presetPage)
+public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPage, ImportProfilePage importPage, PresetPage presetPage,
+    ServerCredentialStore servers)
 {
     /// <summary>The options in the profile menu.</summary>
     private abstract record Choice
@@ -38,7 +39,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
 
             switch (choice)
             {
-                case Choice.Existing { Profile: var profile } when WebDeployAlternatives.AreNeeded(profile):
+                case Choice.Existing { Profile: var profile } when WebDeployAlternatives.AreNeeded(profile, servers):
                     if (await createPage.OfferWebDeployAlternativeAsync(project, profile, cancellationToken) is { } chosen)
                     {
                         return chosen;

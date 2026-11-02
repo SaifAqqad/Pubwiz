@@ -15,8 +15,12 @@ namespace Pubwiz.Core.Targets.WebDeploy;
 /// the built-in cross-platform <see cref="WebDeployClient"/>, so Linux and macOS can publish too. Web Deploy
 /// profiles of Azure App Service apps are handled by <see cref="AzureAppServiceTarget"/> instead, which deploys
 /// through Kudu from any OS.
+/// <para>
+/// When the profile's server has a login saved in <see cref="ServerCredentialStore"/>, that user name and password are
+/// used instead of the profile's.
+/// </para>
 /// </remarks>
-public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebDeployClient client) : IPublishTarget
+public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebDeployClient client, ServerCredentialStore servers) : IPublishTarget
 {
     public PublishTargetType Type => PublishTargetType.WebDeploy;
 
@@ -25,8 +29,11 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     /// <summary>Whether this machine deploys with the official msdeploy.exe (vs the built-in client).</summary>
     public bool UsesMsDeploy => msdeploy.IsInstalled;
 
-    /// <summary>Without a user name msdeploy signs in as the current Windows user; the built-in client always needs one.</summary>
-    public bool RequiresPassword(PublishProfile profile) => profile[ProfileProperties.UserName] is not null;
+    /// <summary>
+    /// Without a user name msdeploy signs in as the current Windows user; the built-in client always needs one.
+    /// A saved server login brings its own password, so none is asked for.
+    /// </summary>
+    public bool RequiresPassword(PublishProfile profile) => FindServerLogin(profile) is null && profile[ProfileProperties.UserName] is not null;
 
     public string? GetSetupError(PublishProfile profile)
     {
@@ -39,14 +46,20 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
             return ex.Message;
         }
 
-        // msdeploy.exe publishes any profile; the built-in client needs a Basic-auth user name and password.
-        return UsesMsDeploy ? null : WebDeployProfile.BuiltInClientBlocker(profile);
+        // msdeploy.exe publishes any profile; the built-in client needs a Basic-auth user name and password,
+        // from the profile or a saved server login.
+        return UsesMsDeploy || FindServerLogin(profile) is not null ? null : WebDeployProfile.BuiltInClientBlocker(profile);
     }
+
+    /// <summary>The login saved for the profile's server, which replaces the profile's user name and password; <c>null</c> when there's none.</summary>
+    public ServerCredential? FindServerLogin(PublishProfile profile) =>
+        WebDeployAlternatives.TryGetEndpoint(profile) is { } endpoint ? servers.Find(endpoint.ServiceUrl.Host) : null;
 
     public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request)
     {
         var endpoint = WebDeployProfile.GetEndpoint(request.Profile);
-        PublishStep sync = UsesMsDeploy ? new SyncStep(msdeploy, endpoint) : new BuiltInSyncStep(client, endpoint);
+        var login = new LoginSource(servers, FindServerLogin(request.Profile));
+        PublishStep sync = UsesMsDeploy ? new SyncStep(msdeploy, endpoint, login) : new BuiltInSyncStep(client, endpoint, login);
         return
         [
             StagingPublish.CreateStep(dotnet, request),
@@ -73,12 +86,47 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
 
     private static bool IsTrue(string? value) => string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Where a sync step gets its login: the profile and request, or the server's saved login when there is one.</summary>
+    /// <param name="Servers">Holds the saved passwords.</param>
+    /// <param name="ServerLogin">The server's saved login, or <c>null</c> to use the profile's.</param>
+    internal sealed record LoginSource(ServerCredentialStore Servers, ServerCredential? ServerLogin)
+    {
+        /// <summary>The sync settings for the running step, signed in with the saved server login when there is one.</summary>
+        public async Task<MsDeploySyncOptions> CreateSyncOptionsAsync(PublishContext context, WebDeployEndpoint endpoint, CancellationToken cancellationToken)
+        {
+            var options = CreateSyncOptions(context.Request, endpoint, context.OutputDirectory!);
+            if (ServerLogin is null)
+            {
+                return options;
+            }
+
+            string? password;
+            try
+            {
+                password = await Servers.GetPasswordAsync(ServerLogin, cancellationToken);
+            }
+            catch (Infrastructure.Secrets.SecretStoreException ex)
+            {
+                throw new PublishStepException($"The saved password for {ServerLogin.Server} couldn't be read from {Servers.SecretStoreName}: {ex.Message}", ex);
+            }
+
+            if (password is null)
+            {
+                throw new PublishStepException(
+                    $"The password for {ServerLogin.Server} is missing from {Servers.SecretStoreName}. Save it again with: dotnet pubwiz servers set {ServerLogin.Server}");
+            }
+
+            context.Log.Info($"Signing in as {ServerLogin.UserName}, the login saved for {ServerLogin.Server} (instead of the profile's)");
+            return options with { UserName = ServerLogin.UserName, Password = password, AuthType = "Basic" };
+        }
+    }
+
     /// <summary>Runs <c>msdeploy -verb:sync</c> from the staging folder to the IIS application.</summary>
-    private sealed class SyncStep(MsDeployCli msdeploy, WebDeployEndpoint endpoint) : PublishStep("Deploy (Web Deploy)")
+    private sealed class SyncStep(MsDeployCli msdeploy, WebDeployEndpoint endpoint, LoginSource login) : PublishStep("Deploy (Web Deploy)")
     {
         public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
         {
-            var options = CreateSyncOptions(context.Request, endpoint, context.OutputDirectory!);
+            var options = await login.CreateSyncOptionsAsync(context, endpoint, cancellationToken);
             context.Log.AddSecret(options.Password);
 
             try
@@ -151,11 +199,11 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     }
 
     /// <summary>Syncs the staging folder to the IIS application with the built-in client (no msdeploy.exe).</summary>
-    private sealed class BuiltInSyncStep(WebDeployClient client, WebDeployEndpoint endpoint) : PublishStep("Deploy (Web Deploy)")
+    private sealed class BuiltInSyncStep(WebDeployClient client, WebDeployEndpoint endpoint, LoginSource login) : PublishStep("Deploy (Web Deploy)")
     {
         public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
         {
-            var options = CreateSyncOptions(context.Request, endpoint, context.OutputDirectory!);
+            var options = await login.CreateSyncOptionsAsync(context, endpoint, cancellationToken);
             context.Log.AddSecret(options.Password);
 
             // GetSetupError already rejected profiles without a user name and password, so these are set here.

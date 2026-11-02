@@ -49,6 +49,7 @@ public static class ServiceRegistration
         services.AddSingleton<ContainerCli>();
         services.AddSingleton(sp => new MsDeployCli(sp.GetRequiredService<IProcessRunner>(), MsDeployLocator.Find()));
         services.AddSingleton<WebDeployClient>();
+        services.AddSingleton(sp => new ServerCredentialStore(sp.GetRequiredService<ISecretStore>(), ServerCredentialStore.DefaultFilePath));
         services.AddSingleton<AndroidKeystore>();
         services.AddSingleton<AppleSigning>();
 
