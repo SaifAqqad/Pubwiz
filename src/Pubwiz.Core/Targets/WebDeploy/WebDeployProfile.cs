@@ -32,6 +32,56 @@ public static class WebDeployProfile
     public static bool AllowsUntrustedCertificate(PublishProfile profile) =>
         string.Equals(profile[ProfileProperties.AllowUntrustedCertificate], "true", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Whether to compare files by checksum (<c>MSDeployUseChecksum</c>).</summary>
+    public static bool UsesChecksum(PublishProfile profile) =>
+        string.Equals(profile[ProfileProperties.MSDeployUseChecksum], "true", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The profile's skip rules: its <c>MsDeploySkipRules</c> items, as Visual Studio writes them:
+    /// <code>
+    /// &lt;MsDeploySkipRules Include="KeepUploads"&gt;
+    ///   &lt;ObjectName&gt;dirPath&lt;/ObjectName&gt;
+    ///   &lt;AbsolutePath&gt;wwwroot\\uploads$&lt;/AbsolutePath&gt;
+    ///   &lt;SkipAction&gt;Delete&lt;/SkipAction&gt;   (optional: only never delete)
+    /// &lt;/MsDeploySkipRules&gt;
+    /// </code>
+    /// </summary>
+    /// <exception cref="ArgumentException">
+    /// A rule can't be applied. It's an error rather than being ignored, because an ignored "keep these files" rule could
+    /// let a sync delete them.
+    /// </exception>
+    public static IReadOnlyList<WebDeploySkipRule> GetSkipRules(PublishProfile profile)
+    {
+        var rules = new List<WebDeploySkipRule>();
+        foreach (var item in profile.Items.Where(i => string.Equals(i.Type, ProfileProperties.MsDeploySkipRules, StringComparison.OrdinalIgnoreCase)))
+        {
+            var name = $"The skip rule '{item.Include}' in the profile '{profile.Name}'";
+
+            var target = item["ObjectName"]?.ToLowerInvariant() switch
+            {
+                "filepath" => WebDeploySkipObject.File,
+                "dirpath" => WebDeploySkipObject.Directory,
+                _ => throw new ArgumentException($"{name} needs an ObjectName of filePath or dirPath (Pubwiz doesn't support '{item["ObjectName"]}').", nameof(profile))
+            };
+
+            var path = item["AbsolutePath"]
+                       ?? throw new ArgumentException($"{name} needs an AbsolutePath (Pubwiz doesn't support rules by KeyAttribute).", nameof(profile));
+
+            WebDeploySkipAction? action = item["SkipAction"] is not { } skipAction ? null
+                : Enum.TryParse<WebDeploySkipAction>(skipAction, ignoreCase: true, out var parsed) ? parsed
+                : throw new ArgumentException($"{name} has the SkipAction '{skipAction}'; Pubwiz supports Delete, Update and AddChild.", nameof(profile));
+
+            if (WebDeploySkipRule.GetPathError(path) is { } pathError)
+            {
+                throw new ArgumentException($"{name}: {pathError}", nameof(profile));
+            }
+
+            rules.Add(new WebDeploySkipRule(target, path) { Action = action });
+        }
+
+        return rules;
+    }
+
     /// <summary>
     /// Whether the built-in cross-platform client can publish this profile. It authenticates with HTTP Basic
     /// (a user name and password) only, not NTLM / the current Windows user, so it needs a user name.

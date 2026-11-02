@@ -26,6 +26,15 @@ public sealed record MsDeploySyncOptions(string SourceDirectory, WebDeployEndpoi
     /// <summary>Put an <c>app_offline.htm</c> in place while copying, so locked files can be replaced (<c>AppOffline</c> rule).</summary>
     public bool TakeAppOffline { get; init; }
 
+    /// <summary>Compare files by checksum instead of size and date (<c>-useCheckSum</c>).</summary>
+    public bool UseChecksum { get; init; }
+
+    /// <summary>Only report what would change (<c>-whatif</c>).</summary>
+    public bool WhatIf { get; init; }
+
+    /// <summary>Files and folders to leave alone (<c>-skip</c>).</summary>
+    public IReadOnlyList<WebDeploySkipRule> SkipRules { get; init; } = [];
+
     /// <summary>Log every provider operation (<c>-verbose</c>).</summary>
     public bool Verbose { get; init; }
 

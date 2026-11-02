@@ -1,5 +1,6 @@
 using Pubwiz.Core.Infrastructure;
 using Pubwiz.Core.Infrastructure.Processes;
+using Pubwiz.WebDeploy;
 using System.Text;
 
 namespace Pubwiz.Core.Targets.WebDeploy;
@@ -83,6 +84,21 @@ public sealed class MsDeployCli(IProcessRunner processRunner, string? executable
         {
             arguments.Add("-enableRule:AppOffline");
         }
+
+        if (options.UseChecksum)
+        {
+            arguments.Add("-useCheckSum");
+        }
+
+        if (options.WhatIf)
+        {
+            arguments.Add("-whatif");
+        }
+
+        // e.g. -skip:skipAction=Delete,objectName=dirPath,absolutePath="\\logs$"
+        arguments.AddRange(options.SkipRules.Select(rule =>
+            $"-skip:{(rule.Action is { } action ? $"skipAction={action}," : "")}objectName={(rule.Object == WebDeploySkipObject.File ? "filePath" : "dirPath")}," +
+            $"absolutePath={Quote(rule.AbsolutePath, "skip rule path")}"));
 
         if (options.Verbose)
         {

@@ -87,6 +87,17 @@ public class PublishRunnerTests
     }
 
     [Fact]
+    public void CreateJob_FailsAPreviewForATargetThatCantPreview()
+    {
+        var runner = new PublishRunner([new FakeTarget(DelegateStep.Succeeds("Build"))]);
+
+        var job = runner.CreateJob(TestRequests.Create() with { WhatIf = true });
+
+        Assert.Empty(job.Steps);
+        Assert.Contains("--what-if", job.Error);
+    }
+
+    [Fact]
     public async Task CreateJob_FailsJobsWithUnsupportedProfilesWithoutStoppingOthers()
     {
         var runner = new PublishRunner([new FakeTarget(DelegateStep.Succeeds("Build"))]);

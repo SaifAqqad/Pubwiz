@@ -28,10 +28,12 @@ public sealed class WebDeployClient
     internal WebDeployClient(HttpMessageHandler handler) => injectedHandler = handler;
 
     /// <summary>
-    /// Deploys <paramref name="localFolder"/> to the endpoint's site/application. Existing files that
-    /// are not in the source are left in place (like <c>-enableRule:DoNotDeleteRule</c> is not set, the
-    /// default rule set is used; deletes are not performed by this client).
+    /// Deploys <paramref name="localFolder"/> to the endpoint's site/application: adds and updates files and folders,
+    /// and (with <see cref="WebDeploySyncOptions.DeleteExtraFiles"/>) deletes the ones that aren't in the source.
+    /// With <see cref="WebDeploySyncOptions.WhatIf"/> it only reports what would change.
     /// </summary>
+    /// <exception cref="ArgumentException">An option can't be sent (see <see cref="WebDeploySkipRule.AbsolutePath"/>).</exception>
+    /// <exception cref="WebDeployException">The server rejected the sign-in or the sync.</exception>
     public async Task<WebDeployResult> SyncFolderAsync(
         WebDeployEndpoint endpoint,
         WebDeployCredentials credentials,
@@ -40,9 +42,12 @@ public sealed class WebDeployClient
         CancellationToken cancellationToken = default)
     {
         options ??= new WebDeploySyncOptions();
+        NrbfOptionsWriter.Validate(options);
+
         var sourcePath = Path.GetFullPath(localFolder);
         var tree = SourceDirectory.FromDirectory(sourcePath);
         var body = new MsDeployBodyWriter(sourcePath, Environment.MachineName);
+        var headers = SyncHeaders.Create(endpoint, options);
 
         using var httpClient = CreateHttpClient(credentials, options, injectedHandler);
         using var timeout = new CancellationTokenSource(options.Timeout);
@@ -52,20 +57,60 @@ public sealed class WebDeployClient
         await ProbeAsync(httpClient, endpoint, token).ConfigureAwait(false);
 
         var sid = Guid.NewGuid();
-        var providerOptions = EncodeHeader(NrbfProviderOptionsWriter.Write("iisApp", endpoint.IisPath));
         var progress = new List<WebDeployProgress>();
 
         // Pass 1: send the tree as metadata; the server tells us which files' content it needs.
+        // In what-if mode the server only reports what it would do, and there's no second pass (like msdeploy -whatif).
+        // A checksum preview has to send every file's content up front, since the server can't ask for it later.
+        var pass1Body = options is { WhatIf: true, UseChecksum: true } ? body.WriteAllContentPass(tree) : body.WriteMetadataPass(tree);
         var pass1 = await RunSyncPassAsync(
-            httpClient, endpoint, sid, passId: 1, providerOptions,
-            body.WriteMetadataPass(tree), options, progress, token).ConfigureAwait(false);
+            httpClient, endpoint, sid, passId: 1, headers, pass1Body, options, progress, token).ConfigureAwait(false);
 
-        // Pass 2: resend the tree with the content of exactly those files.
-        await RunSyncPassAsync(
-            httpClient, endpoint, sid, passId: 2, providerOptions,
-            body.WriteContentPass(tree, pass1.IncompleteObjectIds), options, progress, token).ConfigureAwait(false);
+        if (!options.WhatIf)
+        {
+            // Pass 2: resend the tree with the content of exactly those files.
+            var pass2Content = options.UseChecksum ? PlanChecksumPass(tree, pass1) : new PassContent(pass1.IncompleteObjectIds, new Dictionary<int, uint>());
+            await RunSyncPassAsync(
+                httpClient, endpoint, sid, passId: 2, headers,
+                body.WriteContentPass(tree, pass2Content), options, progress, token).ConfigureAwait(false);
+        }
 
-        return new WebDeployResult(progress);
+        return new WebDeployResult(progress) { WhatIf = options.WhatIf };
+    }
+
+    /// <summary>
+    /// The second pass of a checksum sync, as msdeploy does it: for each file the server asked about, compare the checksum
+    /// of its copy (from the first pass) with the local one, and send the content only when they differ. Files the server
+    /// doesn't have, and files too large for <see cref="WebDeployChecksum"/>, get their content without a checksum.
+    /// </summary>
+    private static PassContent PlanChecksumPass(SourceDirectory tree, TraceResults pass1)
+    {
+        var contentIds = new HashSet<int>();
+        var checksums = new Dictionary<int, uint>();
+        foreach (var file in tree.Files().Where(f => pass1.IncompleteObjectIds.Contains(f.ObjectId)))
+        {
+            if (pass1.ServerChecksums.TryGetValue(file.ObjectId, out var serverChecksum) && WebDeployChecksum.Compute(file) is { } localChecksum)
+            {
+                checksums[file.ObjectId] = localChecksum;
+                if (localChecksum == serverChecksum)
+                {
+                    continue; // unchanged: the checksum alone tells the server so
+                }
+            }
+
+            contentIds.Add(file.ObjectId);
+        }
+
+        return new PassContent(contentIds, checksums);
+    }
+
+    /// <summary>The three option headers of a sync, encoded once and sent with both passes.</summary>
+    private sealed record SyncHeaders(string ProviderOptions, string BaseOptions, string SyncOptions)
+    {
+        public static SyncHeaders Create(WebDeployEndpoint endpoint, WebDeploySyncOptions options) => new(
+            EncodeHeader(NrbfProviderOptionsWriter.Write("iisApp", endpoint.IisPath)),
+            EncodeHeader(NrbfOptionsWriter.WriteBaseOptions(options)),
+            EncodeHeader(NrbfOptionsWriter.WriteSyncOptions(options)));
     }
 
     private static HttpClient CreateHttpClient(WebDeployCredentials credentials, WebDeploySyncOptions options, HttpMessageHandler? injected)
@@ -136,7 +181,7 @@ public sealed class WebDeployClient
     }
 
     private static async Task<TraceResults> RunSyncPassAsync(
-        HttpClient httpClient, WebDeployEndpoint endpoint, Guid sid, int passId, string providerOptions,
+        HttpClient httpClient, WebDeployEndpoint endpoint, Guid sid, int passId, SyncHeaders headers,
         byte[] syncBody, WebDeploySyncOptions options, List<WebDeployProgress> progress, CancellationToken token)
     {
         var requestId = Guid.NewGuid();
@@ -153,9 +198,9 @@ public sealed class WebDeployClient
             request.Headers.TryAddWithoutValidation("MSDeploy.sid", sid.ToString());
             request.Headers.TryAddWithoutValidation("User-Agent", $"PubwizWebDeploy;sid={sid};op=Sync");
             request.Headers.TryAddWithoutValidation("MSDeploy.PassId", passId.ToString());
-            request.Headers.TryAddWithoutValidation("MSDeploy.ProviderOptions", providerOptions);
-            request.Headers.TryAddWithoutValidation("MSDeploy.BaseOptions", MsDeployProtocol.BaseOptionsHeader);
-            request.Headers.TryAddWithoutValidation("MSDeploy.SyncOptions", MsDeployProtocol.SyncOptionsHeader);
+            request.Headers.TryAddWithoutValidation("MSDeploy.ProviderOptions", headers.ProviderOptions);
+            request.Headers.TryAddWithoutValidation("MSDeploy.BaseOptions", headers.BaseOptions);
+            request.Headers.TryAddWithoutValidation("MSDeploy.SyncOptions", headers.SyncOptions);
             request.Headers.ExpectContinue = true;
             request.Content = new ByteArrayContent(syncBody);
             request.Content.Headers.TryAddWithoutValidation("Content-Type", "application/msdeploy");

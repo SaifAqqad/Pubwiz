@@ -5,7 +5,7 @@ namespace Pubwiz.WebDeploy.Protocol;
 /// captured from the official client (Web Deploy 4.0 / msdeploy 7.1.2001) and documented in
 /// <c>docs/protocol.md</c>. These describe the provider object scaffold
 /// (<c>MSDeploy.iisApp &#8594; iisApp &#8594; createApp + contentPath &#8594; dirPath</c>) and the
-/// request option headers, none of which vary between deployments.
+/// constant parts of the request option headers.
 /// </summary>
 internal static class MsDeployProtocol
 {
@@ -35,16 +35,25 @@ internal static class MsDeployProtocol
     public const string Parameters = "<parameters />";
 
     /// <summary>
-    /// The constant <c>MSDeploy.BaseOptions</c> header (gzip + base64 of an NRBF
-    /// <c>DeploymentBaseOptions</c>). Carries no deployment-specific data, so it is sent verbatim.
+    /// The start of the <c>MSDeploy.SyncOptions</c> object (NRBF <c>DeploymentSyncOptions</c>): the serialization header,
+    /// the assembly, and the class with its six members (whatIf, useChecksum, deleteDestination, appStoreEnabled, rules,
+    /// declaredParameters). The member values follow; see <see cref="NrbfOptionsWriter"/>.
     /// </summary>
-    public const string BaseOptionsHeader =
-        "H4sIAAAAAAAEAKVTbWsaQRDWVM/zJSaBhPZLQUI/ypHgS6LFD422tPRNUNIPhYZ1b5SN6+6xO2dqf3F/RKGdaaqGFEqge+zcMM/u7DPP7GaymUzmJw3+86jskPn8XklnvZ1idAOTKIZE29UCDNZrl+C8sqbXiU74q9f6qcbUQc9Aik7oem2YTrSSb2E1tnMwvcbpZNo4b7VF3Gg3odGqPKID3oxWHmGxTdd8aLrJ2ZloyVb7tNNowsl5J8/Eoy3fT8R3sOF7x70QHj4mSIf5Mm0JBRKBBH2oDIJbCl1WRuo0hhdS+z0w0q0SHArvb6yLS8RFwjtYgt714JTQ6pvgXFWtzPzlVwTDZfiqn6tkoBxIVEvwRzFMBRXkh84uVQzug1iAP1xHR4CozOx38Ohe8FLoFDwR3cllg1wQBGGYfXqrWjRQYmasRyV9NN4QY127DxBidJdi32rNnjXcd555mt85Vyn/g+7Fv89k8QtLpnp1lQl5F8+AcwQXygi3KgbkFwtsQjZFNiUyBwzkeCG347APDtVUSYGwkTOoELLft9Qgg9voLkWfvHKkGrVmTvBUzbZoldDHrxETzngPzBf+TyMutxRv2huwXsU9Lib883wOimuntHYY543BPpnnt4zoPiAlgXggUHTHLoWunVxThO9C7/iL/HvVs+PyLzd2r/ytAwAA";
+    public static readonly byte[] SyncOptionsPrefix = System.Convert.FromBase64String(
+        "AAEAAAD/////AQAAAAAAAAAMAgAAAFtNaWNyb3NvZnQud2ViLmRlcGxveW1lbnQsIFZlcnNpb249OS4wLjAuMCwgQ3VsdHVyZT1uZXV0cmFsLCBQdWJsaWNLZXlUb2tlbj0zMWJmMzg1NmFkMzY0ZTM1BQEAAAAuTWljcm9zb2Z0LldlYi5EZXBsb3ltZW50LkRlcGxveW1lbnRTeW5jT3B0aW9ucwYAAAAGd2hhdElmC3VzZUNoZWNrc3VtEWRlbGV0ZURlc3RpbmF0aW9uD2FwcFN0b3JlRW5hYmxlZAVydWxlcxJkZWNsYXJlZFBhcmFtZXRlcnMAAAAAAQEBAQEBAgAAAA==");
 
     /// <summary>
-    /// The constant <c>MSDeploy.SyncOptions</c> header (gzip + base64 of an NRBF
-    /// <c>DeploymentSyncOptions</c>) with Web Deploy's default rule set.
+    /// The start of the <c>MSDeploy.BaseOptions</c> object (NRBF <c>DeploymentBaseOptions</c>), up to its first member
+    /// values: the retry attempts and interval.
     /// </summary>
-    public const string SyncOptionsHeader =
-        "H4sIAAAAAAAEAIWUbW/TMBDHu8EqoSEQfIJqr6cO6FaBtCJBHyCCtdWybpN45TqX1arjs87ORvaB+JpwSaYyVpc5Ulrlfr77+x7c2Go0Gr95lb/ler7Nrx8nShI6TH37BubtBKzGIgPj91vnQE6h6X1ovymf/VY/1z4n6BnIPQm935rmc63kNyjOcAmm13k7Tzvvj7oi6XQPoXO0U0Zq/w1wwQEGqwD3/saFkRPrOZhr8pbmzUL4KN3NHfQXIJcuz14loMHDAJxXRpTkS2Ft7JFgaMRcQ7JDuQb3OgGpBUEyFSQy3kGuPOpWtbbrc281n/D717PjasfHY6gctAzzvb2huVaEplR1LkiVljFSJrS6hb3WwQN6FUXdVqLWiU9zHCnNRMBk0BQZ5m7mgmZrp4g6SliK8kUQOEX0/5H3WaNcfhWUpbkeVAmcWKBKqdtAz4zLrUXykDy+o6+Fc0reKZ0SepD+lLMaQAmEBya5YSp3mzB0bqqFT/lUYSSK4j6aVF2NCLPu4Rl23q1DJ+DFsuxLprvr5lguIBMxqw0WLV4qG5lrzmoSY04yoKJEZuN+wMC9/AUMJ02HjZfT9e8z0rEUpo4rMbPCr0OXNnLCqkAdoivDg8B9Bt+F8xekPJypLKCaRw4MN5QsqsG6K9zwp3I+4PYBHRlu1EepkVB6YoZEWPd0otx9GMfo68ZaVfdfYmgkFdbzXVFXOYDUx63NkVnw9Hlh5CaH3AF1uQcqTYFgM1mmfww3QGUm3QboQpAZId3J5CkRXmxAOb2TNNXKhIzBtJXOlanPfFBfT82nfFm9OLar+4xtu38AePDcPMwFAAA=";
+    public static readonly byte[] BaseOptionsPrefix = System.Convert.FromBase64String(
+        "AAEAAAD/////AQAAAAAAAAAMAgAAAFtNaWNyb3NvZnQud2ViLmRlcGxveW1lbnQsIFZlcnNpb249OS4wLjAuMCwgQ3VsdHVyZT1uZXV0cmFsLCBQdWJsaWNLZXlUb2tlbj0zMWJmMzg1NmFkMzY0ZTM1DAMAAABJU3lzdGVtLCBWZXJzaW9uPTQuMC4wLjAsIEN1bHR1cmU9bmV1dHJhbCwgUHVibGljS2V5VG9rZW49Yjc3YTVjNTYxOTM0ZTA4OQUBAAAALk1pY3Jvc29mdC5XZWIuRGVwbG95bWVudC5EZXBsb3ltZW50QmFzZU9wdGlvbnMLAAAACGF0dGVtcHRzCGludGVydmFsC2luY2x1ZGVBY2xzD2VuY3J5cHRQYXNzd29yZAp0cmFjZUxldmVsDXNlcmlhbGl6YXRpb24ObGlua0V4dGVuc2lvbnMOc2tpcERpcmVjdGl2ZXMVZGVmYXVsdHNQcm92aWRlck5hbWVzFGRlZmF1bHRzU2V0dGluZ05hbWVzFWRlZmF1bHRzU2V0dGluZ1ZhbHVlcwAAAAIEAQYEBgYGCAgBHVN5c3RlbS5EaWFnbm9zdGljcy5UcmFjZUxldmVsAwAAADpNaWNyb3NvZnQuV2ViLkRlcGxveW1lbnQuRGVwbG95bWVudFNraXBEaXJlY3RpdmVDb2xsZWN0aW9uAgAAAAIAAAA=");
+
+    /// <summary>
+    /// The constant middle of <c>MSDeploy.BaseOptions</c>, between the retry interval and the skip directives: no ACLs,
+    /// trace level Info, Binary serialization, the four link extensions msdeploy enables, the skip directive collection
+    /// and three empty "defaults" arrays.
+    /// </summary>
+    public static readonly byte[] BaseOptionsMiddle = System.Convert.FromBase64String(
+        "AAoF/P///x1TeXN0ZW0uRGlhZ25vc3RpY3MuVHJhY2VMZXZlbAEAAAAHdmFsdWVfXwAIAwAAAAMAAAAGBQAAAAZCaW5hcnkJBgAAAAkHAAAACQgAAAAJCQAAAAkKAAAAEQYAAAAEAAAABgsAAAAUQ2VydGlmaWNhdGVFeHRlbnNpb24GDAAAABBDb250ZW50RXh0ZW5zaW9uBg0AAAAYRnJhbWV3b3JrQ29uZmlnRXh0ZW5zaW9uBg4AAAAXSHR0cENlcnRDb25maWdFeHRlbnNpb24FBwAAADpNaWNyb3NvZnQuV2ViLkRlcGxveW1lbnQuRGVwbG95bWVudFNraXBEaXJlY3RpdmVDb2xsZWN0aW9uAQAAAApkaXJlY3RpdmVzBgIAAAAJDwAAABEIAAAAAAAAABEJAAAAAAAAABEKAAAAAAAAAA==");
 }

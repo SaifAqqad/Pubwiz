@@ -39,6 +39,27 @@ public sealed class MsDeployCliTests
     }
 
     [Fact]
+    public void BuildSyncCommandLine_AddsChecksumPreviewAndSkipRules()
+    {
+        var options = Options() with
+        {
+            UseChecksum = true,
+            WhatIf = true,
+            SkipRules =
+            [
+                new WebDeploySkipRule(WebDeploySkipObject.Directory, @"\\logs$") { Action = WebDeploySkipAction.Delete },
+                new WebDeploySkipRule(WebDeploySkipObject.File, @"extra\.txt")
+            ]
+        };
+
+        var commandLine = MsDeployCli.BuildSyncCommandLine(options);
+
+        Assert.EndsWith(
+            " -useCheckSum -whatif -skip:skipAction=Delete,objectName=dirPath,absolutePath=\"\\\\logs$\" -skip:objectName=filePath,absolutePath=\"extra\\.txt\"",
+            commandLine);
+    }
+
+    [Fact]
     public void BuildSyncCommandLine_AddsTheChosenRules()
     {
         var options = Options() with { AllowUntrustedCertificate = true, KeepExtraFiles = true, TakeAppOffline = true, Verbose = true };

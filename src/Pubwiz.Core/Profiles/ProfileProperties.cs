@@ -47,6 +47,15 @@ public static class ProfileProperties
     /// <summary>Take the app offline (<c>app_offline.htm</c>) while Web Deploy copies files.</summary>
     public const string EnableMSDeployAppOffline = nameof(EnableMSDeployAppOffline);
 
+    /// <summary>Compare files by checksum instead of size and date (Web Deploy's <c>-useCheckSum</c>).</summary>
+    public const string MSDeployUseChecksum = nameof(MSDeployUseChecksum);
+
+    /// <summary>
+    /// The item type of Web Deploy skip rules (Visual Studio's <c>MsDeploySkipRules</c>), with <c>ObjectName</c>
+    /// (<c>filePath</c> or <c>dirPath</c>), <c>AbsolutePath</c> (a regex) and an optional <c>SkipAction</c> metadata.
+    /// </summary>
+    public const string MsDeploySkipRules = nameof(MsDeploySkipRules);
+
     /// <summary>The value of <see cref="PublishProvider"/> for Azure App Service.</summary>
     public const string AzureWebSiteProvider = "AzureWebSite";
 

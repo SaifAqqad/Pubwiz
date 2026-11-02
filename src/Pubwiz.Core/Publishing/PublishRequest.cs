@@ -25,6 +25,12 @@ public sealed record PublishRequest(ProjectInfo Project, PublishProfile Profile)
     public bool? TakeAppOffline { get; init; }
 
     /// <summary>
+    /// Only show what publishing would change on the server, without changing anything (<c>--what-if</c>). The app is
+    /// still built. Only targets with <see cref="IPublishTarget.SupportsWhatIf"/> (Web Deploy) can do this.
+    /// </summary>
+    public bool WhatIf { get; init; }
+
+    /// <summary>
     /// Overrides the profile's "allow an untrusted server certificate" setting (Web Deploy), when set, e.g. after the
     /// user chose to trust a self-signed certificate for this run.
     /// </summary>

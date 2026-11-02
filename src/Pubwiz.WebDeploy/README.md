@@ -38,12 +38,32 @@ if (certificate is { IsTrusted: false })
 
 It adds new files, updates changed ones, creates directories and, when the destination is an
 application path (`Site/app`), creates the application. Existing files not present in the source are
-left in place.
+left in place unless `DeleteExtraFiles` is set.
+
+## Options
+
+`WebDeploySyncOptions` covers the msdeploy settings a folder deploy needs:
+
+| Option | msdeploy equivalent | What it does |
+|---|---|---|
+| `TakeAppOffline` | `-enableRule:AppOffline` | Puts `app_offline.htm` in place while syncing, so a running ASP.NET app releases its files. |
+| `DeleteExtraFiles` | default (off: `-enableRule:DoNotDeleteRule`) | Deletes files and folders on the server that aren't in the source. Off by default. |
+| `WhatIf` | `-whatif` | Only reports what would change; the result's `WhatIf` is `true`. |
+| `UseChecksum` | `-useCheckSum` | Compares files by content instead of size and date (see the limit below). |
+| `SkipRules` | `-skip:…` | Leaves matching files or folders alone, entirely or for one action (e.g. never delete `uploads`). |
+| `RetryAttempts`, `RetryInterval` | `-retryAttempts`, `-retryInterval` | How the server retries a failing operation, e.g. on a locked file. |
+| `AllowUntrusted` | `-allowUntrusted` | Accepts the server's self-signed certificate. |
+
+```csharp
+var options = new WebDeploySyncOptions { TakeAppOffline = true, DeleteExtraFiles = true };
+options.SkipRules.Add(new WebDeploySkipRule(WebDeploySkipObject.Directory, @"\\uploads$") { Action = WebDeploySkipAction.Delete });
+```
 
 ## Scope
 
 - Authentication: HTTP Basic only (not NTLM / current-Windows-user).
-- It does not yet delete extra files on the server, take the app offline during deploy, or run
-  what-if; for those, the official `msdeploy.exe` is still used on Windows.
+- `UseChecksum` compares files up to 64 KB by checksum exactly like msdeploy. Larger files are always sent (the server
+  then compares their content), so they're never skipped, and a checksum preview lists them as updates when they exist
+  on the server. How msdeploy checksums files over 64 KB hasn't been worked out yet.
 
 Used by [Pubwiz](https://github.com/SaifAqqad/Pubwiz) (`dotnet pubwiz`), and usable on its own.

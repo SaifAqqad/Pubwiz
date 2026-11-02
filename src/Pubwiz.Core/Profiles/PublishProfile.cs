@@ -1,7 +1,20 @@
 namespace Pubwiz.Core.Profiles;
 
 /// <summary>
-/// A publish profile: a named set of MSBuild properties, stored as a Visual Studio compatible .pubxml file.
+/// An MSBuild item in a profile, e.g. a <c>MsDeploySkipRules</c> entry:
+/// <c>&lt;MsDeploySkipRules Include="KeepUploads"&gt;&lt;ObjectName&gt;dirPath&lt;/ObjectName&gt;…&lt;/MsDeploySkipRules&gt;</c>.
+/// </summary>
+/// <param name="Type">The item type (the element name), e.g. <c>MsDeploySkipRules</c>.</param>
+/// <param name="Include">The <c>Include</c> attribute.</param>
+/// <param name="Metadata">The child elements, by name (case-insensitive).</param>
+public sealed record ProfileItem(string Type, string Include, IReadOnlyDictionary<string, string> Metadata)
+{
+    /// <summary>A metadata value, or <c>null</c> when it's missing or empty.</summary>
+    public string? this[string name] => Metadata.TryGetValue(name, out var value) && value.Trim() is { Length: > 0 } trimmed ? trimmed : null;
+}
+
+/// <summary>
+/// A publish profile: a named set of MSBuild properties (and a few items), stored as a Visual Studio compatible .pubxml file.
 /// </summary>
 /// <remarks>
 /// Properties keep their insertion order so a saved file reads naturally.
@@ -24,6 +37,9 @@ public sealed class PublishProfile
     public string? FilePath { get; }
 
     public IReadOnlyList<KeyValuePair<string, string>> Properties => _properties;
+
+    /// <summary>The profile's MSBuild items, e.g. Web Deploy skip rules, in file order.</summary>
+    public List<ProfileItem> Items { get; } = [];
 
     /// <summary>
     /// How the profile publishes. Web projects use <c>WebPublishMethod</c>; Visual Studio writes <c>PublishProtocol</c>
@@ -76,6 +92,7 @@ public sealed class PublishProfile
     {
         var copy = new PublishProfile(name, filePath);
         copy._properties.AddRange(_properties);
+        copy.Items.AddRange(Items);
         return copy;
     }
 

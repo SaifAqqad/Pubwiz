@@ -29,6 +29,9 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     /// <summary>Whether this machine deploys with the official msdeploy.exe (vs the built-in client).</summary>
     public bool UsesMsDeploy => msdeploy.IsInstalled;
 
+    /// <summary>Both msdeploy.exe and the built-in client can preview a sync (<c>-whatif</c>).</summary>
+    public bool SupportsWhatIf => true;
+
     /// <summary>
     /// Without a user name msdeploy signs in as the current Windows user; the built-in client always needs one.
     /// A saved server login brings its own password, so none is asked for.
@@ -40,6 +43,7 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
         try
         {
             WebDeployProfile.GetEndpoint(profile);
+            WebDeployProfile.GetSkipRules(profile);
         }
         catch (ArgumentException ex)
         {
@@ -59,7 +63,15 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     {
         var endpoint = WebDeployProfile.GetEndpoint(request.Profile);
         var login = new LoginSource(servers, FindServerLogin(request.Profile));
-        PublishStep sync = UsesMsDeploy ? new SyncStep(msdeploy, endpoint, login) : new BuiltInSyncStep(client, endpoint, login);
+        var stepName = request.WhatIf ? "Preview changes (Web Deploy)" : "Deploy (Web Deploy)";
+        PublishStep sync = UsesMsDeploy ? new SyncStep(stepName, msdeploy, endpoint, login) : new BuiltInSyncStep(stepName, client, endpoint, login);
+
+        // A preview deploys nothing, so its result is the change count the sync step reports, not the site.
+        if (request.WhatIf)
+        {
+            return [StagingPublish.CreateStep(dotnet, request), sync];
+        }
+
         return
         [
             StagingPublish.CreateStep(dotnet, request),
@@ -81,6 +93,9 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
             KeepExtraFiles = IsTrue(profile[ProfileProperties.SkipExtraFilesOnServer]),
             // A running app keeps its DLLs locked, so the app is taken offline unless turned off for the run.
             TakeAppOffline = request.TakeAppOffline ?? true,
+            UseChecksum = WebDeployProfile.UsesChecksum(profile),
+            WhatIf = request.WhatIf,
+            SkipRules = WebDeployProfile.GetSkipRules(profile),
             Verbose = request.Verbose
         };
     }
@@ -123,7 +138,7 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     }
 
     /// <summary>Runs <c>msdeploy -verb:sync</c> from the staging folder to the IIS application.</summary>
-    private sealed class SyncStep(MsDeployCli msdeploy, WebDeployEndpoint endpoint, LoginSource login) : PublishStep("Deploy (Web Deploy)")
+    private sealed class SyncStep(string name, MsDeployCli msdeploy, WebDeployEndpoint endpoint, LoginSource login) : PublishStep(name)
     {
         public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
         {
@@ -133,6 +148,11 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
             try
             {
                 await SyncAsync(context, options, cancellationToken);
+                if (options.WhatIf)
+                {
+                    // msdeploy prints the changes it would make, and "Total changes: …", in the log.
+                    context.Destination = "preview only, nothing deployed (the changes are in the log)";
+                }
             }
             catch (MsDeployException ex) when (ex.ErrorCode == MsDeployException.FileInUse && options.TakeAppOffline)
             {
@@ -194,7 +214,7 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     }
 
     /// <summary>Syncs the staging folder to the IIS application with the built-in client (no msdeploy.exe).</summary>
-    private sealed class BuiltInSyncStep(WebDeployClient client, WebDeployEndpoint endpoint, LoginSource login) : PublishStep("Deploy (Web Deploy)")
+    private sealed class BuiltInSyncStep(string name, WebDeployClient client, WebDeployEndpoint endpoint, LoginSource login) : PublishStep(name)
     {
         public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
         {
@@ -207,20 +227,22 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
                 throw new PublishStepException("Web Deploy needs a user name and password to publish from this machine.");
             }
 
-            NoteUnsupportedOptions(context, options);
-
             var credentials = new WebDeployCredentials(options.UserName, options.Password);
-            var clientOptions = new WebDeploySyncOptions
-            {
-                AllowUntrusted = options.AllowUntrustedCertificate,
-                OnProgress = progress => LogProgress(context, progress)
-            };
+            var clientOptions = ToClientOptions(options, context);
 
-            context.ReportDetail($"syncing to {endpoint.ServiceUrl.Host}");
+            context.ReportDetail($"{(options.WhatIf ? "previewing" : "syncing to")} {endpoint.ServiceUrl.Host}");
             try
             {
                 var result = await client.SyncFolderAsync(endpoint, credentials, options.SourceDirectory, clientOptions, cancellationToken);
-                context.Log.Info($"Web Deploy applied {result.ChangeCount} change(s).");
+                if (result.WhatIf)
+                {
+                    context.Log.Info($"Preview: Web Deploy would make {result.ChangeCount} change(s); nothing was deployed.");
+                    context.Destination = $"preview: {result.ChangeCount} change(s), nothing deployed";
+                }
+                else
+                {
+                    context.Log.Info($"Web Deploy applied {result.ChangeCount} change(s).");
+                }
             }
             catch (WebDeployException ex)
             {
@@ -229,18 +251,25 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
             }
         }
 
-        /// <summary>Tells the user which msdeploy.exe-only options the built-in client leaves unapplied.</summary>
-        private static void NoteUnsupportedOptions(PublishContext context, MsDeploySyncOptions options)
+        /// <summary>The same settings msdeploy.exe gets, for the built-in client.</summary>
+        private static WebDeploySyncOptions ToClientOptions(MsDeploySyncOptions options, PublishContext context)
         {
-            if (!options.KeepExtraFiles)
+            var clientOptions = new WebDeploySyncOptions
             {
-                context.Log.Info("The built-in Web Deploy client doesn't delete extra files on the server; files that aren't part of the app are kept.");
+                AllowUntrusted = options.AllowUntrustedCertificate,
+                TakeAppOffline = options.TakeAppOffline,
+                DeleteExtraFiles = !options.KeepExtraFiles,
+                UseChecksum = options.UseChecksum,
+                WhatIf = options.WhatIf,
+                OnProgress = progress => LogProgress(context, progress)
+            };
+
+            foreach (var rule in options.SkipRules)
+            {
+                clientOptions.SkipRules.Add(rule);
             }
 
-            if (options.TakeAppOffline)
-            {
-                context.Log.Info("The built-in Web Deploy client can't take the app offline yet; if a file is in use, stop the app or its app pool first.");
-            }
+            return clientOptions;
         }
 
         private static void LogProgress(PublishContext context, WebDeployProgress progress)

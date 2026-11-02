@@ -36,6 +36,11 @@ public sealed class PublishRunner(IEnumerable<IPublishTarget> targets)
             return new PublishJob(request, target.Type, steps: [], setupError);
         }
 
+        if (request.WhatIf && !target.SupportsWhatIf)
+        {
+            return new PublishJob(request, target.Type, steps: [], "A preview (--what-if) is only possible with Web Deploy profiles; nothing was published.");
+        }
+
         return new PublishJob(request, target.Type, target.CreateSteps(request), setupError: null);
     }
 

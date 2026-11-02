@@ -77,6 +77,10 @@ public sealed class PublishCommand(
         [Description("Keep IIS apps running while publishing, instead of taking them offline with app_offline.htm (Web Deploy, FTP, SFTP)")]
         public bool NoAppOffline { get; init; }
 
+        [CommandOption("--what-if")]
+        [Description("Build, then only show what Web Deploy would change on the server, without deploying anything")]
+        public bool WhatIf { get; init; }
+
         [CommandOption("--report <FILE>")]
         [Description("Write a report after publishing (.json or .csv)")]
         public string? Report { get; init; }
@@ -206,6 +210,7 @@ public sealed class PublishCommand(
             {
                 // Apps are taken offline unless --no-app-offline says otherwise (see PublishRequest.TakeAppOffline).
                 TakeAppOffline = settings.NoAppOffline ? false : null,
+                WhatIf = settings.WhatIf,
                 AllowUntrustedCertificate = ask ? await certificates.AskAsync(profile, cancellationToken) : null,
                 Configuration = settings.Configuration ?? batch.Configuration,
                 Verbose = settings.Verbose,

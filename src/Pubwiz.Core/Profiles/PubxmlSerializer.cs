@@ -27,15 +27,33 @@ public static class PubxmlSerializer
             profile[property.Name.LocalName] = property.Value.Trim();
         }
 
+        var items = document.Root?
+            .Elements().Where(e => e.Name.LocalName == "ItemGroup")
+            .SelectMany(group => group.Elements()) ?? [];
+
+        foreach (var item in items)
+        {
+            var metadata = item.Elements().ToDictionary(e => e.Name.LocalName, e => e.Value.Trim(), StringComparer.OrdinalIgnoreCase);
+            profile.Items.Add(new ProfileItem(item.Name.LocalName, (string?)item.Attribute("Include") ?? string.Empty, metadata));
+        }
+
         return profile;
     }
 
     public static void Write(PublishProfile profile, string filePath)
     {
         var propertyGroup = new XElement("PropertyGroup", profile.Properties.Select(p => new XElement(p.Key, p.Value)));
+        var project = new XElement("Project", propertyGroup);
+        if (profile.Items.Count > 0)
+        {
+            project.Add(new XElement("ItemGroup", profile.Items.Select(item => new XElement(item.Type,
+                new XAttribute("Include", item.Include),
+                item.Metadata.Select(m => new XElement(m.Key, m.Value))))));
+        }
+
         var document = new XDocument(
             new XComment(" Created by Pubwiz. Compatible with Visual Studio and `dotnet publish -p:PublishProfile=<name>` "),
-            new XElement("Project", propertyGroup));
+            project);
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filePath))!);
         document.Save(filePath);

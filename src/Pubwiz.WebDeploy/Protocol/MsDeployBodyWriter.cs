@@ -46,13 +46,39 @@ internal sealed class MsDeployBodyWriter
 
     /// <summary>First pass: the whole tree as metadata, with no file content.</summary>
     public byte[] WriteMetadataPass(SourceDirectory root)
-        => Write(root, contentObjectIds: null);
+        => Write(root, PassContent.None);
 
     /// <summary>Second pass: the tree again, with content for the files whose ids the server asked for.</summary>
     public byte[] WriteContentPass(SourceDirectory root, IReadOnlySet<int> contentObjectIds)
-        => Write(root, contentObjectIds);
+        => Write(root, new PassContent(contentObjectIds, new Dictionary<int, uint>()));
 
-    private byte[] Write(SourceDirectory root, IReadOnlySet<int>? contentObjectIds)
+    /// <summary>A pass with exactly the content and checksums of <paramref name="content"/> (checksum mode).</summary>
+    public byte[] WriteContentPass(SourceDirectory root, PassContent content)
+        => Write(root, content);
+
+    /// <summary>
+    /// The tree with the content and checksum of every file, sent as the only pass of a checksum preview
+    /// (<c>-whatif -useCheckSum</c>): without a second pass the server can't ask for anything, so it gets it all up front.
+    /// Files too large for <see cref="WebDeployChecksum"/> go without a checksum.
+    /// </summary>
+    public byte[] WriteAllContentPass(SourceDirectory root)
+    {
+        AssignObjectIds(root);
+        var contentIds = new HashSet<int>();
+        var checksums = new Dictionary<int, uint>();
+        foreach (var file in root.Files())
+        {
+            contentIds.Add(file.ObjectId);
+            if (WebDeployChecksum.Compute(file) is { } checksum)
+            {
+                checksums[file.ObjectId] = checksum;
+            }
+        }
+
+        return Write(root, new PassContent(contentIds, checksums));
+    }
+
+    private byte[] Write(SourceDirectory root, PassContent content)
     {
         AssignObjectIds(root);
 
@@ -62,7 +88,7 @@ internal sealed class MsDeployBodyWriter
         WriteSection(w, SectionSystemInfo, string.Format(MsDeployProtocol.SystemInfoTemplate, machineName));
         WriteSection(w, SectionParameters, MsDeployProtocol.Parameters);
         WriteScaffold(w);
-        WriteChildren(w, root, contentObjectIds);
+        WriteChildren(w, root, content);
 
         w.Flush();
         return stream.ToArray();
@@ -113,33 +139,33 @@ internal sealed class MsDeployBodyWriter
         w.Write(s[8]);
     }
 
-    private void WriteChildren(BinaryWriter w, SourceDirectory root, IReadOnlySet<int>? contentObjectIds)
+    private void WriteChildren(BinaryWriter w, SourceDirectory root, PassContent content)
     {
         // Enter the dirPath children list (constant token), emit the tree, then close dirPath.
         w.Write(OpClose);
         w.Write(3);
-        WriteNodes(w, root.Children, DirPathObjectId, contentObjectIds);
+        WriteNodes(w, root.Children, DirPathObjectId, content);
         w.Write(OpClose);
         w.Write(DirPathObjectId);
     }
 
-    private void WriteNodes(BinaryWriter w, IReadOnlyList<SourceNode> nodes, int parentId, IReadOnlySet<int>? contentObjectIds)
+    private void WriteNodes(BinaryWriter w, IReadOnlyList<SourceNode> nodes, int parentId, PassContent content)
     {
         foreach (var node in nodes)
         {
             switch (node)
             {
                 case SourceFile file:
-                    WriteFile(w, file, parentId, contentObjectIds);
+                    WriteFile(w, file, parentId, content);
                     break;
                 case SourceDirectory dir:
-                    WriteDirectory(w, dir, parentId, contentObjectIds);
+                    WriteDirectory(w, dir, parentId, content);
                     break;
             }
         }
     }
 
-    private void WriteFile(BinaryWriter w, SourceFile file, int parentId, IReadOnlySet<int>? contentObjectIds)
+    private void WriteFile(BinaryWriter w, SourceFile file, int parentId, PassContent content)
     {
         w.Write(OpFile);
         w.Write(file.ObjectId);
@@ -149,9 +175,10 @@ internal sealed class MsDeployBodyWriter
         w.Write(4); w.Write(FileAttributesArchive);       // attributes (Int32)
         w.Write(8); w.Write(file.LastWriteTimeBinary);    // last write time (DateTime.ToBinary, Int64)
         WriteBodyString(w, SecurityDescriptor);
-        w.Write(0); w.Write(0);                            // end-of-attributes
+        w.Write(content.Checksums.GetValueOrDefault(file.ObjectId)); // checksum mode: the file's checksum, otherwise 0
+        w.Write(0);                                        // end-of-attributes
 
-        var sendContent = contentObjectIds is not null && contentObjectIds.Contains(file.ObjectId);
+        var sendContent = content.ContentObjectIds.Contains(file.ObjectId);
         if (!sendContent)
         {
             w.Write((byte)1);                              // "complete, no content"
@@ -184,7 +211,7 @@ internal sealed class MsDeployBodyWriter
         w.Write(0); // zero-length chunk ends the stream
     }
 
-    private void WriteDirectory(BinaryWriter w, SourceDirectory dir, int parentId, IReadOnlySet<int>? contentObjectIds)
+    private void WriteDirectory(BinaryWriter w, SourceDirectory dir, int parentId, PassContent content)
     {
         w.Write(OpDirectory);
         w.Write(dir.ObjectId);
@@ -194,7 +221,7 @@ internal sealed class MsDeployBodyWriter
         w.Write(0);                                        // reserved
         w.Write(4); w.Write(DirectoryAttributes);          // attributes (Int32)
 
-        WriteNodes(w, dir.Children, dir.ObjectId, contentObjectIds);
+        WriteNodes(w, dir.Children, dir.ObjectId, content);
 
         w.Write(OpClose);
         w.Write(dir.ObjectId);
@@ -225,4 +252,13 @@ internal sealed class MsDeployBodyWriter
 
         return output.ToArray();
     }
+}
+
+/// <summary>What a sync pass sends besides the tree: the content of some files, and (in checksum mode) some files' checksums.</summary>
+/// <param name="ContentObjectIds">The files whose content is sent.</param>
+/// <param name="Checksums">Checksums by file id; a file without one gets 0.</param>
+internal sealed record PassContent(IReadOnlySet<int> ContentObjectIds, IReadOnlyDictionary<int, uint> Checksums)
+{
+    /// <summary>Metadata only.</summary>
+    public static PassContent None { get; } = new(new HashSet<int>(), new Dictionary<int, uint>());
 }

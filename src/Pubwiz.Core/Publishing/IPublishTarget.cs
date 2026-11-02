@@ -22,6 +22,9 @@ public interface IPublishTarget
     /// </summary>
     string? GetSetupError(PublishProfile profile) => null;
 
+    /// <summary>Whether the target can preview a publish without changing anything (<see cref="PublishRequest.WhatIf"/>).</summary>
+    bool SupportsWhatIf => false;
+
     /// <summary>Creates fresh steps for one run.</summary>
     IReadOnlyList<PublishStep> CreateSteps(PublishRequest request);
 }

@@ -73,6 +73,68 @@ public sealed class WebDeployTargetTests : IDisposable
     }
 
     [Fact]
+    public void CreateSyncOptions_ReadsChecksumAndTheVisualStudioSkipRules()
+    {
+        var profile = Profile();
+        profile[ProfileProperties.MSDeployUseChecksum] = "True";
+        profile.Items.Add(SkipRule("KeepUploads", "dirPath", @"wwwroot\\uploads$", skipAction: "Delete"));
+        profile.Items.Add(SkipRule("SkipLogs", "filePath", @"\.log$"));
+        profile.Items.Add(new ProfileItem("Content", "readme.txt", new Dictionary<string, string>()));
+
+        var options = WebDeployTarget.CreateSyncOptions(Request(profile) with { WhatIf = true }, WebDeployProfile.GetEndpoint(profile), "/staging");
+
+        Assert.True(options.UseChecksum);
+        Assert.True(options.WhatIf);
+        Assert.Equal(
+        [
+            new WebDeploySkipRule(WebDeploySkipObject.Directory, @"wwwroot\\uploads$") { Action = WebDeploySkipAction.Delete },
+            new WebDeploySkipRule(WebDeploySkipObject.File, @"\.log$")
+        ], options.SkipRules);
+    }
+
+    [Theory]
+    [InlineData("metaKey", "x", null, "ObjectName")]
+    [InlineData("dirPath", null, null, "AbsolutePath")]
+    [InlineData("dirPath", "x", "Rename", "SkipAction")]
+    [InlineData("dirPath", @"\uploads$", null, "regular expression")]
+    public void CreateJob_RefusesASkipRuleItCantApply(string objectName, string? absolutePath, string? skipAction, string expectedInError)
+    {
+        // Ignoring a "keep these files" rule could let a sync delete them, so the job fails instead.
+        var profile = Profile();
+        profile.Items.Add(SkipRule("Mine", objectName, absolutePath, skipAction));
+
+        var job = new PublishRunner([Target(installed: false)]).CreateJob(Request(profile));
+
+        Assert.Empty(job.Steps);
+        Assert.Contains("'Mine'", job.Error);
+        Assert.Contains(expectedInError, job.Error);
+    }
+
+    [Fact]
+    public void CreateJob_PreviewsWithoutTheDestinationStep()
+    {
+        var job = new PublishRunner([Target(installed: false)]).CreateJob(Request(Profile()) with { WhatIf = true });
+
+        Assert.Equal(["Build and publish", "Preview changes (Web Deploy)"], job.Steps.Select(s => s.Name));
+    }
+
+    private static ProfileItem SkipRule(string name, string objectName, string? absolutePath, string? skipAction = null)
+    {
+        var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["ObjectName"] = objectName };
+        if (absolutePath is not null)
+        {
+            metadata["AbsolutePath"] = absolutePath;
+        }
+
+        if (skipAction is not null)
+        {
+            metadata["SkipAction"] = skipAction;
+        }
+
+        return new ProfileItem(ProfileProperties.MsDeploySkipRules, name, metadata);
+    }
+
+    [Fact]
     public void CreateJob_ReportsAnIncompleteProfile()
     {
         var job = new PublishRunner([Target(installed: true)]).CreateJob(Request(Profile(site: null)));

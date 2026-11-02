@@ -16,13 +16,17 @@ Pubwiz publishes to IIS on Windows by running the official `msdeploy.exe` (`src/
 msdeploy.exe -verb:sync -source:iisApp="C:\publish"
   -dest:iisApp="Default Web Site/api",computerName="https://iis:8172/msdeploy.axd?site=Default%20Web%20Site",
         userName="deploy",password="...",authType="Basic"
-  [-allowUntrusted] [-enableRule:DoNotDeleteRule] [-enableRule:AppOffline] [-verbose]
+  [-allowUntrusted] [-enableRule:DoNotDeleteRule] [-enableRule:AppOffline] [-useCheckSum] [-whatif]
+  [-skip:skipAction=Delete,objectName=dirPath,absolutePath="\\uploads$"] [-verbose]
 ```
 
 - `iisApp` deploys a folder into a site or application, and creates the application if it doesn't exist.
 - Without `userName`, use `authType="NTLM"` to sign in as the current Windows account.
 - `DoNotDeleteRule` keeps files on the server that aren't in the source (profile property `SkipExtraFilesOnServer`).
 - `AppOffline` puts `app_offline.htm` in place during the sync and removes it afterwards (`EnableMSDeployAppOffline`).
+- `-useCheckSum` compares files by checksum (`MSDeployUseChecksum`); `-whatif` only reports the changes.
+- `-skip` leaves files or folders alone (Visual Studio's `MsDeploySkipRules` items); quoting the `absolutePath` value
+  works like any other value.
 
 ## Command-line quoting
 

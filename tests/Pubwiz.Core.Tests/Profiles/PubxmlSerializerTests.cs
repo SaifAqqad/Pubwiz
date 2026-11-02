@@ -98,6 +98,35 @@ public sealed class PubxmlSerializerTests : IDisposable
     }
 
     [Fact]
+    public void ItemsAreReadAndWrittenBack()
+    {
+        var path = _temp.CreateFile("Iis.pubxml", """
+            <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+              <PropertyGroup>
+                <WebPublishMethod>MSDeploy</WebPublishMethod>
+              </PropertyGroup>
+              <ItemGroup>
+                <MsDeploySkipRules Include="KeepUploads">
+                  <ObjectName>dirPath</ObjectName>
+                  <AbsolutePath>wwwroot\\uploads$</AbsolutePath>
+                </MsDeploySkipRules>
+              </ItemGroup>
+            </Project>
+            """);
+
+        var profile = PubxmlSerializer.Read(path);
+        var copyPath = Path.Combine(_temp.Path, "Copy.pubxml");
+        PubxmlSerializer.Write(profile, copyPath);
+        var copy = PubxmlSerializer.Read(copyPath);
+
+        var item = Assert.Single(copy.Items);
+        Assert.Equal(ProfileProperties.MsDeploySkipRules, item.Type);
+        Assert.Equal("KeepUploads", item.Include);
+        Assert.Equal("dirPath", item["objectname"]);
+        Assert.Equal(@"wwwroot\\uploads$", item["AbsolutePath"]);
+    }
+
+    [Fact]
     public void SetProperty_ChangesOnlyThatProperty()
     {
         var path = _temp.CreateFile("Iis.pubxml", """

@@ -68,7 +68,7 @@ Every list can be searched by typing. <kbd>Esc</kbd> or <kbd>Ctrl</kbd>+<kbd>C</
 ## Targets
 
 - **Local:** folder, zip file
-- **Servers:** IIS (Web Deploy, Windows only), FTP/FTPS, SFTP
+- **Servers:** IIS (Web Deploy, from Windows, Linux and macOS), FTP/FTPS, SFTP
 - **Azure:** App Service, Function Apps, WebJobs, Container Apps
 - **Containers:** Docker/Podman, tarball, any registry
 - **Mobile:** Android (`.aab`, `.apk`), iOS (`.ipa`, macOS only)
@@ -102,6 +102,7 @@ Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure
 | `--all` | Also list projects that normally aren't published (libraries, tests, Aspire AppHosts). |
 | `--parallel <N>` | How many projects to publish at the same time (default 1, or the preset's). The wizard asks when you pick several projects. Parallel jobs build in their own folder (`obj/pubwiz-build/<profile>`), so projects that share a library don't lock each other's files. |
 | `--no-app-offline` | Keep IIS apps running while publishing. By default Web Deploy takes the app offline with `app_offline.htm` so locked files can be replaced (FTP/SFTP follow their profile). |
+| `--what-if` | Build, then only show what Web Deploy would change on the server (adds, updates, deletes), without deploying. Other targets fail with a message. |
 | `--show-log` | Show live build output while publishing (toggle with <kbd>L</kbd>). |
 | `--log-lines <N>` | How many lines of live output to show per project (default 10). |
 | `--report <FILE>` | Write a report after publishing (`.json` or `.csv`). |
@@ -164,6 +165,31 @@ dotnet pubwiz servers set 10.0.0.5 --user deploy
 
 Every Web Deploy profile whose `MSDeployServiceURL` points at that server (by IP address or name, as written in the profile; any port) then signs in with that user and password, instead of the profile's, with both msdeploy.exe and the built-in client. Profiles that sign in as the current Windows user can then publish from Linux and macOS too. The user name is kept in `servers.json` in your config folder (`~/.config/pubwiz` on Linux, `%APPDATA%\pubwiz` on Windows) and the password in the OS keychain. For setup scripts, pass `--password-stdin`.
 
+## IIS (Web Deploy)
+
+Pubwiz uses the official `msdeploy.exe` where it's installed (Windows with Web Deploy) and its own client everywhere
+else, with the same settings from the profile:
+
+| Profile setting | Effect |
+|---|---|
+| `SkipExtraFilesOnServer` | `true` keeps files on the server that aren't part of the app; `false` deletes them. |
+| `MSDeployUseChecksum` | `true` compares files by checksum instead of size and date, so unchanged files aren't copied again. The built-in client does this for files up to 64 KB and always copies larger ones. |
+| `MsDeploySkipRules` items | Files or folders to leave alone, as Visual Studio writes them (example below: keep uploads while deleting other extra files). |
+| `AllowUntrustedCertificate` | Accepts the server's self-signed certificate (Pubwiz also asks when it isn't trusted). |
+
+```xml
+<ItemGroup>
+  <MsDeploySkipRules Include="KeepUploads">
+    <ObjectName>dirPath</ObjectName>
+    <AbsolutePath>wwwroot\\uploads$</AbsolutePath>  <!-- a regular expression: \\ is one backslash -->
+    <SkipAction>Delete</SkipAction>                 <!-- optional: only never delete -->
+  </MsDeploySkipRules>
+</ItemGroup>
+```
+
+The app is taken offline (`app_offline.htm`) while copying unless you pass `--no-app-offline`, and `--what-if` shows
+the changes without making them.
+
 ## web.config transforms
 
 Publishing runs `dotnet publish`, so the .NET SDK applies your `web.config` transforms as usual: `web.<Configuration>.config`, `web.<Profile>.config`, `web.<Environment>.config`, then the profile's `.transform` file.
@@ -186,7 +212,7 @@ dotnet test --solution Pubwiz.slnx
 |---|---|
 | [`src/Pubwiz.Tool`](src/Pubwiz.Tool) | The `dotnet pubwiz` command line app: the wizard, prompts and live dashboard ([Spectre.Console](https://spectreconsole.net)) |
 | [`src/Pubwiz.Core`](src/Pubwiz.Core) | The publishing logic, organized along a publish ([layout guide](src/Pubwiz.Core/README.md)) |
-| [`src/Pubwiz.WebDeploy`](src/Pubwiz.WebDeploy) | A cross-platform Web Deploy client, published as its own package (in progress) |
+| [`src/Pubwiz.WebDeploy`](src/Pubwiz.WebDeploy) | A cross-platform Web Deploy client, published as its own package |
 | [`tests`](tests) | Unit and integration tests (xUnit v3) |
 
 The [Core layout guide](src/Pubwiz.Core/README.md) walks through how a publish flows through the code and how to add a new target.

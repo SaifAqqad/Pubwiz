@@ -45,6 +45,25 @@ public sealed class SourceDirectory : SourceNode
     /// <summary>The directory's immediate children, files and subdirectories together, in sync order.</summary>
     public IReadOnlyList<SourceNode> Children { get; }
 
+    /// <summary>All files in the tree, depth-first.</summary>
+    public IEnumerable<SourceFile> Files()
+    {
+        foreach (var node in Children)
+        {
+            if (node is SourceFile file)
+            {
+                yield return file;
+            }
+            else if (node is SourceDirectory directory)
+            {
+                foreach (var nested in directory.Files())
+                {
+                    yield return nested;
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// Builds a tree from a folder on disk. Children are sorted by name (case-insensitive ordinal),
     /// files and directories together, which is the order the official client emits.

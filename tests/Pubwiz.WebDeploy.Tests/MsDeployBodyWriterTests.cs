@@ -37,6 +37,19 @@ public class MsDeployBodyWriterTests
         Assert.Equal(ChildrenRegion(body), ChildrenRegion(produced));
     }
 
+    [Fact]
+    public void AllContentPass_ChildrenRegion_MatchesACheckSumPreview()
+    {
+        // whatif-checksum.pass1.bin is the only Sync of "msdeploy -whatif -useCheckSum": it carries every file's content.
+        var body = Fixtures.Read("whatif-checksum.pass1.bin");
+        var (tree, contentIds) = CaptureTree.Parse(body);
+
+        var produced = new MsDeployBodyWriter("C:\\src", "MACHINE").WriteAllContentPass(tree);
+
+        Assert.Equal(2, contentIds.Count);
+        Assert.Equal(ChildrenRegion(body), ChildrenRegion(produced));
+    }
+
     /// <summary>The bytes from the "enter dirPath children" token (03 00 03 00 00 00) to the end.</summary>
     private static byte[] ChildrenRegion(byte[] body)
     {

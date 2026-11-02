@@ -23,9 +23,10 @@ and ported without repeating the reverse-engineering.
 
 The client performs the `iisApp` folder sync — the same operation as
 `msdeploy -verb:sync -source:iisApp=<folder> -dest:iisApp=<site>`. It adds and updates files, creates
-directories, and creates the IIS application when the destination is an application path. It doesn't
-delete extra files on the server, take the app offline during a deploy, or run what-if; on Windows the
-official `msdeploy.exe` still covers those.
+directories, and creates the IIS application when the destination is an application path. It also does what the
+usual msdeploy switches do: delete extra files (or keep them), take the app offline (`AppOffline`), preview
+(`-whatif`), compare by checksum (`-useCheckSum`, files up to 64 KB), skip rules (`-skip`) and the retry settings.
+NTLM sign-in still needs `msdeploy.exe`.
 
 ## Prior art
 
