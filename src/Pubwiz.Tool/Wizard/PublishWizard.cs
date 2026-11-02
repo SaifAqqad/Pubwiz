@@ -151,7 +151,8 @@ public sealed class PublishWizard(
 
                 if (runner.NeedsPassword(profile))
                 {
-                    await passwords.GetAsync(project, profile, allowPrompt: true, cancellation.Token);
+                    var prompt = options.Confirm ? PasswordPrompt.Always : PasswordPrompt.WhenMissing;
+                    await passwords.GetAsync(project, profile, prompt, cancellation.Token);
                 }
             }
 

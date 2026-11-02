@@ -5,6 +5,19 @@ using Pubwiz.Core.Targets.Azure;
 
 namespace Pubwiz.Tool.Credentials;
 
+/// <summary>When <see cref="PasswordProvider"/> may ask the user.</summary>
+public enum PasswordPrompt
+{
+    /// <summary>Never (no terminal, CI): a missing password is an error.</summary>
+    Never,
+
+    /// <summary>Only when no password was found (e.g. with <c>--yes</c>).</summary>
+    WhenMissing,
+
+    /// <summary>Also when one is saved: use it, or remove it and enter another.</summary>
+    Always
+}
+
 /// <summary>
 /// Gets deployment passwords, in this order: an environment variable (for CI), Azure (for App Service profiles,
 /// through the signed-in az), the OS secret store, then asking (and offering to save the answer).
@@ -12,7 +25,11 @@ namespace Pubwiz.Tool.Credentials;
 /// <remarks>
 /// An answer is remembered for the rest of the run, so the wizard can ask before it hands over the batch
 /// (where Esc goes back to the project list) without being asked again when publishing.
-/// Esc in the password prompt throws <see cref="PromptCancelledException"/>.
+/// Esc in the password prompts throws <see cref="PromptCancelledException"/>.
+/// <para>
+/// A saved password can go stale (changed on the server), so interactive runs ask whether to use it; the user can
+/// remove it from the secret store there and type the new one.
+/// </para>
 /// <para>
 /// Azure comes before the secret store because it's always current: a saved password goes stale when the app's
 /// publishing credentials are reset.
@@ -34,10 +51,10 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
 
     /// <param name="project">The project being published.</param>
     /// <param name="profile">The saved profile.</param>
-    /// <param name="allowPrompt"><c>false</c> in non-interactive runs: a missing password is then an error.</param>
+    /// <param name="prompt">When the user may be asked.</param>
     /// <param name="cancellationToken">Cancels the secret store lookup.</param>
     /// <exception cref="UserErrorException">No password was found and prompting isn't allowed.</exception>
-    public async Task<string> GetAsync(ProjectInfo project, PublishProfile profile, bool allowPrompt, CancellationToken cancellationToken)
+    public async Task<string> GetAsync(ProjectInfo project, PublishProfile profile, PasswordPrompt prompt, CancellationToken cancellationToken)
     {
         if (ReadEnvironment(profile) is { } fromEnvironment)
         {
@@ -58,14 +75,26 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
 
         if (await TryReadAsync(key, cancellationToken) is { } saved)
         {
-            return saved;
+            if (prompt != PasswordPrompt.Always || AskToUseSaved(project, profile))
+            {
+                _asked[key] = saved;
+                return saved;
+            }
+
+            await TryForgetAsync(key, profile);
         }
 
-        if (!allowPrompt)
+        if (prompt == PasswordPrompt.Never)
         {
             throw new UserErrorException($"No password for '{profile.Name}' ({project.Name}). Set {ProfileVariable(profile)} or {PasswordVariable}, or save it in {store.Name} by publishing once interactively.");
         }
 
+        return await AskAsync(project, profile, key, cancellationToken);
+    }
+
+    /// <summary>Asks for the password, offers to save it, and remembers it for the run.</summary>
+    private async Task<string> AskAsync(ProjectInfo project, PublishProfile profile, string key, CancellationToken cancellationToken)
+    {
         var userName = profile[ProfileProperties.UserName];
         var password = userName is null
             ? console.AskSecret($"Password for {profile.Name}")
@@ -78,6 +107,44 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
 
         _asked[key] = password;
         return password;
+    }
+
+    /// <summary>
+    /// Asks whether to publish with the saved password, or remove it (e.g. it was changed on the server) and type another.
+    /// </summary>
+    /// <returns><c>true</c> to use the saved password.</returns>
+    /// <exception cref="PromptCancelledException">Esc was pressed.</exception>
+    private bool AskToUseSaved(ProjectInfo project, PublishProfile profile)
+    {
+        var user = profile[ProfileProperties.UserName] is { } userName ? $" ({userName})" : string.Empty;
+        var choice = console.Choose($"Use the saved password for {project.Name} / {profile.Name}{user}?",
+            [SavedPasswordChoice.Use, SavedPasswordChoice.RemoveAndEnterAnother], c => c == SavedPasswordChoice.Use
+                ? "Yes"
+                : $"No, remove it from {store.Name.EscapeMarkup()} and enter another");
+
+        return choice == SavedPasswordChoice.Use;
+    }
+
+    private enum SavedPasswordChoice
+    {
+        Use,
+        RemoveAndEnterAnother
+    }
+
+    /// <summary>Removes a saved password. A failure is only a warning: the user is asked for the password anyway.</summary>
+    private async Task TryForgetAsync(string key, PublishProfile profile)
+    {
+        try
+        {
+            // Not cancellable: once the user chose to remove it, a half-done removal would only confuse.
+            await store.DeleteAsync(key, CancellationToken.None);
+            console.MarkupLine($"[dim]Removed the saved password for {profile.Name.EscapeMarkup()}[/]");
+        }
+        catch (SecretStoreException ex)
+        {
+            console.Write(Widgets.Warning($"Could not remove the saved password: {ex.Message}"));
+            console.WriteLine();
+        }
     }
 
     /// <summary>Saves a password that came with an imported profile.</summary>

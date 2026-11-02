@@ -76,18 +76,21 @@ public static class Questions
         return console.Prompt(new ConfirmationPrompt(label) { DefaultValue = defaultValue, ShowChoices = false, ShowDefaultValue = false });
     }
 
-    /// <summary>Picks one item from a list, then writes the question with the chosen answer.</summary>
+    /// <summary>Picks one item from a list, starting on the first one, then writes the question with the chosen answer.</summary>
     /// <param name="console">The console.</param>
     /// <param name="question">e.g. "Encryption".</param>
-    /// <param name="choices">The items, in display order.</param>
+    /// <param name="choices">The items, in display order; the first one is highlighted, so Enter picks it.</param>
     /// <param name="describe">How an item is listed (markup); defaults to its text.</param>
     public static T Choose<T>(this IAnsiConsole console, string question, IEnumerable<T> choices, Func<T, string>? describe = null)
         where T : notnull
     {
         describe ??= item => item.ToString()!.EscapeMarkup();
+        var items = choices.ToList();
 
+        // Without a default, Spectre starts on the item equal to default(T): false for bools, the first value of an enum.
         var answer = console.Prompt(Menu<T>($"[bold]{question.EscapeMarkup()}[/]")
-            .AddChoices(choices)
+            .AddChoices(items)
+            .DefaultValue(items[0])
             .UseConverter(describe));
 
         WriteAnswer(console, question, describe(answer));

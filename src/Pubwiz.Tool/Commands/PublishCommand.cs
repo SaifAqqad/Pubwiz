@@ -205,13 +205,24 @@ public sealed class PublishCommand(
                 AllowUntrustedCertificate = ask ? await certificates.AskAsync(profile, cancellationToken) : null,
                 Configuration = settings.Configuration ?? batch.Configuration,
                 Verbose = settings.Verbose,
-                Password = runner.NeedsPassword(profile) ? await passwords.GetAsync(project, profile, allowPrompt: interactive, cancellationToken) : null,
+                Password = runner.NeedsPassword(profile) ? await passwords.GetAsync(project, profile, GetPasswordPrompt(interactive, settings), cancellationToken) : null,
                 Git = await git.GetInfoAsync(project.Directory, cancellationToken: cancellationToken)
             });
         }
 
         return requests;
     }
+
+    /// <summary>
+    /// Without a terminal nothing is asked; with <c>--yes</c> only a missing password is; otherwise a saved password is
+    /// confirmed too, so a stale one can be removed. (The wizard has asked already, and the answers are remembered.)
+    /// </summary>
+    private static PasswordPrompt GetPasswordPrompt(bool interactive, Settings settings) => (interactive, settings.Yes) switch
+    {
+        (false, _) => PasswordPrompt.Never,
+        (true, true) => PasswordPrompt.WhenMissing,
+        (true, false) => PasswordPrompt.Always
+    };
 
     /// <summary>
     /// Ctrl+C while publishing cancels the jobs (and kills the build processes) instead of ending Pubwiz,

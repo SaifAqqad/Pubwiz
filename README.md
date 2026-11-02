@@ -149,7 +149,7 @@ dotnet pubwiz --project Shop.Api --project Shop.Worker --profile Staging --yes
 
 ## Passwords and secrets
 
-Pubwiz never writes passwords into profiles. When a target needs one, it asks once and can save it in your OS keychain: `libsecret` on Linux, the Keychain on macOS, and Credential Manager on Windows.
+Pubwiz never writes passwords into profiles. When a target needs one, it asks once and can save it in your OS keychain: `libsecret` on Linux, the Keychain on macOS, and Credential Manager on Windows. When a password is saved, publishing asks whether to use it; choose **No** to remove it from the keychain and enter another (e.g. after it changed on the server). With `--yes`, the saved password is used without asking.
 
 For Azure App Service profiles that use publishing credentials (Zip Deploy, or Web Deploy to an App Service, e.g. from Visual Studio or a `.publishsettings` file), Pubwiz gets the password from Azure with the signed-in `az` instead of asking.
 
