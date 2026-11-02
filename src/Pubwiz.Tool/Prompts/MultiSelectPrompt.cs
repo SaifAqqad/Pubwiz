@@ -266,17 +266,22 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     private Markup[] RenderItem(int index, MultiSelectState state, bool isCursor, bool unicode)
     {
         var selectable = state.IsSelectable(index);
-        var style = !selectable ? "grey"
-            : isCursor ? $"{Widgets.PrimaryColorMarkup} bold"
-            : "default";
 
-        var pointer = isCursor ? $"[{Widgets.PrimaryColorMarkup}]{(unicode ? "❯" : ">")}[/]" : " ";
-        var cells = columns(items[index]).Select((text, column) =>
+        // The row under the cursor shows its name as a bar (grey when it can't be picked); other names are plain.
+        var nameStyle = (isCursor, selectable) switch
         {
-            // Only the first column (the name) is highlighted; the rest stay dim to keep the list calm.
-            var cellStyle = column == 0 || !selectable ? style : "dim";
-            return new Markup($"[{cellStyle}]{HighlightSearch(text, state.Search)}[/]");
-        });
+            (true, true) => Widgets.HighlightMarkup,
+            (true, false) => "black on grey bold",
+            (false, true) => "default",
+            (false, false) => "grey"
+        };
+
+        // The other columns stay dim to keep the list calm, except on the cursor's row.
+        var detailStyle = !selectable ? "grey" : isCursor ? "default" : "dim";
+
+        var pointer = isCursor ? $"[{Widgets.PrimaryColorMarkup} bold]{(unicode ? "❯" : ">")}[/]" : " ";
+        var cells = columns(items[index]).Select((text, column) =>
+            new Markup($"[{(column == 0 ? nameStyle : detailStyle)}]{HighlightSearch(text, state.Search)}[/]"));
 
         if (SingleSelect)
         {
@@ -285,22 +290,22 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
 
         var checkbox = state.IsSelected(index)
             ? $"[{Widgets.PrimaryColorMarkup}]{(unicode ? "◉" : "[[x]]")}[/]"
-            : $"[{style}]{(unicode ? "○" : "[[ ]]")}[/]";
+            : $"[{(selectable ? "default" : "grey")}]{(unicode ? "○" : "[[ ]]")}[/]";
 
         return [new Markup($"{pointer} {checkbox}"), .. cells];
     }
 
     private Markup[] RenderExitRow(int columnCount, bool isCursor, bool unicode)
     {
-        var style = isCursor ? $"{Widgets.PrimaryColorMarkup} bold" : "dim";
-        var pointer = isCursor ? (unicode ? "❯" : ">") : " ";
+        var pointer = isCursor ? $"[{Widgets.PrimaryColorMarkup} bold]{(unicode ? "❯" : ">")}[/]" : " ";
+        var style = isCursor ? Widgets.HighlightMarkup : "dim";
         var icon = (unicode ? ExitIcon.Unicode : ExitIcon.Ascii).EscapeMarkup();
 
         var label = new Markup($"[{style}]{ExitLabel!.EscapeMarkup()}[/]");
         var empty = Enumerable.Range(0, columnCount - 1).Select(_ => new Markup(string.Empty));
         return SingleSelect
-            ? [new Markup($"[{style}]{pointer}[/]"), new Markup($"[{style}]{icon} {ExitLabel.EscapeMarkup()}[/]"), .. empty]
-            : [new Markup($"[{style}]{pointer} {icon}[/]"), label, .. empty];
+            ? [new Markup(pointer), new Markup($"[{style}]{icon} {ExitLabel.EscapeMarkup()}[/]"), .. empty]
+            : [new Markup($"{pointer} [{(isCursor ? Widgets.PrimaryColorMarkup : "dim")}]{icon}[/]"), label, .. empty];
     }
 
     /// <summary>The key hints, with the keys in bold: <c>↑/↓ move · space select · ...</c></summary>

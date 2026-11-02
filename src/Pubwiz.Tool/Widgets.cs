@@ -11,6 +11,15 @@ public static partial class Widgets
 
     public static string PrimaryColorMarkup { get; } = PrimaryColor.ToMarkup();
 
+    /// <summary>
+    /// The row under the cursor in every list: bold black on the primary color, a filled bar that stands out on dark
+    /// and light themes alike (colored text alone was easy to miss).
+    /// </summary>
+    public static Style HighlightStyle { get; } = new(Color.Black, PrimaryColor, Decoration.Bold);
+
+    /// <inheritdoc cref="HighlightStyle"/>
+    public static string HighlightMarkup { get; } = $"black on {PrimaryColorMarkup} bold";
+
     public static IRenderable Version { get; } = new Markup($"[{PrimaryColorMarkup} dim]v{ToolInfo.Version}[/]");
 
     /// <summary>

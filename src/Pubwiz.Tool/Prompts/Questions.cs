@@ -156,7 +156,7 @@ public static class Questions
     }
 
     /// <summary>
-    /// A list to pick one item from, with the wizard's look: the highlighted item in the primary color, and typing searches.
+    /// A list to pick one item from, with the wizard's look: the highlighted item as a bar (<see cref="Widgets.HighlightStyle"/>), and typing searches.
     /// Esc throws <see cref="PromptCancelledException"/>; lists with a "back" option use <c>AddCancelResult</c> to pick it instead.
     /// </summary>
     /// <param name="title">The title, as markup.</param>
@@ -165,7 +165,7 @@ public static class Questions
     {
         return new SelectionPrompt<T>()
             .Title(title)
-            .HighlightStyle(AnswerStyle)
+            .HighlightStyle(Widgets.HighlightStyle)
             .PageSize(15)
             .EnableSearch()
             .SearchPlaceholderText("[dim]Type to search[/]")
