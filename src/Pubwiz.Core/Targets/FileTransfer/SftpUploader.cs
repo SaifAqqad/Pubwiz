@@ -9,7 +9,18 @@ namespace Pubwiz.Core.Targets.FileTransfer;
 /// </summary>
 /// <param name="PrivateKeyFile">An OpenSSH/PEM private key file.</param>
 /// <param name="PrivateKeyPassphrase">The key's passphrase, if it has one.</param>
-public sealed record SftpConnection(string Host, int Port, string UserName, string? Password, string? PrivateKeyFile, string? PrivateKeyPassphrase);
+public sealed record SftpConnection(string Host, int Port, string UserName, string? Password, string? PrivateKeyFile, string? PrivateKeyPassphrase)
+{
+    /// <summary>The SSH.NET connection settings, shared by the uploader and <see cref="SshCommandStep"/>.</summary>
+    internal ConnectionInfo ToConnectionInfo()
+    {
+        AuthenticationMethod method = PrivateKeyFile is not null
+            ? new PrivateKeyAuthenticationMethod(UserName, new PrivateKeyFile(PrivateKeyFile, PrivateKeyPassphrase))
+            : new PasswordAuthenticationMethod(UserName, Password ?? string.Empty);
+
+        return new ConnectionInfo(Host, Port, UserName, method);
+    }
+}
 
 /// <summary>
 /// Uploads over SSH (SFTP) using SSH.NET.
@@ -20,7 +31,7 @@ public sealed record SftpConnection(string Host, int Port, string UserName, stri
 /// </remarks>
 public sealed class SftpUploader(SftpConnection connection) : IFileUploader
 {
-    private readonly SftpClient _client = new(CreateConnectionInfo(connection));
+    private readonly SftpClient _client = new(connection.ToConnectionInfo());
 
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
@@ -124,14 +135,5 @@ public sealed class SftpUploader(SftpConnection connection) : IFileUploader
                 }
             }
         }
-    }
-
-    private static ConnectionInfo CreateConnectionInfo(SftpConnection connection)
-    {
-        AuthenticationMethod method = connection.PrivateKeyFile is not null
-            ? new PrivateKeyAuthenticationMethod(connection.UserName, new PrivateKeyFile(connection.PrivateKeyFile, connection.PrivateKeyPassphrase))
-            : new PasswordAuthenticationMethod(connection.UserName, connection.Password ?? string.Empty);
-
-        return new ConnectionInfo(connection.Host, connection.Port, connection.UserName, method);
     }
 }

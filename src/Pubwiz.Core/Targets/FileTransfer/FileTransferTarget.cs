@@ -30,19 +30,32 @@ public sealed class FileTransferTarget(DotnetCli dotnet, bool sftp) : IPublishTa
             UseAppOffline: request.TakeAppOffline ?? IsTrue(profile[ProfileProperties.PubwizUseAppOffline]));
 
         var userName = profile[ProfileProperties.UserName] ?? string.Empty;
+        var sshConnection = new SftpConnection(endpoint.Host, endpoint.Port, userName, request.Password, profile[ProfileProperties.PubwizSshPrivateKeyFile], request.Password);
         Func<IFileUploader> createUploader = endpoint.IsSftp
-            ? () => new SftpUploader(new SftpConnection(endpoint.Host, endpoint.Port, userName, request.Password, profile[ProfileProperties.PubwizSshPrivateKeyFile], request.Password))
+            ? () => new SftpUploader(sshConnection)
             : () => new FtpUploader(new FtpConnection(endpoint.Host, endpoint.Port, userName, request.Password ?? string.Empty, endpoint.FtpSecurity,
                 PassiveMode: !string.Equals(profile[ProfileProperties.FtpPassiveMode], "false", StringComparison.OrdinalIgnoreCase),
                 AllowUntrustedCertificate: IsTrue(profile[ProfileProperties.AllowUntrustedCertificate])));
 
-        return
-        [
-            StagingPublish.CreateStep(dotnet, request),
-            new UploadStep($"Upload ({(endpoint.IsSftp ? "SFTP" : "FTP")})", createUploader, endpoint.RemoteDirectory, options),
-            new SetDestinationStep(profile[ProfileProperties.SiteUrlToLaunchAfterPublish] ?? endpoint.ToString())
-        ];
+        var steps = new List<PublishStep> { StagingPublish.CreateStep(dotnet, request) };
+        if (endpoint.IsSftp && GetCommand(request, ProfileProperties.PubwizSshPreDeployCommand) is { } preDeploy)
+        {
+            steps.Add(new SshCommandStep("Run pre-deploy command (SSH)", sshConnection, preDeploy));
+        }
+
+        steps.Add(new UploadStep($"Upload ({(endpoint.IsSftp ? "SFTP" : "FTP")})", createUploader, endpoint.RemoteDirectory, options));
+        if (endpoint.IsSftp && GetCommand(request, ProfileProperties.PubwizSshPostDeployCommand) is { } postDeploy)
+        {
+            steps.Add(new SshCommandStep("Run post-deploy command (SSH)", sshConnection, postDeploy));
+        }
+
+        steps.Add(new SetDestinationStep(profile[ProfileProperties.SiteUrlToLaunchAfterPublish] ?? endpoint.ToString()));
+        return steps;
     }
+
+    /// <summary>A pre- or post-deploy command from the profile, with <c>$(ProjectName)</c> and the like filled in.</summary>
+    private static string? GetCommand(PublishRequest request, string property) =>
+        request.Profile[property] is { } command ? ProfileVariables.Expand(command, request) : null;
 
     private static bool IsSftp(PublishProfile profile) =>
         profile.Method == PublishMethod.Custom && string.Equals(profile[ProfileProperties.PublishProvider], ProfileProperties.SftpProvider, StringComparison.OrdinalIgnoreCase);
