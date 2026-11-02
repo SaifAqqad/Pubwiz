@@ -96,8 +96,9 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
     private async Task<string> AskAsync(ProjectInfo project, PublishProfile profile, string key, CancellationToken cancellationToken)
     {
         var userName = profile[ProfileProperties.UserName];
-        var password = userName is null
-            ? console.AskSecret($"Password for {profile.Name}")
+        var isStaticWebApp = string.Equals(profile[ProfileProperties.PublishProvider], ProfileProperties.AzureStaticWebAppProvider, StringComparison.OrdinalIgnoreCase);
+        var password = isStaticWebApp ? console.AskSecret($"Deployment token for {profile.Name}", hint: "Azure portal: the Static Web App's Overview, Manage deployment token")
+            : userName is null ? console.AskSecret($"Password for {profile.Name}")
             : console.AskSecret($"Password for {userName}", hint: profile.Name);
 
         if (store.IsAvailable && console.AskYesNo($"Save it in {store.Name}?", defaultValue: true))

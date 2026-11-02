@@ -187,4 +187,10 @@ public static class ProfileProperties
 
     /// <summary>After pushing, point an Azure app at the image: <c>AppService</c> or <c>ContainerApp</c>.</summary>
     public const string PubwizAzureContainerHost = nameof(PubwizAzureContainerHost);
+
+    /// <summary>The value of <see cref="PublishProvider"/> for Azure Static Web Apps profiles (with <c>WebPublishMethod=Custom</c>).</summary>
+    public const string AzureStaticWebAppProvider = "AzureStaticWebApp";
+
+    /// <summary>A Static Web Apps preview environment to deploy to, e.g. <c>staging</c>; empty means production.</summary>
+    public const string PubwizStaticWebAppEnvironment = nameof(PubwizStaticWebAppEnvironment);
 }

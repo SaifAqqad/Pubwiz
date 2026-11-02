@@ -16,6 +16,7 @@ public enum PublishTargetType
     AzureWebJob,
     AzureFunctions,
     AzureContainerApps,
+    AzureStaticWebApp,
     ContainerRegistry,
     LocalContainer,
     ContainerTarball,

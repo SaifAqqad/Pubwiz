@@ -95,3 +95,14 @@ public sealed record AzureContainerApp(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("resourceGroup")] string ResourceGroup,
     [property: JsonPropertyName("fqdn")] string? Fqdn);
+
+/// <summary>An Azure Static Web App.</summary>
+/// <param name="Name">The app name.</param>
+/// <param name="ResourceGroup">Its resource group.</param>
+/// <param name="DefaultHostname">e.g. <c>happy-sea-0a1b2c3d4.5.azurestaticapps.net</c>.</param>
+/// <param name="Sku"><c>Free</c> or <c>Standard</c>.</param>
+public sealed record AzureStaticWebApp(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("resourceGroup")] string ResourceGroup,
+    [property: JsonPropertyName("defaultHostname")] string? DefaultHostname,
+    [property: JsonPropertyName("sku")] string? Sku);

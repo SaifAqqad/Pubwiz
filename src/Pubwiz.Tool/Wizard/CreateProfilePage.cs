@@ -151,6 +151,7 @@ public sealed class CreateProfilePage(
         PublishTargetType.AzureAppService => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.WebApp, cancellationToken)),
         PublishTargetType.AzureFunctions => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.FunctionApp, cancellationToken)),
         PublishTargetType.AzureWebJob => new CreatedProfile(await azurePage.CreateAsync(project, AzureAppKind.WebJob, cancellationToken)),
+        PublishTargetType.AzureStaticWebApp => new CreatedProfile(await azurePage.CreateStaticWebAppAsync(project, cancellationToken)),
         PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball or PublishTargetType.ContainerRegistry
             or PublishTargetType.AzureAppServiceContainer or PublishTargetType.AzureContainerApps
             => new CreatedProfile(await containerPage.CreateAsync(project, target.Type, cancellationToken)),
