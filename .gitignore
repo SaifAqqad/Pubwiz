@@ -32,8 +32,8 @@ coverage*.json
 .DS_Store
 Thumbs.db
 
-# Local notes (not tracked)
-docs/
+# Local notes (not tracked); the published docs under src/Pubwiz.WebDeploy/docs are kept
+/docs/
 /tools/*
 
 # Pubwiz's own exports (default names) and local test setup from running the tool in its project folder
