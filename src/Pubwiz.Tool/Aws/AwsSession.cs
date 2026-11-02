@@ -121,7 +121,10 @@ public sealed class AwsSession(IAnsiConsole console, AwsCli aws, IProcessRunner 
 
     private async Task<string> ChooseRegionAsync(string? profile, CancellationToken cancellationToken)
     {
-        var configured = Environment.GetEnvironmentVariable("AWS_REGION") ?? await aws.GetConfiguredRegionAsync(profile, cancellationToken);
+        // The AWS CLI reads the region from these variables before the profile's config.
+        var configured = Environment.GetEnvironmentVariable("AWS_REGION")
+                         ?? Environment.GetEnvironmentVariable("AWS_DEFAULT_REGION")
+                         ?? await aws.GetConfiguredRegionAsync(profile, cancellationToken);
         var regions = configured is null ? Regions : Regions.Where(r => r != configured).Prepend(configured);
         return console.Choose("AWS region", regions);
     }

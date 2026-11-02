@@ -68,12 +68,13 @@ Every list can be searched by typing. <kbd>Esc</kbd> or <kbd>Ctrl</kbd>+<kbd>C</
 ## Targets
 
 - **Local:** folder, zip file
-- **Servers:** IIS (Web Deploy, from Windows, Linux and macOS), FTP/FTPS, SFTP
-- **Azure:** App Service, Function Apps, WebJobs, Container Apps
+- **Servers:** IIS (Web Deploy, from Windows, Linux and macOS), FTP/FTPS, SFTP (with commands to run over SSH before and after uploading)
+- **Azure:** App Service, Function Apps, WebJobs, Container Apps, Static Web Apps (Blazor WebAssembly)
+- **AWS:** Elastic Beanstalk (Linux and Windows), ECS (with ECR), Lambda
 - **Containers:** Docker/Podman, tarball, any registry
 - **Mobile:** Android (`.aab`, `.apk`), iOS (`.ipa`, macOS only)
 
-Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) or use a `.publishsettings` file. Dockerfile builds need Docker or Podman.
+Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) or use a `.publishsettings` file. AWS targets use the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and its sign-in (`aws configure sso`, `aws sso login` or `aws configure`); the wizard offers to set it up. Dockerfile builds need Docker or Podman.
 
 ## Commands
 
@@ -189,6 +190,44 @@ else, with the same settings from the profile:
 
 The app is taken offline (`app_offline.htm`) while copying unless you pass `--no-app-offline`, and `--what-if` shows
 the changes without making them.
+
+## Linux and Windows servers over SSH
+
+SFTP profiles can run a command on the server before uploading and another one after, e.g. to stop and restart the
+app's service. The wizard asks for them; in a profile they're `PubwizSshPreDeployCommand` and `PubwizSshPostDeployCommand`:
+
+```xml
+<PubwizSshPreDeployCommand>sudo systemctl stop shop</PubwizSshPreDeployCommand>
+<PubwizSshPostDeployCommand>sudo systemctl restart shop</PubwizSshPostDeployCommand>
+```
+
+They use the same login as the upload and run in the server's own shell: bash or sh on Linux, cmd or PowerShell on
+Windows (whichever OpenSSH is set up with). `$(ProjectName)`, `$(Configuration)` and the other MSBuild variables are
+filled in first; anything else, like `$(whoami)`, is left for the shell. Their output goes to the log, and a non-zero
+exit code fails the publish. `sudo` can't ask for a password, so allow the command without one (`NOPASSWD` in sudoers).
+
+## AWS
+
+Pubwiz deploys to resources that already exist, picked in the wizard from your account:
+
+| Target | What a publish does |
+|---|---|
+| Elastic Beanstalk | Zips the app, uploads it to Elastic Beanstalk's S3 bucket as a new application version, deploys it and follows the environment's events until it's Ready. Windows Server environments get an `aws-windows-deployment-manifest.json` (unless the app has one), and self-contained Linux apps a `Procfile`. |
+| ECS | Builds the image, pushes it to an ECR repository (signing in with `aws ecr get-login-password`), registers a new revision of the service's task definition with the image, and waits for the rollout. |
+| Lambda | Publishes for Linux on the function's architecture, zips the app (a `bootstrap` executable for custom runtimes such as Native AOT) and updates the function's code. |
+
+Profiles keep the AWS CLI profile and region (`PubwizAwsProfile`, `PubwizAwsRegion`), so they need no password. Pushing
+to ECR from any container profile signs in through the AWS CLI too. Lambda projects (`AWSProjectType` set to `Lambda`,
+or the Lambda packages) are listed with the other projects.
+
+## Azure Static Web Apps
+
+Blazor WebAssembly apps can be deployed to a Static Web App without Node or the SWA CLI: Pubwiz does what `swa deploy`
+does. It gets the app's deployment token from `az`, downloads Microsoft's uploader (StaticSitesClient, checked against
+its published SHA-256 hash and shared with the SWA CLI in `~/.swa/deploy`), and uploads the site's files. When the app
+has no `staticwebapp.config.json`, one is added so that the app's routes work when opened directly. Set
+`PubwizStaticWebAppEnvironment` to deploy a preview environment instead of production. In CI without `az`, set
+`PubwizAzureAuthentication` to `DeploymentToken` and pass the token in `PUBWIZ_PASSWORD`.
 
 ## web.config transforms
 

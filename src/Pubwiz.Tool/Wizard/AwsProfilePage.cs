@@ -24,7 +24,7 @@ public sealed class AwsProfilePage(IAnsiConsole console, AwsSession session, Aws
         profile[ProfileProperties.PubwizAwsApplication] = environment.ApplicationName;
         profile[ProfileProperties.PubwizAwsEnvironment] = environment.EnvironmentName;
         profile[ProfileProperties.PubwizAwsWindows] = environment.IsWindows ? "true" : null;
-        profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = environment.Url is null ? null : $"http://{environment.Url}";
+        profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = string.IsNullOrEmpty(environment.Url) ? null : $"http://{environment.Url}";
 
         // The Linux platform runs the .NET versions it has installed; a self-contained app brings its own.
         if (!environment.IsWindows && console.AskYesNo("Publish self-contained?", defaultValue: false, hint: "when the platform doesn't have the app's .NET version"))
