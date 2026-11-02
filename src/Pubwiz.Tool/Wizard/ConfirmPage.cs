@@ -27,7 +27,7 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
             Choice choice;
             try
             {
-                choice = console.Choose($"Publish {batch.Selections.Count} project(s)?", choices, c => c switch
+                choice = console.Choose(Question(batch), choices, c => c switch
                 {
                     Choice.Publish => "Publish now",
                     Choice.SaveAsPreset => "Save this selection as a preset",
@@ -44,9 +44,21 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
                 return choice == Choice.Publish;
             }
 
-            presets.Save(batch.Selections, batch.PresetFilePath!);
+            presets.Save(batch.Selections, batch.PresetFilePath!, parallel: batch.Parallel);
             canSavePreset = false;
             console.WriteLine();
         }
+    }
+
+    /// <summary>e.g. "Publish 3 project(s), 2 at a time?"</summary>
+    private static string Question(PublishBatch batch)
+    {
+        var count = batch.Selections.Count;
+        return batch.Parallel switch
+        {
+            > 1 when batch.Parallel >= count => $"Publish {count} project(s), all at once?",
+            > 1 => $"Publish {count} project(s), {batch.Parallel} at a time?",
+            _ => $"Publish {count} project(s)?"
+        };
     }
 }

@@ -21,7 +21,8 @@ public sealed class PublishWizard(
     ConfirmPage confirmPage,
     PublishRunner runner,
     PasswordProvider passwords,
-    AppOfflinePrompt appOffline)
+    AppOfflinePrompt appOffline,
+    CertificateTrustPrompt certificates)
 {
     /// <returns>What to publish, or <c>null</c> when the user chose Exit.</returns>
     public async Task<PublishBatch?> RunAsync(WizardOptions options, CancellationToken cancellationToken)
@@ -131,7 +132,8 @@ public sealed class PublishWizard(
                 selections.Add(new PublishSelection(project, profile));
             }
 
-            var batch = new PublishBatch(selections, PresetFilePath: presetFilePath);
+            var parallel = options.Parallel ?? (projects.Count > 1 ? AskParallelism(projects.Count) : null);
+            var batch = new PublishBatch(selections, Parallel: parallel, PresetFilePath: presetFilePath);
             if (options.Confirm && !confirmPage.Confirm(batch, "Cancel [dim]· back to the projects[/]"))
             {
                 return null;
@@ -144,6 +146,7 @@ public sealed class PublishWizard(
                 if (options.Confirm)
                 {
                     appOffline.Ask(project, profile, showProjectName: batch.Selections.Count > 1);
+                    await certificates.AskAsync(profile, cancellation.Token);
                 }
 
                 if (runner.NeedsPassword(profile))
@@ -161,6 +164,20 @@ public sealed class PublishWizard(
             console.MarkupLine("[dim]Cancelled, back to the projects[/]");
             return null;
         }
+    }
+
+    /// <summary>Asks how many of the picked projects to publish at the same time, all of them first.</summary>
+    /// <exception cref="PromptCancelledException">Esc was pressed.</exception>
+    private int AskParallelism(int projectCount)
+    {
+        console.WriteLine();
+        var choices = Enumerable.Range(1, projectCount).Reverse();
+        return console.Choose("Publish in parallel?", choices, count => count switch
+        {
+            1 => "No, one at a time",
+            _ when count == projectCount => $"Yes, all {count} at once",
+            _ => $"{count} at a time"
+        });
     }
 
     private static IReadOnlyList<string> ProjectColumns(ProjectInfo project) =>

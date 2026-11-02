@@ -58,6 +58,34 @@ public class PublishRunnerTests
         Assert.Equal(StepStatus.Skipped, job.Steps[1].Status);
     }
 
+    [Theory]
+    [InlineData(2, 2, true)]
+    [InlineData(2, 1, false)] // one after another
+    [InlineData(1, 4, false)] // a single job
+    public async Task RunAsync_GivesEachJobItsOwnBuildFolderOnlyWhenJobsRunInParallel(int jobCount, int maxParallelism, bool isolated)
+    {
+        var buildDirectories = new System.Collections.Concurrent.ConcurrentBag<string?>();
+        var records = new DelegateStep("Build", (context, _) => { buildDirectories.Add(context.BuildDirectory); return Task.CompletedTask; });
+        var runner = new PublishRunner([new FakeTarget(records)]);
+        var jobs = Enumerable.Range(0, jobCount).Select(_ => runner.CreateJob(TestRequests.Create())).ToList();
+
+        await runner.RunAsync(jobs, maxParallelism, Token);
+
+        var expected = isolated ? BuildIsolation.GetBuildDirectory(jobs[0].Request) : null;
+        Assert.All(buildDirectories, directory => Assert.Equal(expected, directory));
+    }
+
+    [Fact]
+    public void GetBuildDirectory_IsPerProfileAndOutsideTheStagingFolder()
+    {
+        var request = TestRequests.Create();
+
+        var directory = BuildIsolation.GetBuildDirectory(request);
+
+        Assert.Equal(Path.Combine(request.Project.Directory, "obj", "pubwiz-build", "Test"), directory);
+        Assert.False(directory.StartsWith(Core.Publishing.Steps.StagingPublish.GetStagingDirectory(request), StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task CreateJob_FailsJobsWithUnsupportedProfilesWithoutStoppingOthers()
     {

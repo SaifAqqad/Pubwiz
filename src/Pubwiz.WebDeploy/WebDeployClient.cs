@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Net;
+using System.Security.Authentication;
 using Pubwiz.WebDeploy.Protocol;
 
 namespace Pubwiz.WebDeploy;
@@ -101,7 +102,7 @@ public sealed class WebDeployClient
         using var request = new HttpRequestMessage(HttpMethod.Head, endpoint.ServiceUrl);
         request.Headers.TryAddWithoutValidation("MSDeploy.Serialization", "All");
 
-        using var response = await httpClient.SendAsync(request, token).ConfigureAwait(false);
+        using var response = await SendFirstRequestAsync(httpClient, request, token).ConfigureAwait(false);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
             throw new WebDeployException("Authentication failed: the server rejected the credentials (401 Unauthorized).");
@@ -115,6 +116,22 @@ public sealed class WebDeployClient
         if (!response.Headers.Contains("MSDeploy.Response"))
         {
             throw new WebDeployException($"The endpoint at {endpoint.ServiceUrl} is not a Web Deploy handler.");
+        }
+    }
+
+    /// <summary>
+    /// Sends the first request of a sync, which is the one that does the TLS handshake, so an untrusted server
+    /// certificate fails here. That failure is turned into a clear error.
+    /// </summary>
+    private static async Task<HttpResponseMessage> SendFirstRequestAsync(HttpClient httpClient, HttpRequestMessage request, CancellationToken token)
+    {
+        try
+        {
+            return await httpClient.SendAsync(request, token).ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex) when (ex.InnerException is AuthenticationException)
+        {
+            throw new WebDeployException($"The server's certificate isn't trusted: {ex.InnerException.Message}", inner: ex) { IsUntrustedCertificate = true };
         }
     }
 

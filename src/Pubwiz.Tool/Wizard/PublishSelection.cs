@@ -16,4 +16,5 @@ public sealed record PublishSelection(ProjectInfo Project, PublishProfile Profil
 /// <param name="IncludeAll">Also list projects that normally can't be published (libraries, tests, ...).</param>
 /// <param name="Confirm">Ask "Publish now?" before returning the selection.</param>
 /// <param name="Git">The start folder's git state, shown above the project list (and updated there after the fetch).</param>
-public sealed record WizardOptions(string Path, bool IncludeAll, bool Confirm, GitStatus? Git = null);
+/// <param name="Parallel">How many projects to publish at the same time, from <c>--parallel</c>; <c>null</c> asks when several are picked.</param>
+public sealed record WizardOptions(string Path, bool IncludeAll, bool Confirm, GitStatus? Git = null, int? Parallel = null);

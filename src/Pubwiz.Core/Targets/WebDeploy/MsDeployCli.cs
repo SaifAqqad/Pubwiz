@@ -12,6 +12,9 @@ public sealed class MsDeployException(string message, string? errorCode = null) 
     /// <summary>A file on the server is locked by the running app.</summary>
     public const string FileInUse = "ERROR_FILE_IN_USE";
 
+    /// <summary>The server's certificate isn't trusted (fixed by <c>-allowUntrusted</c>).</summary>
+    public const string CertificateValidationFailed = "ERROR_CERTIFICATE_VALIDATION_FAILED";
+
     public string? ErrorCode { get; } = errorCode;
 }
 

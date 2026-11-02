@@ -24,6 +24,14 @@ public static class WebDeployProfile
         return WebDeployEndpoint.Create(serviceUrl, iisPath);
     }
 
+    /// <summary>What to do when the server's certificate isn't trusted, added to that error.</summary>
+    public const string UntrustedCertificateHint =
+        $"Publish again and choose to trust it, or set {ProfileProperties.AllowUntrustedCertificate} to true in the profile.";
+
+    /// <summary>Whether the profile accepts an untrusted (e.g. self-signed) server certificate.</summary>
+    public static bool AllowsUntrustedCertificate(PublishProfile profile) =>
+        string.Equals(profile[ProfileProperties.AllowUntrustedCertificate], "true", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Whether the built-in cross-platform client can publish this profile. It authenticates with HTTP Basic
     /// (a user name and password) only, not NTLM / the current Windows user, so it needs a user name.

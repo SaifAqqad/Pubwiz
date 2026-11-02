@@ -97,5 +97,47 @@ public sealed class PubxmlSerializerTests : IDisposable
         Assert.Empty(profile.Properties);
     }
 
+    [Fact]
+    public void SetProperty_ChangesOnlyThatProperty()
+    {
+        var path = _temp.CreateFile("Iis.pubxml", """
+            <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+              <!-- made by Visual Studio -->
+              <PropertyGroup>
+                <WebPublishMethod>MSDeploy</WebPublishMethod>
+                <AllowUntrustedCertificate>False</AllowUntrustedCertificate>
+              </PropertyGroup>
+              <ItemGroup>
+                <Content Remove="secrets.json" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        PubxmlSerializer.SetProperty(path, ProfileProperties.AllowUntrustedCertificate, "true");
+
+        var text = File.ReadAllText(path);
+        Assert.Contains("<AllowUntrustedCertificate>true</AllowUntrustedCertificate>", text);
+        Assert.Contains("<!-- made by Visual Studio -->", text);
+        Assert.Contains("<Content Remove=\"secrets.json\" />", text);
+        Assert.Equal("MSDeploy", PubxmlSerializer.Read(path)[ProfileProperties.WebPublishMethod]);
+    }
+
+    [Fact]
+    public void SetProperty_AddsAMissingPropertyInTheFilesNamespace()
+    {
+        var path = _temp.CreateFile("Iis.pubxml", """
+            <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+              <PropertyGroup>
+                <WebPublishMethod>MSDeploy</WebPublishMethod>
+              </PropertyGroup>
+            </Project>
+            """);
+
+        PubxmlSerializer.SetProperty(path, ProfileProperties.AllowUntrustedCertificate, "true");
+
+        Assert.DoesNotContain("xmlns=\"\"", File.ReadAllText(path));
+        Assert.Equal("true", PubxmlSerializer.Read(path)[ProfileProperties.AllowUntrustedCertificate]);
+    }
+
     public void Dispose() => _temp.Dispose();
 }

@@ -46,12 +46,13 @@ public sealed class PublishRunner(IEnumerable<IPublishTarget> targets)
     public async Task RunAsync(IReadOnlyList<PublishJob> jobs, int maxParallelism, CancellationToken cancellationToken)
     {
         var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, maxParallelism) };
+        var isolateBuilds = BuildIsolation.IsNeeded(jobs.Count, maxParallelism);
 
         // The token isn't passed to ForEachAsync: cancelling must still let every job mark itself as cancelled.
-        await Parallel.ForEachAsync(jobs, options, async (job, _) => await RunJobAsync(job, cancellationToken));
+        await Parallel.ForEachAsync(jobs, options, async (job, _) => await RunJobAsync(job, isolateBuilds, cancellationToken));
     }
 
-    private static async Task RunJobAsync(PublishJob job, CancellationToken cancellationToken)
+    private static async Task RunJobAsync(PublishJob job, bool isolateBuild, CancellationToken cancellationToken)
     {
         job.StartedAt = DateTimeOffset.Now;
 
@@ -65,7 +66,7 @@ public sealed class PublishRunner(IEnumerable<IPublishTarget> targets)
         job.Status = JobStatus.Running;
         job.Log.Info($"Publishing {job.Request.Project.Name} with profile '{job.Request.Profile.Name}' ({job.Request.EffectiveConfiguration})");
 
-        var context = new PublishContext(job);
+        var context = new PublishContext(job) { BuildDirectory = isolateBuild ? BuildIsolation.GetBuildDirectory(job.Request) : null };
         foreach (var step in job.Steps)
         {
             if (cancellationToken.IsCancellationRequested)

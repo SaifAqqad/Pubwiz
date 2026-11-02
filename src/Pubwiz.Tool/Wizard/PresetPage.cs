@@ -82,7 +82,8 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
     /// <param name="selections">The projects and profiles to save.</param>
     /// <param name="filePath">From <see cref="GetPresetFilePath"/>.</param>
     /// <param name="suggestedName">The default name, if any.</param>
-    public void Save(IReadOnlyList<PublishSelection> selections, string filePath, string? suggestedName = null)
+    /// <param name="parallel">How many projects to publish at the same time; not saved when it's one at a time.</param>
+    public void Save(IReadOnlyList<PublishSelection> selections, string filePath, string? suggestedName = null, int? parallel = null)
     {
         var file = PresetFile.LoadOrCreate(filePath);
         var name = console.Ask("Preset name", defaultValue: suggestedName, validate: n => string.IsNullOrWhiteSpace(n) ? "Enter a name" : null);
@@ -93,7 +94,8 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         }
 
         var baseDirectory = Path.GetDirectoryName(filePath)!;
-        file.Presets[name] = new PublishPreset(selections.Select(s => PresetResolver.CreateEntry(s.Project, s.Profile, baseDirectory)).ToList());
+        var projects = selections.Select(s => PresetResolver.CreateEntry(s.Project, s.Profile, baseDirectory)).ToList();
+        file.Presets[name] = new PublishPreset(projects, Parallel: parallel > 1 ? parallel : null);
         file.Save(filePath);
 
         console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved preset [{Widgets.PrimaryColorMarkup}]{name.EscapeMarkup()}[/] in {DisplayText.Link(filePath)}");

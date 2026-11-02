@@ -21,6 +21,7 @@ public sealed class PublishCommand(
     ArgumentSelection argumentSelection,
     PasswordProvider passwords,
     AppOfflinePrompt appOffline,
+    CertificateTrustPrompt certificates,
     PublishRunner runner,
     GitCli git,
     PublishDashboard dashboard,
@@ -119,7 +120,7 @@ public sealed class PublishCommand(
         var jobs = requests.Select(runner.CreateJob).ToList();
 
         console.WriteLine();
-        await RunWithCtrlCAsync(jobs, settings.Parallel ?? batch.Parallel ?? 1, settings);
+        await RunWithCtrlCAsync(jobs, batch.Parallel ?? 1, settings);
 
         results.WriteResults(jobs);
         WriteRequestedExports(jobs, settings);
@@ -172,10 +173,13 @@ public sealed class PublishCommand(
 
         // The wizard asks before publishing itself, since cancelling there goes back to its project list.
         // It shows the git line above its project list.
-        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes, Git: gitStatus), cancellationToken);
+        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes, Git: gitStatus, Parallel: settings.Parallel), cancellationToken);
 
         async Task<PublishBatch?> ConfirmAsync(PublishBatch batch)
         {
+            // --parallel wins over the preset's setting; applied here so the confirm question shows what will happen.
+            batch = batch with { Parallel = settings.Parallel ?? batch.Parallel };
+
             // Whatever is known now: the confirm question doesn't wait for the fetch.
             if (await gitStatus.GetLatestAsync() is { } info)
             {
@@ -193,11 +197,12 @@ public sealed class PublishCommand(
         foreach (var (project, profile) in batch.Selections)
         {
             // A job that can't run here fails straight away, so don't ask for its password.
-            // With --yes (or no terminal), Web Deploy uses the profile's app offline setting.
-            var askAppOffline = interactive && !settings.Yes;
+            // With --yes (or no terminal), Web Deploy uses the profile's app offline and certificate settings.
+            var ask = interactive && !settings.Yes;
             requests.Add(new PublishRequest(project, profile)
             {
-                TakeAppOffline = askAppOffline ? appOffline.Ask(project, profile, showProjectName: batch.Selections.Count > 1) : null,
+                TakeAppOffline = ask ? appOffline.Ask(project, profile, showProjectName: batch.Selections.Count > 1) : null,
+                AllowUntrustedCertificate = ask ? await certificates.AskAsync(profile, cancellationToken) : null,
                 Configuration = settings.Configuration ?? batch.Configuration,
                 Verbose = settings.Verbose,
                 Password = runner.NeedsPassword(profile) ? await passwords.GetAsync(project, profile, allowPrompt: interactive, cancellationToken) : null,

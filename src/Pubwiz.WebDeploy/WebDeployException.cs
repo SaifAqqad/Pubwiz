@@ -9,4 +9,10 @@ public sealed class WebDeployException : Exception
 
     /// <summary>The decoded server error, when the failure carried an <c>MSDeploy.Exception</c> header.</summary>
     public WebDeployServerError? ServerError { get; }
+
+    /// <summary>
+    /// <c>true</c> when the server's TLS certificate failed validation; <see cref="WebDeploySyncOptions.AllowUntrusted"/>
+    /// connects anyway.
+    /// </summary>
+    public bool IsUntrustedCertificate { get; init; }
 }

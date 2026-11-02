@@ -18,12 +18,22 @@ public sealed class DotnetPublishStep(DotnetCli dotnet, DotnetPublishOptions opt
 
     public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
     {
-        context.Log.Info($"dotnet {string.Join(' ', Options.ToArguments())}");
+        var options = Options;
+
+        // In parallel runs the job builds into its own folder, so builds of shared referenced projects don't collide.
+        if (context.BuildDirectory is { } buildDirectory)
+        {
+            context.Log.Info($"Building in a separate folder, so parallel builds don't lock each other's files: {buildDirectory}");
+            options = options with { ArtifactsPath = buildDirectory };
+        }
+
+        context.Log.Info($"dotnet {string.Join(' ', options.ToArguments())}");
 
         // Credentials from earlier steps (e.g. a registry sign-in) go in as environment variables.
-        var options = context.ToolEnvironment.Count == 0
-            ? Options
-            : Options with { SecretProperties = Options.SecretProperties.Concat(context.ToolEnvironment).ToDictionary() };
+        if (context.ToolEnvironment.Count > 0)
+        {
+            options = options with { SecretProperties = options.SecretProperties.Concat(context.ToolEnvironment).ToDictionary() };
+        }
 
         var result = await dotnet.PublishAsync(options, line => OnOutput(context, line), cancellationToken);
         if (result.Succeeded)

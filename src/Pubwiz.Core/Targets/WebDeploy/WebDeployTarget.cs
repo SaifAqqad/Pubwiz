@@ -64,7 +64,7 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
             UserName = profile[ProfileProperties.UserName],
             Password = request.Password,
             AuthType = profile[ProfileProperties.AuthType],
-            AllowUntrustedCertificate = IsTrue(profile[ProfileProperties.AllowUntrustedCertificate]),
+            AllowUntrustedCertificate = request.AllowUntrustedCertificate ?? WebDeployProfile.AllowsUntrustedCertificate(profile),
             KeepExtraFiles = IsTrue(profile[ProfileProperties.SkipExtraFilesOnServer]),
             TakeAppOffline = request.TakeAppOffline ?? (IsTrue(profile[ProfileProperties.EnableMSDeployAppOffline]) || IsTrue(profile[ProfileProperties.PubwizUseAppOffline])),
             Verbose = request.Verbose
@@ -103,6 +103,10 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
                 }
 
                 await RetryAsync(context, options, cancellationToken);
+            }
+            catch (MsDeployException ex) when (ex.ErrorCode == MsDeployException.CertificateValidationFailed)
+            {
+                throw new PublishStepException($"{ex.Message} {WebDeployProfile.UntrustedCertificateHint}", ex);
             }
             catch (MsDeployException ex)
             {
@@ -177,7 +181,8 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
             }
             catch (WebDeployException ex)
             {
-                throw new PublishStepException(ex.Message, ex);
+                var message = ex.IsUntrustedCertificate ? $"{ex.Message}. {WebDeployProfile.UntrustedCertificateHint}" : ex.Message;
+                throw new PublishStepException(message, ex);
             }
         }
 

@@ -25,6 +25,17 @@ var result = await new WebDeployClient()
 Console.WriteLine($"{result.ChangeCount} changes applied.");
 ```
 
+To ask the user before trusting a certificate, check it first:
+
+```csharp
+var certificate = await WebDeployCertificate.GetAsync(endpoint.ServiceUrl);
+if (certificate is { IsTrusted: false })
+{
+    Console.WriteLine($"Not trusted: {string.Join(", ", certificate.Problems)} ({certificate.Thumbprint})");
+    // e.g. "it's self-signed, it's issued to WMSvc-SHA2-IIS01, not iis.contoso.com"
+}
+```
+
 It adds new files, updates changed ones, creates directories and, when the destination is an
 application path (`Site/app`), creates the application. Existing files not present in the source are
 left in place.

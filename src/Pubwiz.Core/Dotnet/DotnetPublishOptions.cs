@@ -18,6 +18,12 @@ public sealed record DotnetPublishOptions(string ProjectPath)
     /// <summary>Where to write the app (<c>-o</c>); <c>null</c> lets the project or profile decide.</summary>
     public string? OutputDirectory { get; init; }
 
+    /// <summary>
+    /// Where all build output goes (<c>--artifacts-path</c>): the bin and obj folders of the project and of every project
+    /// it references. <c>null</c> keeps each project's own bin and obj folders.
+    /// </summary>
+    public string? ArtifactsPath { get; init; }
+
     /// <summary>Extra MSBuild properties (<c>-p:Name=Value</c>).</summary>
     public IReadOnlyDictionary<string, string> Properties { get; init; } = new Dictionary<string, string>();
 
@@ -51,6 +57,11 @@ public sealed record DotnetPublishOptions(string ProjectPath)
         if (OutputDirectory is not null)
         {
             arguments.AddRange(["-o", OutputDirectory]);
+        }
+
+        if (ArtifactsPath is not null)
+        {
+            arguments.AddRange(["--artifacts-path", ArtifactsPath]);
         }
 
         if (ProfileName is not null)

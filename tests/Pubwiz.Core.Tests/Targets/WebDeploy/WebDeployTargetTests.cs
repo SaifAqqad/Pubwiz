@@ -114,6 +114,21 @@ public sealed class WebDeployTargetTests
         Assert.True(options.TakeAppOffline);
     }
 
+    [Theory]
+    [InlineData("false", true, true)] // trusted for this run
+    [InlineData("true", false, false)] // the user said no
+    [InlineData("true", null, true)] // not asked: the profile decides
+    public void CreateSyncOptions_TheRequestOverridesTheProfilesCertificateSetting(string profileValue, bool? requestValue, bool expected)
+    {
+        var profile = Profile();
+        profile[ProfileProperties.AllowUntrustedCertificate] = profileValue;
+        var request = Request(profile) with { AllowUntrustedCertificate = requestValue };
+
+        var options = WebDeployTarget.CreateSyncOptions(request, WebDeployProfile.GetEndpoint(profile), "/staging");
+
+        Assert.Equal(expected, options.AllowUntrustedCertificate);
+    }
+
     [Fact]
     public void Catalog_OffersWebDeployEverywhere_WithoutAnOsWarning()
     {

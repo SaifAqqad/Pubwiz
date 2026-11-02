@@ -40,4 +40,32 @@ public static class PubxmlSerializer
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filePath))!);
         document.Save(filePath);
     }
+
+    /// <summary>
+    /// Sets one property in an existing .pubxml file, leaving everything else (other properties, item groups,
+    /// comments, formatting) as it is. A missing property is added to the first <c>PropertyGroup</c>.
+    /// </summary>
+    /// <exception cref="InvalidDataException">The file has no <c>PropertyGroup</c>.</exception>
+    public static void SetProperty(string filePath, string name, string value)
+    {
+        var document = XDocument.Load(filePath, LoadOptions.PreserveWhitespace);
+        var groups = document.Root?.Elements().Where(e => e.Name.LocalName == "PropertyGroup").ToList() ?? [];
+        if (groups.Count == 0)
+        {
+            throw new InvalidDataException($"{Path.GetFileName(filePath)} has no PropertyGroup.");
+        }
+
+        var existing = groups.SelectMany(group => group.Elements()).LastOrDefault(e => e.Name.LocalName == name);
+        if (existing is not null)
+        {
+            existing.Value = value;
+        }
+        else
+        {
+            // Same namespace as the group, so files with the old MSBuild namespace stay valid.
+            groups[0].Add(new XElement(groups[0].Name.Namespace + name, value));
+        }
+
+        document.Save(filePath, SaveOptions.DisableFormatting);
+    }
 }

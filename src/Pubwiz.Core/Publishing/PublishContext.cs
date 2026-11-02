@@ -33,6 +33,12 @@ public sealed class PublishContext(PublishJob job)
     }
 
     /// <summary>
+    /// The job's own build folder when jobs run in parallel (see <see cref="BuildIsolation"/>), or <c>null</c> to build
+    /// in the projects' usual bin and obj folders.
+    /// </summary>
+    public string? BuildDirectory { get; init; }
+
+    /// <summary>
     /// Environment variables for the external tools later steps run, e.g. registry credentials that a sign-in step
     /// gets and the container publish step needs.
     /// </summary>

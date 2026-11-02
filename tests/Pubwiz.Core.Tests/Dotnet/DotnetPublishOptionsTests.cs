@@ -13,6 +13,14 @@ public class DotnetPublishOptionsTests
     }
 
     [Fact]
+    public void ToArguments_PassesTheArtifactsPath()
+    {
+        var arguments = new DotnetPublishOptions("Api.csproj") { ArtifactsPath = "/src/Api/obj/pubwiz-build/Prod" }.ToArguments();
+
+        Assert.Equal("/src/Api/obj/pubwiz-build/Prod", arguments[arguments.ToList().IndexOf("--artifacts-path") + 1]);
+    }
+
+    [Fact]
     public void ToArguments_NeverIncludesSecretProperties()
     {
         var options = new DotnetPublishOptions("Api.csproj")

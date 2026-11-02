@@ -20,6 +20,12 @@ public sealed record PublishRequest(ProjectInfo Project, PublishProfile Profile)
     /// <summary>Overrides the profile's "take the app offline while publishing" setting (Web Deploy), when set.</summary>
     public bool? TakeAppOffline { get; init; }
 
+    /// <summary>
+    /// Overrides the profile's "allow an untrusted server certificate" setting (Web Deploy), when set, e.g. after the
+    /// user chose to trust a self-signed certificate for this run.
+    /// </summary>
+    public bool? AllowUntrustedCertificate { get; init; }
+
     /// <summary>The deployment password (Web Deploy, FTP, ...), when the target needs one.</summary>
     public string? Password { get; init; }
 
