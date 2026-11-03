@@ -6,16 +6,20 @@ namespace Pubwiz.Core.Targets.FileTransfer;
 /// Uploads the publish folder with an <see cref="IFileUploader"/> (FTP, SFTP, ...), reporting progress per file.
 /// </summary>
 /// <param name="name">Step name, e.g. "Upload (FTP)".</param>
-/// <param name="createUploader">Creates the uploader; called when the step runs, so connections aren't opened early.</param>
+/// <param name="createUploader">
+/// Creates the uploader; called when the step runs, so connections aren't opened early and a saved server login is
+/// only read when it's needed.
+/// </param>
 /// <param name="remoteDirectory">The folder on the server.</param>
 /// <param name="options">Mirror and app_offline.htm options.</param>
-public sealed class UploadStep(string name, Func<IFileUploader> createUploader, string remoteDirectory, UploadOptions options) : PublishStep(name)
+public sealed class UploadStep(string name, Func<PublishContext, CancellationToken, Task<IFileUploader>> createUploader, string remoteDirectory, UploadOptions options)
+    : PublishStep(name)
 {
     public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
     {
         var localDirectory = context.OutputDirectory ?? throw new InvalidOperationException("Nothing was published to upload.");
 
-        await using var uploader = createUploader();
+        await using var uploader = await createUploader(context, cancellationToken);
         context.ReportDetail("connecting...");
         await uploader.ConnectAsync(cancellationToken);
 

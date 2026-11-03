@@ -21,12 +21,12 @@ public static class SecretKeys
         return $"profile:{Path.GetFullPath(profilePath)}:{userName}";
     }
 
-    /// <summary>The key of a Web Deploy server's saved password (see <c>ServerCredentialStore</c>).</summary>
+    /// <summary>The key of a server's saved password (see <c>ServerCredentialStore</c>).</summary>
     /// <param name="server">The server's host in lower case, e.g. <c>10.0.0.5</c>.</param>
     public static string ForServer(string server) => $"server:{server}";
 
-    /// <summary>A readable label, e.g. <c>Pubwiz: Web Deploy server 10.0.0.5 (deploy)</c>.</summary>
-    public static string LabelForServer(string server, string userName) => $"Pubwiz: Web Deploy server {server} ({userName})";
+    /// <summary>A readable label, e.g. <c>Pubwiz: server 10.0.0.5 (deploy)</c>.</summary>
+    public static string LabelForServer(string server, string userName) => $"Pubwiz: server {server} ({userName})";
 
     /// <summary>A readable label, e.g. <c>Pubwiz: Api / Production ($contoso)</c>.</summary>
     public static string LabelForProfile(string projectName, PublishProfile profile)

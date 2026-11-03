@@ -150,6 +150,16 @@ public static class ProfileProperties
     /// <summary>Private key file for SFTP; the password is then used as the key's passphrase, if any.</summary>
     public const string PubwizSshPrivateKeyFile = nameof(PubwizSshPrivateKeyFile);
 
+    /// <summary>
+    /// A command to run on the server over SSH before uploading (SFTP profiles), e.g. <c>sudo systemctl stop shop</c>.
+    /// It runs in the server's shell (bash, cmd or PowerShell); <c>$(ProjectName)</c> and the other
+    /// <see cref="Publishing.ProfileVariables"/> are filled in first.
+    /// </summary>
+    public const string PubwizSshPreDeployCommand = nameof(PubwizSshPreDeployCommand);
+
+    /// <summary>A command to run on the server over SSH after uploading (SFTP profiles), e.g. <c>sudo systemctl restart shop</c>.</summary>
+    public const string PubwizSshPostDeployCommand = nameof(PubwizSshPostDeployCommand);
+
     /// <summary><c>AzCli</c> to sign in with an az token instead of publishing credentials (the default when there's no user name).</summary>
     public const string PubwizAzureAuthentication = nameof(PubwizAzureAuthentication);
 
@@ -177,4 +187,10 @@ public static class ProfileProperties
 
     /// <summary>After pushing, point an Azure app at the image: <c>AppService</c> or <c>ContainerApp</c>.</summary>
     public const string PubwizAzureContainerHost = nameof(PubwizAzureContainerHost);
+
+    /// <summary>The value of <see cref="PublishProvider"/> for Azure Static Web Apps profiles (with <c>WebPublishMethod=Custom</c>).</summary>
+    public const string AzureStaticWebAppProvider = "AzureStaticWebApp";
+
+    /// <summary>A Static Web Apps preview environment to deploy to, e.g. <c>staging</c>; empty means production.</summary>
+    public const string PubwizStaticWebAppEnvironment = nameof(PubwizStaticWebAppEnvironment);
 }

@@ -59,6 +59,14 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
         profile[ProfileProperties.DeleteExistingFiles] = console.AskYesNo("Delete files on the server that aren't part of the app?", defaultValue: false) ? "true" : "false";
         profile[ProfileProperties.PubwizUseAppOffline] = console.AskYesNo("Take the app offline while uploading?", defaultValue: false, hint: "IIS, app_offline.htm") ? "true" : null;
 
+        if (sftp)
+        {
+            // Run in the server's own shell (bash on Linux, cmd or PowerShell on Windows).
+            var appName = project.Name.ToLowerInvariant();
+            profile[ProfileProperties.PubwizSshPreDeployCommand] = AskCommand("Command to run on the server before uploading", $"e.g. sudo systemctl stop {appName}");
+            profile[ProfileProperties.PubwizSshPostDeployCommand] = AskCommand("Command to run on the server after uploading", $"e.g. sudo systemctl restart {appName}");
+        }
+
         var siteUrl = console.Ask("Site URL", hint: "optional, shown after publishing", defaultValue: defaults?.SiteUrl, optional: true);
         profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = siteUrl.Length > 0 ? siteUrl : null;
 
@@ -67,6 +75,13 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
         profile[ProfileProperties.LastUsedPlatform] = "Any CPU";
         profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
         return profile;
+    }
+
+    /// <returns>The command, or <c>null</c> when left empty.</returns>
+    private string? AskCommand(string question, string example)
+    {
+        var command = console.Ask(question, hint: $"optional, over SSH; {example}", optional: true);
+        return command.Length > 0 ? command : null;
     }
 
     private static string DescribeSecurity(FtpSecurity security) => security switch

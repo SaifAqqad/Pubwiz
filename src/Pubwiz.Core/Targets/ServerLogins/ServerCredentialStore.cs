@@ -1,25 +1,25 @@
 using Pubwiz.Core.Infrastructure.Secrets;
-using Pubwiz.WebDeploy;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Pubwiz.Core.Targets.WebDeploy;
+namespace Pubwiz.Core.Targets.ServerLogins;
 
-/// <summary>A Web Deploy server with saved sign-in details.</summary>
+/// <summary>A server with saved sign-in details.</summary>
 /// <param name="Server">The server's host as written in profiles, e.g. <c>10.0.0.5</c> or <c>iis.contoso.com</c> (lower case).</param>
 /// <param name="UserName">The user to sign in as.</param>
 public sealed record ServerCredential(string Server, string UserName);
 
 /// <summary>
-/// User names and passwords saved per Web Deploy server. When a profile deploys to a saved server, these are used
-/// instead of the profile's user name and password, so many profiles (and machines that check them out of git) can
-/// share one login without each storing it.
+/// User names and passwords saved per server (<c>dotnet pubwiz servers set</c>). When a Web Deploy, FTP or SFTP profile
+/// deploys to a saved server, these are used instead of the profile's user name and password, so many profiles (and
+/// machines that check them out of git) can share one login without each storing it.
 /// </summary>
 /// <remarks>
 /// The OS credential store can't list what it holds, so the servers and user names are kept in a small file in the
 /// user's config folder (<c>~/.config/pubwiz/servers.json</c>, <c>%APPDATA%\pubwiz\servers.json</c>), and only the
 /// passwords go in the credential store. Servers are matched by host as written in the profile's
-/// <c>MSDeployServiceURL</c> (an IP address or a name; names aren't resolved), whatever the port.
+/// <c>MSDeployServiceURL</c> or <c>PublishUrl</c> (an IP address or a name; names aren't resolved), whatever the port
+/// or protocol.
 /// </remarks>
 /// <param name="secrets">Holds the passwords.</param>
 /// <param name="filePath">The servers file; <see cref="DefaultFilePath"/> outside tests.</param>
@@ -32,8 +32,12 @@ public sealed class ServerCredentialStore(ISecretStore secrets, string filePath)
     };
 
     /// <summary>The servers file in the user's config folder.</summary>
+    /// <remarks>
+    /// <c>DoNotVerify</c>, because otherwise .NET returns an empty path when the folder doesn't exist yet (often
+    /// <c>~/.config</c> on macOS), and the file would be written to the current folder. Saving creates the folder.
+    /// </remarks>
     public static string DefaultFilePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "pubwiz", "servers.json");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify), "pubwiz", "servers.json");
 
     public string FilePath { get; } = filePath;
 
@@ -48,7 +52,11 @@ public sealed class ServerCredentialStore(ISecretStore secrets, string filePath)
     /// <param name="server">A host, <c>host:port</c> or URL; see <see cref="ToServerKey"/>.</param>
     public ServerCredential? Find(string server)
     {
-        var key = ToServerKey(server);
+        if (!TryGetServerKey(server, out var key))
+        {
+            return null;
+        }
+
         return Load().Servers.TryGetValue(key, out var entry) ? new ServerCredential(key, entry.UserName) : null;
     }
 
@@ -102,20 +110,19 @@ public sealed class ServerCredentialStore(ISecretStore secrets, string filePath)
 
     /// <summary>
     /// How a server is stored and matched: its host in lower case. Accepts what users type and what profiles contain,
-    /// e.g. <c>10.0.0.5</c>, <c>10.0.0.5:8172</c> or <c>https://10.0.0.5:8172/msdeploy.axd</c> all give <c>10.0.0.5</c>.
+    /// e.g. <c>10.0.0.5</c>, <c>10.0.0.5:8172</c>, <c>https://10.0.0.5:8172/msdeploy.axd</c> or
+    /// <c>sftp://10.0.0.5/var/www</c> all give <c>10.0.0.5</c>.
     /// </summary>
     /// <exception cref="ArgumentException">The text isn't a host, <c>host:port</c> or URL.</exception>
-    public static string ToServerKey(string server)
+    public static string ToServerKey(string server) =>
+        TryGetServerKey(server, out var key) ? key : throw new ArgumentException($"'{server}' isn't a server name, IP address or URL.", nameof(server));
+
+    private static bool TryGetServerKey(string server, out string key)
     {
-        try
-        {
-            // The same parsing as profiles' MSDeployServiceURL, so a server matches however it was written.
-            return WebDeployEndpoint.Create(server, iisPath: "site").ServiceUrl.Host.ToLowerInvariant();
-        }
-        catch (UriFormatException)
-        {
-            throw new ArgumentException($"'{server}' isn't a server name, IP address or URL.", nameof(server));
-        }
+        var text = server.Trim();
+        var url = text.Contains("://", StringComparison.Ordinal) ? text : $"https://{text}";
+        key = Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host.ToLowerInvariant() : string.Empty;
+        return key.Length > 0;
     }
 
     private ServerFile Load()

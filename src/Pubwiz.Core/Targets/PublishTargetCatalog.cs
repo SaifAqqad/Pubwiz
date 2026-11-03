@@ -8,41 +8,19 @@ namespace Pubwiz.Core.Targets;
 /// </summary>
 public static class PublishTargetCatalog
 {
-    /// <summary>
-    /// Targets that are implemented. Others are listed but marked as coming soon.
-    /// </summary>
-    private static readonly HashSet<PublishTargetType> Implemented =
-    [
-        PublishTargetType.Folder,
-        PublishTargetType.ZipFile,
-        PublishTargetType.WebDeploy,
-        PublishTargetType.Ftp,
-        PublishTargetType.Sftp,
-        PublishTargetType.AzureAppService,
-        PublishTargetType.AzureFunctions,
-        PublishTargetType.AzureWebJob,
-        PublishTargetType.AzureAppServiceContainer,
-        PublishTargetType.AzureContainerApps,
-        PublishTargetType.ContainerRegistry,
-        PublishTargetType.LocalContainer,
-        PublishTargetType.ContainerTarball,
-        PublishTargetType.MauiAndroid,
-        PublishTargetType.MauiIos
-    ];
-
     private static readonly PublishTarget[] AllTargets =
     [
         new(PublishTargetType.Folder, PublishTargetGroup.Local, "Folder", "Publish to a local or network folder"),
         new(PublishTargetType.ZipFile, PublishTargetGroup.Local, "Zip file", "Publish to a .zip to copy to a server yourself"),
-        new(PublishTargetType.WebDeployPackage, PublishTargetGroup.Local, "Web Deploy package", "Create a package to import into IIS later"),
-        new(PublishTargetType.WebDeploy, PublishTargetGroup.Servers, "IIS (Web Deploy)", "Deploy to an IIS server with Web Deploy (msdeploy)"),
+        new(PublishTargetType.WebDeploy, PublishTargetGroup.Servers, "IIS (Web Deploy)", "Deploy to an IIS server"),
         new(PublishTargetType.Ftp, PublishTargetGroup.Servers, "FTP / FTPS", "Upload to an FTP or FTPS server"),
         new(PublishTargetType.Sftp, PublishTargetGroup.Servers, "SFTP", "Upload over SSH"),
-        new(PublishTargetType.AzureAppService, PublishTargetGroup.Azure, "Azure App Service", "Deploy to an App Service web app (Windows or Linux)"),
+        new(PublishTargetType.AzureAppService, PublishTargetGroup.Azure, "Azure App Service", "Deploy to an App Service web app"),
         new(PublishTargetType.AzureAppServiceContainer, PublishTargetGroup.Azure, "Azure App Service (container)", "Build an image and run it on App Service"),
         new(PublishTargetType.AzureWebJob, PublishTargetGroup.Azure, "Azure WebJob", "Run as a WebJob inside an App Service app"),
         new(PublishTargetType.AzureFunctions, PublishTargetGroup.Azure, "Azure Function App", "Deploy to an Azure Function App"),
         new(PublishTargetType.AzureContainerApps, PublishTargetGroup.Azure, "Azure Container Apps", "Build an image and run it on Container Apps"),
+        new(PublishTargetType.AzureStaticWebApp, PublishTargetGroup.Azure, "Azure Static Web Apps", "Host the app's files on a Static Web App"),
         new(PublishTargetType.ContainerRegistry, PublishTargetGroup.Containers, "Container registry", "Push an image to ACR, Docker Hub or any registry"),
         new(PublishTargetType.LocalContainer, PublishTargetGroup.Containers, "Local container", "Build an image into the local Docker or Podman"),
         new(PublishTargetType.ContainerTarball, PublishTargetGroup.Containers, "Container tarball", "Save the image as a .tar.gz file"),
@@ -70,13 +48,13 @@ public static class PublishTargetCatalog
     {
         ProjectKind.Web =>
         [
-            PublishTargetType.Folder, PublishTargetType.ZipFile, PublishTargetType.WebDeploy, PublishTargetType.WebDeployPackage, PublishTargetType.Ftp, PublishTargetType.Sftp,
+            PublishTargetType.Folder, PublishTargetType.ZipFile, PublishTargetType.WebDeploy, PublishTargetType.Ftp, PublishTargetType.Sftp,
             PublishTargetType.AzureAppService, PublishTargetType.AzureAppServiceContainer, PublishTargetType.AzureContainerApps,
             PublishTargetType.ContainerRegistry, PublishTargetType.LocalContainer, PublishTargetType.ContainerTarball
         ],
         ProjectKind.BlazorWasm =>
         [
-            PublishTargetType.Folder, PublishTargetType.ZipFile, PublishTargetType.Ftp, PublishTargetType.Sftp, PublishTargetType.AzureAppService,
+            PublishTargetType.Folder, PublishTargetType.ZipFile, PublishTargetType.Ftp, PublishTargetType.Sftp, PublishTargetType.AzureStaticWebApp, PublishTargetType.AzureAppService,
             PublishTargetType.ContainerRegistry, PublishTargetType.LocalContainer, PublishTargetType.ContainerTarball
         ],
         ProjectKind.Worker =>
@@ -99,13 +77,6 @@ public static class PublishTargetCatalog
         _ => []
     };
 
-    private static string? GetUnavailableReason(PublishTargetType type)
-    {
-        if (type is PublishTargetType.MauiIos && !OperatingSystemInfo.IsMacOS)
-        {
-            return "requires macOS";
-        }
-
-        return Implemented.Contains(type) ? null : "coming soon";
-    }
+    private static string? GetUnavailableReason(PublishTargetType type) =>
+        type is PublishTargetType.MauiIos && !OperatingSystemInfo.IsMacOS ? "requires macOS" : null;
 }

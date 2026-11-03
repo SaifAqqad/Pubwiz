@@ -28,13 +28,14 @@ The folders follow a publish from start to finish.
    | Folder | Publishes to | Also contains |
    |---|---|---|
    | `Folder/` | a folder, or a zip file | |
-   | `FileTransfer/` | FTP/FTPS and SFTP servers | the FTP and SFTP uploaders |
+   | `FileTransfer/` | FTP/FTPS and SFTP servers | the FTP and SFTP uploaders, SSH commands |
    | `WebDeploy/` | IIS, with `msdeploy.exe` (Windows) | the msdeploy wrapper, alternatives for other OSes |
-   | `Azure/` | App Service, Function Apps, WebJobs | the `az` wrapper, `Kudu/` (deploy API client) |
+   | `Azure/` | App Service, Function Apps, WebJobs, Static Web Apps | the `az` wrapper, `Kudu/` (deploy API client), `StaticWebApps/` (StaticSitesClient) |
    | `Containers/` | local images, tarballs, registries, Azure container hosts | the docker/podman wrapper |
    | `Maui/` | Android and iOS packages | keystore and Apple signing helpers |
 
-   `PublishTargetCatalog` lists the targets the wizard offers for each kind of project.
+   `ServerLogins/` holds the logins saved per server (`dotnet pubwiz servers set`), which Web Deploy, FTP and SFTP
+   use instead of a profile's. `PublishTargetCatalog` lists the targets the wizard offers for each kind of project.
 5. **`Reporting/`** exports what happened: each job's full log, and a JSON or CSV report.
 
 Other folders:

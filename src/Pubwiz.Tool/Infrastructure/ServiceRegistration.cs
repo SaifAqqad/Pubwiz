@@ -10,10 +10,12 @@ using Pubwiz.Core.Presets;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Azure.Kudu;
+using Pubwiz.Core.Targets.Azure.StaticWebApps;
 using Pubwiz.Core.Targets.Containers;
 using Pubwiz.Core.Targets.FileTransfer;
 using Pubwiz.Core.Targets.Folder;
 using Pubwiz.Core.Targets.Maui;
+using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.Core.Targets.WebDeploy;
 using Pubwiz.Tool.Azure;
 using Pubwiz.Tool.Credentials;
@@ -46,6 +48,7 @@ public static class ServiceRegistration
         services.AddSingleton<KuduClient>();
         services.AddSingleton<KuduCredentialsProvider>();
         services.AddSingleton<AzurePublishingCredentials>();
+        services.AddSingleton<StaticSitesClientDownloader>();
         services.AddSingleton<ContainerCli>();
         services.AddSingleton(sp => new MsDeployCli(sp.GetRequiredService<IProcessRunner>(), MsDeployLocator.Find()));
         services.AddSingleton<WebDeployClient>();
@@ -56,10 +59,11 @@ public static class ServiceRegistration
         // Publish targets: the runner picks the first one that can publish a profile
         services.AddSingleton<IPublishTarget, ZipFileTarget>(); // before Folder, which takes the other FileSystem profiles
         services.AddSingleton<IPublishTarget, FolderTarget>();
-        services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: false));
-        services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sftp: true));
+        services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sp.GetRequiredService<ServerCredentialStore>(), sftp: false));
+        services.AddSingleton<IPublishTarget>(sp => new FileTransferTarget(sp.GetRequiredService<DotnetCli>(), sp.GetRequiredService<ServerCredentialStore>(), sftp: true));
         services.AddSingleton<IPublishTarget, AzureWebJobTarget>();
         services.AddSingleton<IPublishTarget, AzureAppServiceTarget>();
+        services.AddSingleton<IPublishTarget, StaticWebAppTarget>();
         services.AddSingleton<IPublishTarget, WebDeployTarget>(); // after Azure, which takes App Service Web Deploy profiles
         services.AddSingleton<IPublishTarget>(sp => new MauiTarget(sp.GetRequiredService<DotnetCli>(), MauiPlatform.Android));
         services.AddSingleton<IPublishTarget>(sp => new MauiTarget(sp.GetRequiredService<DotnetCli>(), MauiPlatform.Ios));

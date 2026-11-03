@@ -18,7 +18,7 @@
         <RepositoryUrl>https://github.com/SaifAqqad/Pubwiz.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>Unlicense</PackageLicenseExpression>
-        <PackageTags>publish deploy webdeploy msdeploy iis azure kudu ftp sftp container maui dotnet-tool</PackageTags>
+        <PackageTags>publish deploy webdeploy msdeploy iis azure kudu static-web-apps blazor ftp sftp ssh container maui dotnet-tool</PackageTags>
         <PackageOutputPath>$(MSBuildThisFileDirectory)dist/nupkg</PackageOutputPath>
         <PackageIcon>icon.png</PackageIcon>
     </PropertyGroup>

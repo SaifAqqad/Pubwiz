@@ -100,6 +100,62 @@ public sealed class DashboardLayoutTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public void ShowsOneJobsLogBelowTheJobs()
+    {
+        _jobs[4].Log.Info("Restoring packages");
+        _jobs[4].Log.Write(LogSource.Output, "Program.cs(3,1): error CS1002: ; expected");
+        var view = LiveView(showLog: true) with { LogJob = _jobs[4], CanSwitchLog = true };
+
+        var lines = DashboardLayout.Fit(_jobs, view, maxLines: 100);
+        var plain = lines.Select(Plain).ToList();
+        var title = plain.FindIndex(line => line.StartsWith("── App5 log "));
+
+        Assert.True(title > plain.FindIndex(line => line.Contains(" App10 ")), "The log comes after the jobs.");
+
+        // The latest lines, with the error in red.
+        Assert.Equal("  │ Restoring packages", plain[title + 2]);
+        Assert.Contains("[red]", lines[title + 3]);
+        Assert.Contains("←/→", plain[^1]);
+
+        // The job whose log is shown is highlighted in the list.
+        Assert.Contains($"[bold {Widgets.PrimaryColorMarkup}]App5[/]", lines.Single(line => Plain(line).Contains(" App5 ") && !Plain(line).StartsWith("──")));
+    }
+
+    [Fact]
+    public void KeepsTheLogPanelTheSameHeight()
+    {
+        var empty = DashboardLayout.Build(_jobs, LiveView(showLog: true) with { LogJob = _jobs[5] }, DashboardDetail.Summarized);
+        _jobs[5].Log.Info("one line");
+        var oneLine = DashboardLayout.Build(_jobs, LiveView(showLog: true) with { LogJob = _jobs[5] }, DashboardDetail.Summarized);
+
+        Assert.Equal(empty.Count, oneLine.Count);
+    }
+
+    [Fact]
+    public void SumsUpProgressOnOneLineForConsolesWithoutTheLiveView()
+    {
+        Assert.Equal("4/10 done, 1 failed · running: App5 (Build and publish), App6 (Build and publish) · 4 waiting", DashboardLayout.ProgressLine(_jobs));
+    }
+
+    [Fact]
+    public void TheLogFollowsTheFirstRunningJobUntilAnotherIsPicked()
+    {
+        var focus = new LogFocus();
+
+        Assert.Same(_jobs[4], focus.Current(_jobs));
+        Assert.True(LogFocus.CanSwitch(_jobs));
+
+        focus.Move(_jobs, 1);
+        Assert.Same(_jobs[5], focus.Current(_jobs));
+
+        // Only started jobs can be picked: past App6 (running) it wraps to App1, skipping the waiting ones.
+        focus.Move(_jobs, 1);
+        Assert.Same(_jobs[0], focus.Current(_jobs));
+        focus.Move(_jobs, -1);
+        Assert.Same(_jobs[5], focus.Current(_jobs));
+    }
+
     private static DashboardView LiveView(bool showLog = false) => new(Frame: 0, showLog, LogLines: 3, Width, Live: true);
 
     private static string Plain(string markup) => Markup.Remove(markup);

@@ -24,14 +24,19 @@
 > [!NOTE]
 > Pubwiz is in early development. Bug reports are very welcome.
 
-## Features
+## What it does
 
-- Finds the solutions and projects in your folder
-- Uses your existing `.pubxml` profiles, or imports `.publishsettings`
-- Publishes several projects at once, with live progress
-- Saves batches as presets you can commit and run in CI
-- Keeps passwords in your OS keychain, or gets them from Azure for App Service profiles
-- Shows your git branch, last commit and commits waiting to be pulled before you publish
+Pubwiz runs `dotnet publish` for you with the publish profiles already in your repository. Pick the projects you
+want, choose a profile for each one (or make a new one), and watch them build and deploy side by side.
+
+It also:
+
+- publishes several projects at once, with each one's build output on screen as it runs
+- deploys to IIS with Web Deploy from Windows, macOS or Linux
+- imports `.publishsettings` files from Azure and IIS
+- saves a batch of projects as a preset in `pubwiz.json`, so the next release is one command, on your machine or in CI
+- keeps passwords out of your repository: in your OS keychain, or fetched from Azure for App Service
+- shows the git branch, the last commit and any commits you haven't pulled before you publish
 
 ## Install
 
@@ -63,13 +68,13 @@ Every list can be searched by typing. <kbd>Esc</kbd> or <kbd>Ctrl</kbd>+<kbd>C</
 
 **3. Watch it publish**, then export the logs or a report if you need them:
 
-<p align="center"><img src="assets/screenshots/results.png" alt="The results table after publishing, with export options" width="600"></p>
+<p align="center"><img src="assets/screenshots/results.png" alt="The results table after publishing, with export options" width="750"></p>
 
 ## Targets
 
 - **Local:** folder, zip file
-- **Servers:** IIS (Web Deploy, from Windows, Linux and macOS), FTP/FTPS, SFTP
-- **Azure:** App Service, Function Apps, WebJobs, Container Apps
+- **Servers:** IIS (Web Deploy, from Windows, Linux and macOS), FTP/FTPS, SFTP (optionally running commands over SSH before and after the upload)
+- **Azure:** App Service, Function Apps, WebJobs, Container Apps, Static Web Apps (Blazor WebAssembly)
 - **Containers:** Docker/Podman, tarball, any registry
 - **Mobile:** Android (`.aab`, `.apk`), iOS (`.ipa`, macOS only)
 
@@ -85,7 +90,7 @@ Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure
 | `dotnet pubwiz transform [path]` | Write the transformed `web.config` a publish would produce, without publishing. |
 | `dotnet pubwiz presets list` | Show the presets in `pubwiz.json`. |
 | `dotnet pubwiz presets export <name>` | Write one preset to its own file, to run with `--preset-file`. |
-| `dotnet pubwiz servers set <server>` | Save a Web Deploy user name and password for a server; profiles for it use them instead of their own. |
+| `dotnet pubwiz servers set <server>` | Save a user name and password for a server; Web Deploy, FTP and SFTP profiles for it use them instead of their own. |
 | `dotnet pubwiz servers list` / `remove <server>` | Show or forget the saved server logins. |
 
 <details>
@@ -103,8 +108,8 @@ Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure
 | `--parallel <N>` | How many projects to publish at the same time (default 1, or the preset's). The wizard asks when you pick several projects. Parallel jobs build in their own folder (`obj/pubwiz-build/<profile>`), so projects that share a library don't lock each other's files. |
 | `--no-app-offline` | Keep IIS apps running while publishing. By default Web Deploy takes the app offline with `app_offline.htm` so locked files can be replaced (FTP/SFTP follow their profile). |
 | `--what-if` | Build, then only show what Web Deploy would change on the server (adds, updates, deletes), without deploying. Other targets fail with a message. |
-| `--show-log` | Show live build output while publishing (toggle with <kbd>L</kbd>). |
-| `--log-lines <N>` | How many lines of live output to show per project (default 10). |
+| `--show-log` | Show live build output while publishing (toggle with <kbd>L</kbd>; <kbd>←</kbd>/<kbd>→</kbd> switch between projects). |
+| `--log-lines <N>` | How many lines of live output to show (default 10). |
 | `--report <FILE>` | Write a report after publishing (`.json` or `.csv`). |
 | `--log-dir <FOLDER>` | Write each project's full log to this folder. |
 | `--verbose` | Use detailed build output. |
@@ -155,20 +160,20 @@ Pubwiz never writes passwords into profiles. When a target needs one, it asks on
 
 For Azure App Service profiles that use publishing credentials (Zip Deploy, or Web Deploy to an App Service, e.g. from Visual Studio or a `.publishsettings` file), Pubwiz gets the password from Azure with the signed-in `az` instead of asking.
 
-### Web Deploy logins per server
+### Logins per server
 
-To sign in to an IIS server with your own login, whatever the profiles in the repository say, save it once for the server:
+To sign in to a server with your own login, whatever the profiles in the repository say, save it once for the server:
 
 ```bash
 dotnet pubwiz servers set 10.0.0.5 --user deploy
 ```
 
-Every Web Deploy profile whose `MSDeployServiceURL` points at that server (by IP address or name, as written in the profile; any port) then signs in with that user and password, instead of the profile's, with both msdeploy.exe and the built-in client. Profiles that sign in as the current Windows user can then publish from Linux and macOS too. The user name is kept in `servers.json` in your config folder (`~/.config/pubwiz` on Linux, `%APPDATA%\pubwiz` on Windows) and the password in the OS keychain. For setup scripts, pass `--password-stdin`.
+Every Web Deploy, FTP and SFTP profile for that server (its `MSDeployServiceURL` or `PublishUrl`, matched by IP address or name as written in the profile; any port) then signs in with that user and password instead of the profile's. For SFTP it replaces the profile's SSH key too. Web Deploy profiles that sign in as the current Windows user can then publish from Linux and macOS. The user name is kept in `servers.json` in your config folder (`~/.config/pubwiz` on Linux, `%APPDATA%\pubwiz` on Windows) and the password in the OS keychain. For setup scripts, pass `--password-stdin`.
 
 ## IIS (Web Deploy)
 
-Pubwiz uses the official `msdeploy.exe` where it's installed (Windows with Web Deploy) and its own client everywhere
-else, with the same settings from the profile:
+Pubwiz uses `msdeploy.exe` where it's installed (Windows with Web Deploy) and its own client everywhere else, so IIS
+profiles publish from macOS and Linux too. Both read the same settings from the profile:
 
 | Profile setting | Effect |
 |---|---|
@@ -190,11 +195,35 @@ else, with the same settings from the profile:
 The app is taken offline (`app_offline.htm`) while copying unless you pass `--no-app-offline`, and `--what-if` shows
 the changes without making them.
 
+## Linux and Windows servers over SSH
+
+SFTP profiles can run a command on the server before uploading and another one after, e.g. to stop and restart the
+app's service. The wizard asks for them; in a profile they're `PubwizSshPreDeployCommand` and `PubwizSshPostDeployCommand`:
+
+```xml
+<PubwizSshPreDeployCommand>sudo systemctl stop shop</PubwizSshPreDeployCommand>
+<PubwizSshPostDeployCommand>sudo systemctl restart shop</PubwizSshPostDeployCommand>
+```
+
+They use the same login as the upload and run in the server's own shell: bash or sh on Linux, cmd or PowerShell on
+Windows (whichever OpenSSH is set up with). `$(ProjectName)`, `$(Configuration)` and the other MSBuild variables are
+filled in first; anything else, like `$(whoami)`, is left for the shell. Their output goes to the log, and a non-zero
+exit code fails the publish. `sudo` can't ask for a password, so allow the command without one (`NOPASSWD` in sudoers).
+
+## Azure Static Web Apps
+
+Blazor WebAssembly apps can be deployed to a Static Web App without Node or the SWA CLI: Pubwiz does what `swa deploy`
+does. It gets the app's deployment token from `az`, downloads Microsoft's uploader (StaticSitesClient, checked against
+its published SHA-256 hash and shared with the SWA CLI in `~/.swa/deploy`), and uploads the site's files. When the app
+has no `staticwebapp.config.json`, one is added so that the app's routes work when opened directly. Set
+`PubwizStaticWebAppEnvironment` to deploy a preview environment instead of production. In CI without `az`, set
+`PubwizAzureAuthentication` to `DeploymentToken` and pass the token in `PUBWIZ_PASSWORD`.
+
 ## web.config transforms
 
 Publishing runs `dotnet publish`, so the .NET SDK applies your `web.config` transforms as usual: `web.<Configuration>.config`, `web.<Profile>.config`, `web.<Environment>.config`, then the profile's `.transform` file.
 
-To preview the result without publishing, Run:
+To preview the result without publishing, run:
 ```bash
 dotnet pubwiz transform --configuration Release --print
 ```

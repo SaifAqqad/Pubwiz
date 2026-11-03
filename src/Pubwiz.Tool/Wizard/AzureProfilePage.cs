@@ -1,6 +1,7 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets.Azure;
+using Pubwiz.Core.Targets.Azure.StaticWebApps;
 using Pubwiz.Tool.Azure;
 
 namespace Pubwiz.Tool.Wizard;
@@ -19,7 +20,7 @@ public enum AzureAppKind
 }
 
 /// <summary>
-/// Creates Azure App Service, Function App and WebJob profiles by picking an existing app from the subscription.
+/// Creates Azure App Service, Function App, WebJob and Static Web Apps profiles by picking an existing app from the subscription.
 /// Profiles sign in with az by default, so no password is stored anywhere.
 /// </summary>
 public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session, AzCli az)
@@ -48,6 +49,32 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
         var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
         profile[ProfileProperties.LastUsedBuildConfiguration] = CommonPrompts.ChooseConfiguration(console);
         profile[ProfileProperties.LastUsedPlatform] = "Any CPU";
+        profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
+        return profile;
+    }
+
+    /// <summary>A Static Web Apps profile: the deployment token comes from az when publishing.</summary>
+    public async Task<PublishProfile> CreateStaticWebAppAsync(ProjectInfo project, CancellationToken cancellationToken)
+    {
+        var subscription = await session.EnsureReadyAsync(cancellationToken);
+        var app = await console.ChooseWithRefreshAsync("Static Web App", "Loading Static Web Apps...", az.ListStaticWebAppsAsync,
+            a => [a.Name, a.ResourceGroup, a.Sku ?? string.Empty],
+            emptyMessage: $"No Static Web Apps were found in '{subscription.Name}'. Create one in the Azure portal or with az staticwebapp create, then refresh.",
+            cancellationToken);
+
+        var profile = new PublishProfile($"{app.Name} - Static Web App");
+        profile[ProfileProperties.WebPublishMethod] = "Custom";
+        profile[ProfileProperties.PublishProvider] = ProfileProperties.AzureStaticWebAppProvider;
+        profile[ProfileProperties.PubwizAzureSubscriptionId] = subscription.Id;
+        profile[ProfileProperties.PubwizAzureResourceGroup] = app.ResourceGroup;
+        profile[ProfileProperties.PubwizAzureAppName] = app.Name;
+        profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = app.DefaultHostname is null ? null : $"https://{app.DefaultHostname}";
+
+        var environment = console.Ask("Environment", hint: "empty = production; a name deploys a preview environment, e.g. staging", optional: true);
+        profile[ProfileProperties.PubwizStaticWebAppEnvironment] = environment.Length > 0 ? environment : null;
+
+        var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
+        profile[ProfileProperties.LastUsedBuildConfiguration] = CommonPrompts.ChooseConfiguration(console);
         profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
         return profile;
     }
