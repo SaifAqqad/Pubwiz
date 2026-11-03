@@ -1,5 +1,6 @@
 using Pubwiz.Core.Publishing;
 using Spectre.Console.Rendering;
+using System.Diagnostics;
 
 namespace Pubwiz.Tool.Rendering;
 
@@ -24,6 +25,9 @@ public sealed class PublishDashboard(IAnsiConsole console)
 {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(100);
 
+    /// <summary>How often progress is checked when there's no live view.</summary>
+    private static readonly TimeSpan ProgressInterval = TimeSpan.FromSeconds(5);
+
     /// <summary>
     /// Runs <paramref name="run"/> while showing <paramref name="jobs"/>. Returns when <paramref name="run"/> completes.
     /// </summary>
@@ -32,7 +36,7 @@ public sealed class PublishDashboard(IAnsiConsole console)
         var frame = 0;
 
         // The live view redraws with escape codes, so it needs a terminal that understands them. Otherwise (output
-        // piped, CI, very old consoles) only the record below is written.
+        // piped, CI, very old consoles) progress is printed as plain lines.
         if (console.Profile.Capabilities is { Interactive: true, Ansi: true })
         {
             var showLog = options.ShowLog;
@@ -47,8 +51,7 @@ public sealed class PublishDashboard(IAnsiConsole console)
         }
         else
         {
-            // Waits without throwing; the `await run` at the end reports a failure after the record is written.
-            await Task.WhenAny(run);
+            await PrintProgressAsync(jobs, run);
         }
 
         // The live view clears itself; the final state is written as normal output (no log or key hints), so it
@@ -59,6 +62,29 @@ public sealed class PublishDashboard(IAnsiConsole console)
         console.WriteLine();
 
         await run;
+    }
+
+    /// <summary>
+    /// Without the live view: a line whenever the progress has changed, checked every <see cref="ProgressInterval"/>,
+    /// so long builds don't look stuck. Only appends lines, so it works on any console and in CI logs.
+    /// </summary>
+    /// <remarks>Waits without throwing; the <c>await run</c> in <see cref="ShowAsync"/> reports a failure after the record is written.</remarks>
+    private async Task PrintProgressAsync(IReadOnlyList<PublishJob> jobs, Task run)
+    {
+        var elapsed = Stopwatch.StartNew();
+        string? printed = null;
+        while (!run.IsCompleted)
+        {
+            await Task.WhenAny(run, Task.Delay(ProgressInterval));
+
+            var progress = DashboardLayout.ProgressLine(jobs);
+            if (!run.IsCompleted && progress != printed)
+            {
+                var time = $"{(int)elapsed.Elapsed.TotalMinutes}:{elapsed.Elapsed.Seconds:00}";
+                console.MarkupLine($"[dim]{time}[/] {progress.EscapeMarkup()}");
+                printed = progress;
+            }
+        }
     }
 
     private IReadOnlyList<string> RenderLive(IReadOnlyList<PublishJob> jobs, int frame, bool showLog, LogFocus focus, int logLines)

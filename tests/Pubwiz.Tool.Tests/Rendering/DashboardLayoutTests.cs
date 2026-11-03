@@ -133,6 +133,12 @@ public sealed class DashboardLayoutTests : IAsyncLifetime
     }
 
     [Fact]
+    public void SumsUpProgressOnOneLineForConsolesWithoutTheLiveView()
+    {
+        Assert.Equal("4/10 done, 1 failed · running: App5 (Build and publish), App6 (Build and publish) · 4 waiting", DashboardLayout.ProgressLine(_jobs));
+    }
+
+    [Fact]
     public void TheLogFollowsTheFirstRunningJobUntilAnotherIsPicked()
     {
         var focus = new LogFocus();

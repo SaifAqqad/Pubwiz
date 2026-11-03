@@ -62,6 +62,37 @@ internal static class DashboardLayout
         return [.. lines.Take(kept), $"[dim]… {lines.Count - kept} more lines (make the window taller to see them)[/]"];
     }
 
+    /// <summary>
+    /// One line of progress for consoles without the live view, in plain text, e.g.
+    /// <c>3/10 done · running: App4 (Build and publish), App5 (Upload (FTP)) · 5 waiting</c>.
+    /// </summary>
+    internal static string ProgressLine(IReadOnlyList<PublishJob> jobs)
+    {
+        var parts = new List<string> { $"{jobs.Count(j => j.IsFinished)}/{jobs.Count} done" };
+
+        var failed = jobs.Count(j => j.Status == JobStatus.Failed);
+        if (failed > 0)
+        {
+            parts[0] += $", {failed} failed";
+        }
+
+        var running = jobs.Where(j => j.Status == JobStatus.Running)
+            .Select(j => j.Steps.FirstOrDefault(s => s.Status == StepStatus.Running) is { } step ? $"{j.Request.Project.Name} ({step.Name})" : j.Request.Project.Name)
+            .ToList();
+        if (running.Count > 0)
+        {
+            parts.Add($"running: {string.Join(", ", running)}");
+        }
+
+        var waiting = jobs.Count(j => j.Status == JobStatus.Queued);
+        if (waiting > 0)
+        {
+            parts.Add($"{waiting} waiting");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
     /// <summary>The lines at one level of detail. An empty string is a blank line.</summary>
     internal static IReadOnlyList<string> Build(IReadOnlyList<PublishJob> jobs, DashboardView view, DashboardDetail detail)
     {
