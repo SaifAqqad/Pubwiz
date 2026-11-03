@@ -1,8 +1,8 @@
 using Pubwiz.Core.Infrastructure.Secrets;
-using Pubwiz.Core.Targets.WebDeploy;
+using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.Core.Tests.TestHelpers;
 
-namespace Pubwiz.Core.Tests.Targets.WebDeploy;
+namespace Pubwiz.Core.Tests.Targets.ServerLogins;
 
 public sealed class ServerCredentialStoreTests : IDisposable
 {
@@ -21,6 +21,8 @@ public sealed class ServerCredentialStoreTests : IDisposable
     [InlineData("10.0.0.5:8172", "10.0.0.5")]
     [InlineData("https://10.0.0.5:8172/msdeploy.axd?site=Api", "10.0.0.5")]
     [InlineData(" IIS.Contoso.com ", "iis.contoso.com")]
+    [InlineData("sftp://deploy.contoso.com:2222/var/www", "deploy.contoso.com")]
+    [InlineData("ftps://ftp.contoso.com/site/wwwroot", "ftp.contoso.com")]
     public void ToServerKey_IsTheHostInLowerCase(string server, string expected)
     {
         Assert.Equal(expected, ServerCredentialStore.ToServerKey(server));

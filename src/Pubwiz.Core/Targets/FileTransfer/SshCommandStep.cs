@@ -10,14 +10,15 @@ namespace Pubwiz.Core.Targets.FileTransfer;
 /// (whichever the OpenSSH server is set up with). A non-zero exit code fails the step.
 /// </summary>
 /// <param name="name">The step name, e.g. "Run pre-deploy command".</param>
-/// <param name="connection">The same server and login the upload uses.</param>
+/// <param name="getConnection">Gets the same server and login the upload uses, when the step runs.</param>
 /// <param name="command">The command line to run.</param>
-public sealed class SshCommandStep(string name, SftpConnection connection, string command) : PublishStep(name)
+public sealed class SshCommandStep(string name, Func<PublishContext, CancellationToken, Task<SftpConnection>> getConnection, string command) : PublishStep(name)
 {
     public string Command => command;
 
     public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
     {
+        var connection = await getConnection(context, cancellationToken);
         using var client = new SshClient(connection.ToConnectionInfo());
         context.ReportDetail("connecting...");
         try

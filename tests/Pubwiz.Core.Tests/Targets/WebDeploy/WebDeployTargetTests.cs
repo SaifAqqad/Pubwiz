@@ -6,6 +6,7 @@ using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Targets;
 using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Azure.Kudu;
+using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.Core.Targets.WebDeploy;
 using Pubwiz.Core.Tests.TestHelpers;
 using Pubwiz.WebDeploy;
@@ -285,7 +286,7 @@ public sealed class WebDeployTargetTests : IDisposable
         profile[ProfileProperties.AuthType] = "NTLM";
         var context = CreateContext(Request(profile));
 
-        var login = new WebDeployTarget.LoginSource(_servers, _servers.Find("iis.contoso.local"));
+        var login = new WebDeployTarget.LoginSource(SavedServerLogin.Find(_servers, "iis.contoso.local"));
         var options = await login.CreateSyncOptionsAsync(context, WebDeployProfile.GetEndpoint(profile), Token);
 
         Assert.Equal("shared", options.UserName);
@@ -300,7 +301,7 @@ public sealed class WebDeployTargetTests : IDisposable
         var secretsWithoutPassword = new ServerCredentialStore(new MemorySecretStore(), _servers.FilePath);
         var context = CreateContext(Request(Profile()));
 
-        var login = new WebDeployTarget.LoginSource(secretsWithoutPassword, secretsWithoutPassword.Find("iis.contoso.local"));
+        var login = new WebDeployTarget.LoginSource(SavedServerLogin.Find(secretsWithoutPassword, "iis.contoso.local"));
         var error = await Assert.ThrowsAsync<PublishStepException>(() => login.CreateSyncOptionsAsync(context, WebDeployProfile.GetEndpoint(Profile()), Token));
 
         Assert.Contains("servers set iis.contoso.local", error.Message);

@@ -36,7 +36,7 @@ app.Configure(config =>
 
     config.AddBranch("servers", servers =>
     {
-        servers.SetDescription("Save Web Deploy logins per server; they replace the user and password of profiles for that server");
+        servers.SetDescription("Save logins per server; they replace the user and password of Web Deploy, FTP and SFTP profiles for that server");
         servers.AddCommand<ServersSetCommand>("set").WithDescription("Save the user name and password for a server");
         servers.AddCommand<ServersListCommand>("list").WithDescription("Show the servers with a saved login");
         servers.AddCommand<ServersRemoveCommand>("remove").WithDescription("Forget a server's login");

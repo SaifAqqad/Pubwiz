@@ -8,6 +8,7 @@ using Pubwiz.Core.Targets.Azure;
 using Pubwiz.Core.Targets.Azure.Kudu;
 using Pubwiz.Core.Targets.FileTransfer;
 using Pubwiz.Core.Targets.Folder;
+using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.Core.Tests.TestHelpers;
 using System.Net;
 using System.Xml.Linq;
@@ -27,7 +28,8 @@ public sealed class AzureTargetTests : IDisposable
         return new PublishRunner(
         [
             new FolderTarget(_dotnet),
-            new FileTransferTarget(_dotnet, sftp: false),
+            // No logins are saved, so the servers file is never created.
+            new FileTransferTarget(_dotnet, new ServerCredentialStore(new MemorySecretStore(), Path.Combine(Path.GetTempPath(), $"pubwiz-{Guid.NewGuid():N}", "servers.json")), sftp: false),
             new AzureWebJobTarget(_dotnet, kudu, credentials),
             new AzureAppServiceTarget(_dotnet, kudu, credentials)
         ]);

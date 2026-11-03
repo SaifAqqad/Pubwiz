@@ -34,7 +34,8 @@ The folders follow a publish from start to finish.
    | `Containers/` | local images, tarballs, registries, Azure container hosts | the docker/podman wrapper |
    | `Maui/` | Android and iOS packages | keystore and Apple signing helpers |
 
-   `PublishTargetCatalog` lists the targets the wizard offers for each kind of project.
+   `ServerLogins/` holds the logins saved per server (`dotnet pubwiz servers set`), which Web Deploy, FTP and SFTP
+   use instead of a profile's. `PublishTargetCatalog` lists the targets the wizard offers for each kind of project.
 5. **`Reporting/`** exports what happened: each job's full log, and a JSON or CSV report.
 
 Other folders:

@@ -90,7 +90,7 @@ Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure
 | `dotnet pubwiz transform [path]` | Write the transformed `web.config` a publish would produce, without publishing. |
 | `dotnet pubwiz presets list` | Show the presets in `pubwiz.json`. |
 | `dotnet pubwiz presets export <name>` | Write one preset to its own file, to run with `--preset-file`. |
-| `dotnet pubwiz servers set <server>` | Save a Web Deploy user name and password for a server; profiles for it use them instead of their own. |
+| `dotnet pubwiz servers set <server>` | Save a user name and password for a server; Web Deploy, FTP and SFTP profiles for it use them instead of their own. |
 | `dotnet pubwiz servers list` / `remove <server>` | Show or forget the saved server logins. |
 
 <details>
@@ -160,15 +160,15 @@ Pubwiz never writes passwords into profiles. When a target needs one, it asks on
 
 For Azure App Service profiles that use publishing credentials (Zip Deploy, or Web Deploy to an App Service, e.g. from Visual Studio or a `.publishsettings` file), Pubwiz gets the password from Azure with the signed-in `az` instead of asking.
 
-### Web Deploy logins per server
+### Logins per server
 
-To sign in to an IIS server with your own login, whatever the profiles in the repository say, save it once for the server:
+To sign in to a server with your own login, whatever the profiles in the repository say, save it once for the server:
 
 ```bash
 dotnet pubwiz servers set 10.0.0.5 --user deploy
 ```
 
-Every Web Deploy profile whose `MSDeployServiceURL` points at that server (by IP address or name, as written in the profile; any port) then signs in with that user and password, instead of the profile's, with both msdeploy.exe and the built-in client. Profiles that sign in as the current Windows user can then publish from Linux and macOS too. The user name is kept in `servers.json` in your config folder (`~/.config/pubwiz` on Linux, `%APPDATA%\pubwiz` on Windows) and the password in the OS keychain. For setup scripts, pass `--password-stdin`.
+Every Web Deploy, FTP and SFTP profile for that server (its `MSDeployServiceURL` or `PublishUrl`, matched by IP address or name as written in the profile; any port) then signs in with that user and password instead of the profile's. For SFTP it replaces the profile's SSH key too. Web Deploy profiles that sign in as the current Windows user can then publish from Linux and macOS. The user name is kept in `servers.json` in your config folder (`~/.config/pubwiz` on Linux, `%APPDATA%\pubwiz` on Windows) and the password in the OS keychain. For setup scripts, pass `--password-stdin`.
 
 ## IIS (Web Deploy)
 

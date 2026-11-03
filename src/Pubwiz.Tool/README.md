@@ -43,7 +43,7 @@ dotnet pubwiz --preset <name>                     # publish a saved preset
 dotnet pubwiz --project <name> --profile <name>   # publish without the wizard
 dotnet pubwiz transform [path]                    # preview the transformed web.config
 dotnet pubwiz presets list                        # show saved presets
-dotnet pubwiz servers set <server>                 # save a Web Deploy login for a server
+dotnet pubwiz servers set <server>                # save a login for a server
 ```
 
 Run `dotnet pubwiz --help` for every option. Full documentation, screenshots and the source are on [GitHub](https://github.com/SaifAqqad/Pubwiz).

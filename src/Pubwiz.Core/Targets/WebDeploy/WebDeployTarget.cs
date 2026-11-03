@@ -3,6 +3,7 @@ using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Publishing.Steps;
 using Pubwiz.Core.Targets.Azure;
+using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.WebDeploy;
 
 namespace Pubwiz.Core.Targets.WebDeploy;
@@ -62,7 +63,8 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request)
     {
         var endpoint = WebDeployProfile.GetEndpoint(request.Profile);
-        var login = new LoginSource(servers, FindServerLogin(request.Profile));
+        var savedLogin = FindServerLogin(request.Profile) is { } saved ? new SavedServerLogin(servers, saved) : null;
+        var login = new LoginSource(savedLogin);
         var stepName = request.WhatIf ? "Preview changes (Web Deploy)" : "Deploy (Web Deploy)";
         PublishStep sync = UsesMsDeploy ? new SyncStep(stepName, msdeploy, endpoint, login) : new BuiltInSyncStep(stepName, client, endpoint, login);
 
@@ -103,37 +105,20 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     private static bool IsTrue(string? value) => string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Where a sync step gets its login: the profile and request, or the server's saved login when there is one.</summary>
-    /// <param name="Servers">Holds the saved passwords.</param>
-    /// <param name="ServerLogin">The server's saved login, or <c>null</c> to use the profile's.</param>
-    internal sealed record LoginSource(ServerCredentialStore Servers, ServerCredential? ServerLogin)
+    /// <param name="SavedLogin">The server's saved login, or <c>null</c> to use the profile's.</param>
+    internal sealed record LoginSource(SavedServerLogin? SavedLogin)
     {
         /// <summary>The sync settings for the running step, signed in with the saved server login when there is one.</summary>
         public async Task<MsDeploySyncOptions> CreateSyncOptionsAsync(PublishContext context, WebDeployEndpoint endpoint, CancellationToken cancellationToken)
         {
             var options = CreateSyncOptions(context.Request, endpoint, context.OutputDirectory!);
-            if (ServerLogin is null)
+            if (SavedLogin is null)
             {
                 return options;
             }
 
-            string? password;
-            try
-            {
-                password = await Servers.GetPasswordAsync(ServerLogin, cancellationToken);
-            }
-            catch (Infrastructure.Secrets.SecretStoreException ex)
-            {
-                throw new PublishStepException($"The saved password for {ServerLogin.Server} couldn't be read from {Servers.SecretStoreName}: {ex.Message}", ex);
-            }
-
-            if (password is null)
-            {
-                throw new PublishStepException(
-                    $"The password for {ServerLogin.Server} is missing from {Servers.SecretStoreName}. Save it again with: dotnet pubwiz servers set {ServerLogin.Server}");
-            }
-
-            context.Log.Info($"Signing in as {ServerLogin.UserName}, the login saved for {ServerLogin.Server} (instead of the profile's)");
-            return options with { UserName = ServerLogin.UserName, Password = password, AuthType = "Basic" };
+            var password = await SavedLogin.GetPasswordAsync(context, cancellationToken);
+            return options with { UserName = SavedLogin.UserName, Password = password, AuthType = "Basic" };
         }
     }
 

@@ -1,5 +1,6 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.Core.Targets.WebDeploy;
 
 namespace Pubwiz.Tool.Wizard;

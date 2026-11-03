@@ -1,5 +1,5 @@
 using Pubwiz.Core.Infrastructure.Secrets;
-using Pubwiz.Core.Targets.WebDeploy;
+using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.Tool.Rendering;
 using System.ComponentModel;
 
@@ -9,7 +9,7 @@ namespace Pubwiz.Tool.Commands;
 public class ServerSettings : CommandSettings
 {
     [CommandArgument(0, "<server>")]
-    [Description("The Web Deploy server as written in profiles: an IP address or name (a port or URL is fine too)")]
+    [Description("The server as written in profiles: an IP address or name (a port or URL is fine too)")]
     public string Server { get; init; } = string.Empty;
 
     public override ValidationResult Validate()
@@ -27,8 +27,8 @@ public class ServerSettings : CommandSettings
 }
 
 /// <summary>
-/// <c>dotnet pubwiz servers set</c>: saves a user name and password for a Web Deploy server. Profiles that deploy to
-/// it then sign in with these instead of their own.
+/// <c>dotnet pubwiz servers set</c>: saves a user name and password for a server. Web Deploy, FTP and SFTP profiles
+/// that deploy to it then sign in with these instead of their own.
 /// </summary>
 public sealed class ServersSetCommand(IAnsiConsole console, ServerCredentialStore servers) : AsyncCommand<ServersSetCommand.Settings>
 {
@@ -74,7 +74,7 @@ public sealed class ServersSetCommand(IAnsiConsole console, ServerCredentialStor
 
         console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved the login for [{Widgets.PrimaryColorMarkup}]{saved.Server.EscapeMarkup()}[/] " +
                            $"[dim](password in {servers.SecretStoreName.EscapeMarkup()})[/]");
-        console.MarkupLine($"[dim]Web Deploy profiles for {saved.Server.EscapeMarkup()} now sign in as {saved.UserName.EscapeMarkup()} instead of their own user.[/]");
+        console.MarkupLine($"[dim]Web Deploy, FTP and SFTP profiles for {saved.Server.EscapeMarkup()} now sign in as {saved.UserName.EscapeMarkup()} instead of their own user.[/]");
         return ExitCodes.Success;
     }
 }
