@@ -25,8 +25,3 @@ The client performs the `iisApp` folder sync, the same operation as
 directories, and creates the IIS application when the destination is an application path. It also supports the
 common msdeploy switches: delete extra files (or keep them), take the app offline (`AppOffline`), preview
 (`-whatif`), compare by checksum (`-useCheckSum`, files up to 64 KB), skip rules (`-skip`) and the retry settings.
-
-## Why a separate client
-
-`Microsoft.Web.Deployment`, the library behind `msdeploy.exe`, targets .NET Framework on Windows only, so
-it can't be used from Linux or macOS.
