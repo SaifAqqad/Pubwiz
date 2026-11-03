@@ -1,9 +1,9 @@
 # The Web Deploy (WMSVC) protocol
 
-Microsoft doesn't publish this protocol. Everything here was reverse-engineered from black-box tests
-against IIS 10 with Web Deploy 4.0 (`msdeploy.exe` 7.1.2001), using the setup in
-[test-environment.md](test-environment.md). It is enough to deploy a folder to an IIS site or
-application with the `iisApp` provider — what `Pubwiz.WebDeploy` implements.
+There is no public specification for this protocol. These notes describe the requests `msdeploy.exe`
+(Web Deploy 4.0, version 7.1.2001) sends to IIS 10, recorded with the setup in
+[test-environment.md](test-environment.md). They cover what `Pubwiz.WebDeploy` needs to deploy a folder to
+an IIS site or application with the `iisApp` provider, and may not apply to other versions.
 
 ## Endpoint
 
@@ -17,7 +17,7 @@ application with the `iisApp` provider — what `Pubwiz.WebDeploy` implements.
 2. It repeats the `HEAD` with `Authorization: Basic ...` and gets `200`, carrying `MSDeploy.Response: v1`,
    `MSDeploy.VersionMin`, `MSDeploy.VersionMax` and `MSDeploy.Serialization`.
 
-Only Basic authentication is implemented. NTLM (current Windows user) was not reverse-engineered.
+Only Basic authentication is supported. NTLM (current Windows user) is not.
 
 ## Headers sent on every request
 
@@ -63,13 +63,13 @@ Each header is base64 of a gzip stream holding a .NET Binary Formatter (MS-NRBF)
 
 MS-NRBF is a published spec with an official reader (`System.Formats.Nrbf`). `Pubwiz.WebDeploy` writes
 `DeploymentProviderOptions` by hand in `NrbfProviderOptionsWriter`, and the two other objects in `NrbfOptionsWriter`
-(captured constant byte runs around the values that vary); it never uses `BinaryFormatter`. Error responses carry `MSDeploy.Exception` (NRBF `DeploymentException`), decoded
+(fixed byte sequences around the values that vary); it never uses `BinaryFormatter`. Error responses carry `MSDeploy.Exception` (NRBF `DeploymentException`), decoded
 without BinaryFormatter by `WebDeployErrorDecoder`.
 
 ## Sync options
 
 Every msdeploy switch a folder deploy needs travels in those two headers; the body and the requests stay the same.
-Each was found by capturing msdeploy.exe with and without the switch.
+Each was identified by comparing msdeploy.exe's requests with and without the switch.
 
 | msdeploy switch | Where | Encoding |
 |---|---|---|
@@ -127,7 +127,7 @@ checksum = state ^ 0x7EE8CDCD                      (an empty file is 0xD7978EEB)
 `StepBack` is the standard CRC-32 polynomial stepped backwards: a left-shifting register with feedback
 `(0xEDB88320 << 1) | 1`. `ByteTable[b]` XORs one value per set bit: bit 0 adds `0xA7A443EC` (measured), and each next
 bit `StepBack` of the previous one. Trailing zero bytes don't change the result (they're the buffer's padding); leading
-ones do. This matches every file up to 65,536 bytes that was captured (`WebDeployChecksumTests`).
+ones do. This matches every file up to 65,536 bytes that was tested (`WebDeployChecksumTests`).
 
 How the buffers of a **larger** file are combined is not known. Measured so far (two-buffer files; `z` = a 64 KB
 buffer of zeros): the last buffer adds exactly its single-buffer value, `h(z,a) ⊕ h(z,z) = value(a)`, while the first
@@ -142,13 +142,13 @@ bytes (distinct from NRBF's 7-bit lengths). The body is:
 1. **systemInfo section**: `u16 4`, `Int32 length`, then a `<systemInfo …>` XML block describing the
    source machine (OS, IIS version, installed components).
 2. **parameters section**: `u16 10`, `Int32 length`, `<parameters />`.
-3. **Preamble + provider scaffold** — a fixed tree of provider objects that never changes shape:
+3. **Preamble + provider scaffold**: a fixed tree of provider objects that never changes shape:
    `MSDeploy.iisApp → iisApp → (createApp, contentPath → dirPath)`. Each object carries a name, a
    resolver type name, optionally a gzip+base64 NRBF `DeploymentProviderOptions` "resolver options"
    blob (provider name + the **source** path), and typed attributes (`createApp` holds `isDest=false`,
    `managedRuntimeVersion`, `appExists`, … ; `dirPath` holds `securityDescriptor="D:"`, `attributes`).
    Only the source path and the regenerated blobs vary between deploys; the rest is constant and is
-   stored as captured byte runs in `MsDeployProtocol`.
+   stored as fixed byte sequences in `MsDeployProtocol`.
 4. **The file/dir tree** under `dirPath`, depth-first.
 
 ### Object ids
@@ -167,23 +167,22 @@ directory:  08 00 | Int32 id | Int32 parentId | str name | str secDesc("D:") | I
 file:       09 00 | Int32 id | Int32 parentId | str name
             | Int32 8  | Int64 length
             | Int32 4  | Int32 attributes(0x20)
-            | Int32 8  | Int64 lastWriteTime        (DateTime.ToBinary of the UTC time — NOT a FILETIME)
+            | Int32 8  | Int64 lastWriteTime        (DateTime.ToBinary of the UTC time, not a FILETIME)
             | str secDesc("D:") | UInt32 checksum (checksum mode, else 0) | Int32 0
             | <01 | 03 00 | Int32 id>               when no content is sent (pass 1, or unchanged in pass 2)
             | <00 | 03 00 | Int32 id | 05 00 | Int32 id | (06 00 | Int32 len | bytes)* | 06 00 | Int32 0>
                                                      when content is sent (incomplete file in pass 2)
 ```
 
-The whole children list is closed with `03 00 | Int32 4` (close `dirPath`). The `lastWriteTime` field
-is the single sharpest gotcha: the server does `DateTime.FromBinary(value).ToFileTimeUtc()`, so a real
-Win32 `FILETIME` is rejected with *"Not a valid Win32 FileTime"*.
+The whole children list is closed with `03 00 | Int32 4` (close `dirPath`). Note the `lastWriteTime`
+format: the server does `DateTime.FromBinary(value).ToFileTimeUtc()`, so a Win32 `FILETIME` is rejected
+with *"Not a valid Win32 FileTime"*.
 
-## Verification
+## Tests
 
-`Pubwiz.WebDeploy.Tests` regenerates the children region of real captures (single file, two files,
-nested and deep folders, an update) **byte-for-byte** in both passes, and checks the
-`DeploymentProviderOptions` NRBF against a captured header. The `SyncOptions` and `BaseOptions` headers of every
-option above are regenerated byte-for-byte from captures (`NrbfOptionsWriterTests`), and so is a checksum preview's
-body. The gzip'd blobs and the scaffold are not
-byte-compared (gzip output is implementation-specific); correctness there is confirmed against a live
-IIS server.
+`Pubwiz.WebDeploy.Tests` compares the generated children region with recorded requests (single file, two
+files, nested and deep folders, an update) byte for byte in both passes, and checks the
+`DeploymentProviderOptions` NRBF against a recorded header. The `SyncOptions` and `BaseOptions` headers for
+every option above are compared the same way (`NrbfOptionsWriterTests`), and so is a checksum preview's body.
+The gzip'd blobs and the scaffold aren't compared byte for byte (gzip output differs between
+implementations); they are tested against an IIS server instead.
