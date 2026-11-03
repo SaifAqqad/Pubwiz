@@ -47,7 +47,7 @@ public sealed class CreateProfilePage(
 
             if (!target.IsAvailable)
             {
-                console.MarkupLine($"[yellow]{target.DisplayName.EscapeMarkup()} is not available yet ({target.UnavailableReason}).[/]");
+                console.MarkupLine($"[yellow]{target.DisplayName.EscapeMarkup()} isn't available here ({target.UnavailableReason}).[/]");
                 continue;
             }
 

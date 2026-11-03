@@ -8,7 +8,6 @@ public enum PublishTargetType
     Folder,
     ZipFile,
     WebDeploy,
-    WebDeployPackage,
     Ftp,
     Sftp,
     AzureAppService,
