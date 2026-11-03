@@ -36,7 +36,7 @@ public static class PublishTargetCatalog
         new(PublishTargetType.Folder, PublishTargetGroup.Local, "Folder", "Publish to a local or network folder"),
         new(PublishTargetType.ZipFile, PublishTargetGroup.Local, "Zip file", "Publish to a .zip to copy to a server yourself"),
         new(PublishTargetType.WebDeployPackage, PublishTargetGroup.Local, "Web Deploy package", "Create a package to import into IIS later"),
-        new(PublishTargetType.WebDeploy, PublishTargetGroup.Servers, "IIS (Web Deploy)", "Deploy to an IIS server with Web Deploy (msdeploy)"),
+        new(PublishTargetType.WebDeploy, PublishTargetGroup.Servers, "IIS (Web Deploy)", "Deploy to an IIS server from Windows, macOS or Linux"),
         new(PublishTargetType.Ftp, PublishTargetGroup.Servers, "FTP / FTPS", "Upload to an FTP or FTPS server"),
         new(PublishTargetType.Sftp, PublishTargetGroup.Servers, "SFTP", "Upload over SSH"),
         new(PublishTargetType.AzureAppService, PublishTargetGroup.Azure, "Azure App Service", "Deploy to an App Service web app (Windows or Linux)"),

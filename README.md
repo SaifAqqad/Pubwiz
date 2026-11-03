@@ -24,14 +24,23 @@
 > [!NOTE]
 > Pubwiz is in early development. Bug reports are very welcome.
 
-## Features
+## What it does
 
-- Finds the solutions and projects in your folder
-- Uses your existing `.pubxml` profiles, or imports `.publishsettings`
-- Publishes several projects at once, with live progress
-- Saves batches as presets you can commit and run in CI
-- Keeps passwords in your OS keychain, or gets them from Azure for App Service profiles
-- Shows your git branch, last commit and commits waiting to be pulled before you publish
+Pubwiz runs `dotnet publish` for you with the publish profiles already in your repository. Pick the projects you
+want, choose a profile for each one (or make a new one), and watch them build and deploy side by side.
+
+**Publish to IIS from macOS and Linux.** Pubwiz has its own Web Deploy client, so the `.pubxml` profiles you made in
+Visual Studio deploy to IIS from any machine, without Windows or `msdeploy.exe`. That includes taking the app offline
+while files are copied, deleting files the app no longer has, skip rules and `--what-if` previews. See
+[IIS and Web Deploy](#iis-and-web-deploy).
+
+It also:
+
+- publishes several projects at once, with each one's build output on screen as it runs
+- imports `.publishsettings` files from Azure and IIS
+- saves a batch of projects as a preset in `pubwiz.json`, so the next release is one command, on your machine or in CI
+- keeps passwords out of your repository: in your OS keychain, or fetched from Azure for App Service
+- shows the git branch, the last commit and any commits you haven't pulled before you publish
 
 ## Install
 
@@ -57,18 +66,18 @@ dotnet pubwiz
 
 **2. Pick a profile for each one**, or create one. New profiles start from a target, grouped by where the app is going:
 
-<p align="center"><img src="assets/screenshots/choose-target.png" alt="Choosing a publish target, grouped into Local, Servers, Azure and Containers" width="820"></p>
+<p align="center"><img src="assets/screenshots/choose-target.png" alt="Choosing a publish target, grouped into Local, Servers, Azure and Containers, with IIS (Web Deploy) highlighted" width="820"></p>
 
 Every list can be searched by typing. <kbd>Esc</kbd> or <kbd>Ctrl</kbd>+<kbd>C</kbd> in the later steps goes back to the project list.
 
 **3. Watch it publish**, then export the logs or a report if you need them:
 
-<p align="center"><img src="assets/screenshots/results.png" alt="The results table after publishing, with export options" width="600"></p>
+<p align="center"><img src="assets/screenshots/results.png" alt="The results table after publishing, with export options" width="750"></p>
 
 ## Targets
 
 - **Local:** folder, zip file
-- **Servers:** IIS (Web Deploy, from Windows, Linux and macOS), FTP/FTPS, SFTP (with commands to run over SSH before and after uploading)
+- **Servers:** IIS with Web Deploy (from Windows, macOS or Linux), FTP/FTPS, SFTP (optionally running commands over SSH before and after the upload)
 - **Azure:** App Service, Function Apps, WebJobs, Container Apps, Static Web Apps (Blazor WebAssembly)
 - **Containers:** Docker/Podman, tarball, any registry
 - **Mobile:** Android (`.aab`, `.apk`), iOS (`.ipa`, macOS only)
@@ -165,10 +174,19 @@ dotnet pubwiz servers set 10.0.0.5 --user deploy
 
 Every Web Deploy profile whose `MSDeployServiceURL` points at that server (by IP address or name, as written in the profile; any port) then signs in with that user and password, instead of the profile's, with both msdeploy.exe and the built-in client. Profiles that sign in as the current Windows user can then publish from Linux and macOS too. The user name is kept in `servers.json` in your config folder (`~/.config/pubwiz` on Linux, `%APPDATA%\pubwiz` on Windows) and the password in the OS keychain. For setup scripts, pass `--password-stdin`.
 
-## IIS (Web Deploy)
+## IIS and Web Deploy
 
-Pubwiz uses the official `msdeploy.exe` where it's installed (Windows with Web Deploy) and its own client everywhere
-else, with the same settings from the profile:
+`msdeploy.exe` only runs on Windows, so publishing to IIS from a Mac, a Linux machine or a Linux CI runner usually
+means keeping a Windows VM around. Pubwiz doesn't need one: it has its own Web Deploy client that talks to the
+server's Web Deploy service (`https://<server>:8172/msdeploy.axd`) the same way msdeploy does. Nothing changes on the
+server, and your existing Visual Studio profiles work as they are. The client is also published on its own as the
+[Pubwiz.WebDeploy](src/Pubwiz.WebDeploy) package.
+
+On Windows with Web Deploy installed, Pubwiz uses `msdeploy.exe`; everywhere else it uses the built-in client. The
+built-in client signs in with a user name and password. For profiles that sign in as the current Windows user, save
+a login for the server with `dotnet pubwiz servers set` (see [Web Deploy logins per server](#web-deploy-logins-per-server)).
+
+Both read the same settings from the profile:
 
 | Profile setting | Effect |
 |---|---|
@@ -218,7 +236,7 @@ has no `staticwebapp.config.json`, one is added so that the app's routes work wh
 
 Publishing runs `dotnet publish`, so the .NET SDK applies your `web.config` transforms as usual: `web.<Configuration>.config`, `web.<Profile>.config`, `web.<Environment>.config`, then the profile's `.transform` file.
 
-To preview the result without publishing, Run:
+To preview the result without publishing, run:
 ```bash
 dotnet pubwiz transform --configuration Release --print
 ```
