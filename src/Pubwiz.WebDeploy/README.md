@@ -4,14 +4,15 @@ A cross-platform client for IIS Web Deploy (the `msdeploy.axd` handler of the We
 WMSVC). It deploys a folder to an IIS site or application from Linux, macOS or Windows, without
 `msdeploy.exe`.
 
-It speaks the WMSVC wire protocol directly — the same `-verb:sync -source:iisApp=<folder>
--dest:iisApp=<site>` operation the official client performs. The protocol is undocumented by Microsoft
-and was reverse-engineered from black-box captures; see [docs/protocol.md](docs/protocol.md).
+It talks to WMSVC over HTTPS and performs the same operation as
+`msdeploy -verb:sync -source:iisApp=<folder> -dest:iisApp=<site>`. There is no public specification for
+the protocol, so the implementation is based on the traffic `msdeploy.exe` sends to a test server; see
+[docs/protocol.md](docs/protocol.md).
 
 ```csharp
 using Pubwiz.WebDeploy;
 
-var endpoint = WebDeployEndpoint.Create("https://iis.contoso.com:8172", "Default Web Site/api");
+var endpoint = WebDeployEndpoint.Create("https://iis.example.com:8172", "Default Web Site/api");
 var credentials = new WebDeployCredentials("deployuser", "••••••");
 var options = new WebDeploySyncOptions
 {
@@ -32,7 +33,7 @@ var certificate = await WebDeployCertificate.GetAsync(endpoint.ServiceUrl);
 if (certificate is { IsTrusted: false })
 {
     Console.WriteLine($"Not trusted: {string.Join(", ", certificate.Problems)} ({certificate.Thumbprint})");
-    // e.g. "it's self-signed, it's issued to WMSvc-SHA2-IIS01, not iis.contoso.com"
+    // e.g. "it's self-signed, it's issued to WMSvc-SHA2-IIS01, not iis.example.com"
 }
 ```
 
@@ -59,11 +60,15 @@ var options = new WebDeploySyncOptions { TakeAppOffline = true, DeleteExtraFiles
 options.SkipRules.Add(new WebDeploySkipRule(WebDeploySkipObject.Directory, @"\\uploads$") { Action = WebDeploySkipAction.Delete });
 ```
 
-## Scope
+## Limitations
 
-- Authentication: HTTP Basic only (not NTLM / current-Windows-user).
-- `UseChecksum` compares files up to 64 KB by checksum exactly like msdeploy. Larger files are always sent (the server
-  then compares their content), so they're never skipped, and a checksum preview lists them as updates when they exist
-  on the server. How msdeploy checksums files over 64 KB hasn't been worked out yet.
+- Authentication: HTTP Basic only (not NTLM / current Windows user).
+- `UseChecksum` compares files up to 64 KB by checksum. Larger files are always sent and the server compares their
+  content, so they're never skipped, and a checksum preview lists them as updates when they exist on the server.
+- It has been tested against IIS 10 with Web Deploy 4.0. Other versions, and changes Microsoft makes to Web Deploy
+  later, may behave differently. Try `WhatIf` or a test site before deploying to a site you care about.
 
 Used by [Pubwiz](https://github.com/SaifAqqad/Pubwiz) (`dotnet pubwiz`), and usable on its own.
+
+Pubwiz is an independent project, not affiliated with or endorsed by Microsoft. IIS, Web Deploy and Azure are
+trademarks of Microsoft. The software is provided as is, under the terms in [LICENSE](https://github.com/SaifAqqad/Pubwiz/blob/main/LICENSE).

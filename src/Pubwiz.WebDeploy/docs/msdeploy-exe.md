@@ -1,7 +1,8 @@
-# Driving msdeploy.exe
+# Running msdeploy.exe
 
-Pubwiz publishes to IIS on Windows by running the official `msdeploy.exe` (`src/Pubwiz.Core/Targets/WebDeploy`:
-`MsDeployLocator`, `MsDeployCli`, `WebDeployTarget`). Everything below was verified against the test VM.
+On Windows, Pubwiz publishes to IIS by running `msdeploy.exe` (`src/Pubwiz.Core/Targets/WebDeploy`:
+`MsDeployLocator`, `MsDeployCli`, `WebDeployTarget`). The behaviour below was observed on the
+[test VM](test-environment.md) and may differ in other Web Deploy versions.
 
 ## Finding it
 
