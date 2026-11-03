@@ -29,27 +29,41 @@ public sealed class FileTransferTarget(DotnetCli dotnet, bool sftp) : IPublishTa
             DeleteExtraFiles: IsTrue(profile[ProfileProperties.DeleteExistingFiles]),
             UseAppOffline: request.TakeAppOffline ?? IsTrue(profile[ProfileProperties.PubwizUseAppOffline]));
 
-        var userName = profile[ProfileProperties.UserName] ?? string.Empty;
-        var sshConnection = new SftpConnection(endpoint.Host, endpoint.Port, userName, request.Password, profile[ProfileProperties.PubwizSshPrivateKeyFile], request.Password);
-        Func<IFileUploader> createUploader = endpoint.IsSftp
-            ? () => new SftpUploader(sshConnection)
-            : () => new FtpUploader(new FtpConnection(endpoint.Host, endpoint.Port, userName, request.Password ?? string.Empty, endpoint.FtpSecurity,
-                PassiveMode: !string.Equals(profile[ProfileProperties.FtpPassiveMode], "false", StringComparison.OrdinalIgnoreCase),
-                AllowUntrustedCertificate: IsTrue(profile[ProfileProperties.AllowUntrustedCertificate])));
-
         var steps = new List<PublishStep> { StagingPublish.CreateStep(dotnet, request) };
-        if (endpoint.IsSftp && GetCommand(request, ProfileProperties.PubwizSshPreDeployCommand) is { } preDeploy)
-        {
-            steps.Add(new SshCommandStep("Run pre-deploy command (SSH)", sshConnection, preDeploy));
-        }
-
-        steps.Add(new UploadStep($"Upload ({(endpoint.IsSftp ? "SFTP" : "FTP")})", createUploader, endpoint.RemoteDirectory, options));
-        if (endpoint.IsSftp && GetCommand(request, ProfileProperties.PubwizSshPostDeployCommand) is { } postDeploy)
-        {
-            steps.Add(new SshCommandStep("Run post-deploy command (SSH)", sshConnection, postDeploy));
-        }
-
+        steps.AddRange(endpoint.IsSftp ? CreateSftpSteps(request, endpoint, options) : [CreateFtpUploadStep(request, endpoint, options)]);
         steps.Add(new SetDestinationStep(profile[ProfileProperties.SiteUrlToLaunchAfterPublish] ?? endpoint.ToString()));
+        return steps;
+    }
+
+    private static UploadStep CreateFtpUploadStep(PublishRequest request, FileTransferEndpoint endpoint, UploadOptions options)
+    {
+        var profile = request.Profile;
+        var connection = new FtpConnection(endpoint.Host, endpoint.Port, profile[ProfileProperties.UserName] ?? string.Empty, request.Password ?? string.Empty, endpoint.FtpSecurity,
+            PassiveMode: !string.Equals(profile[ProfileProperties.FtpPassiveMode], "false", StringComparison.OrdinalIgnoreCase),
+            AllowUntrustedCertificate: IsTrue(profile[ProfileProperties.AllowUntrustedCertificate]));
+
+        return new UploadStep("Upload (FTP)", () => new FtpUploader(connection), endpoint.RemoteDirectory, options);
+    }
+
+    /// <summary>The upload, with the profile's pre- and post-deploy commands around it (run over the same SSH login).</summary>
+    private static List<PublishStep> CreateSftpSteps(PublishRequest request, FileTransferEndpoint endpoint, UploadOptions options)
+    {
+        var profile = request.Profile;
+        var connection = new SftpConnection(endpoint.Host, endpoint.Port, profile[ProfileProperties.UserName] ?? string.Empty, request.Password,
+            profile[ProfileProperties.PubwizSshPrivateKeyFile], request.Password);
+
+        var steps = new List<PublishStep>();
+        if (GetCommand(request, ProfileProperties.PubwizSshPreDeployCommand) is { } preDeploy)
+        {
+            steps.Add(new SshCommandStep("Run pre-deploy command (SSH)", connection, preDeploy));
+        }
+
+        steps.Add(new UploadStep("Upload (SFTP)", () => new SftpUploader(connection), endpoint.RemoteDirectory, options));
+        if (GetCommand(request, ProfileProperties.PubwizSshPostDeployCommand) is { } postDeploy)
+        {
+            steps.Add(new SshCommandStep("Run post-deploy command (SSH)", connection, postDeploy));
+        }
+
         return steps;
     }
 

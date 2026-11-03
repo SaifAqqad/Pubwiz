@@ -55,6 +55,6 @@ public class FileTransferTargetTests
     {
         var steps = new FileTransferTarget(Dotnet, sftp: false).CreateSteps(Request("ftp://server/app", "stop", "start"));
 
-        Assert.DoesNotContain(steps, step => step is SshCommandStep);
+        Assert.Equal(["Build and publish", "Upload (FTP)", "Done"], steps.Select(s => s.Name));
     }
 }
