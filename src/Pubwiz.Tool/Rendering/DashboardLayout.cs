@@ -15,25 +15,28 @@ internal enum DashboardDetail
     /// <summary>Running jobs with their steps; finished and waiting jobs summed up in a line per status.</summary>
     Summarized,
 
-    /// <summary>Like <see cref="Summarized"/>, but running jobs show only the step they're on, and no log.</summary>
+    /// <summary>Like <see cref="Summarized"/>, but running jobs show only the step they're on.</summary>
     Minimal
 }
 
 /// <summary>What the dashboard is drawing right now.</summary>
 /// <param name="Frame">The animation step, for spinners.</param>
-/// <param name="ShowLog">Show the tail of each running job's log.</param>
-/// <param name="LogLines">How many log lines per running job.</param>
+/// <param name="ShowLog">Show the log panel (live view only).</param>
+/// <param name="LogLines">How many lines the log panel shows.</param>
 /// <param name="Width">The terminal width.</param>
 /// <param name="Live">
 /// The live view: every line is cut to <paramref name="Width"/> so the line count is exact, and the key hints are shown.
 /// Otherwise (the record written after the run) errors are shown in full.
 /// </param>
-internal sealed record DashboardView(int Frame, bool ShowLog, int LogLines, int Width, bool Live);
+/// <param name="LogJob">The job whose log the panel shows; <c>null</c> until a job starts.</param>
+/// <param name="CanSwitchLog">Whether there are other jobs to switch the log panel to.</param>
+internal sealed record DashboardView(int Frame, bool ShowLog, int LogLines, int Width, bool Live, PublishJob? LogJob = null, bool CanSwitchLog = false);
 
 /// <summary>
 /// Turns the jobs into the dashboard's lines (markup, one terminal line each in the live view). A batch of many
 /// projects doesn't fit on screen in full, so the live view uses the most detailed <see cref="DashboardDetail"/>
-/// that fits the terminal's height; the running jobs always stay in view.
+/// that fits the terminal's height; the running jobs always stay in view. The log panel, when shown, has a fixed
+/// height below the jobs, so switching detail levels never moves it.
 /// </summary>
 internal static class DashboardLayout
 {
@@ -89,7 +92,13 @@ internal static class DashboardLayout
 
         if (view.Live)
         {
-            AddSection(lines, [$"[dim]L {(view.ShowLog ? "hide" : "show")} log · Ctrl+C cancel[/]"]);
+            if (view.ShowLog)
+            {
+                AddSection(lines, LogPanel(view));
+            }
+
+            var switchHint = view.ShowLog && view.CanSwitchLog ? " · ←/→ other project's log" : string.Empty;
+            AddSection(lines, [$"[dim]L {(view.ShowLog ? "hide" : "show")} log{switchHint} · Ctrl+C cancel[/]"]);
         }
 
         return lines;
@@ -131,9 +140,31 @@ internal static class DashboardLayout
             lines.Add(ErrorLine(job.Error, view));
         }
 
-        if (view.ShowLog && !currentStepOnly && job.Status == JobStatus.Running)
+        return lines;
+    }
+
+    /// <summary>
+    /// One job's latest log lines under a title, always <see cref="DashboardView.LogLines"/> + 1 lines tall.
+    /// </summary>
+    private static List<string> LogPanel(DashboardView view)
+    {
+        var name = view.LogJob?.Request.Project.Name ?? "Log";
+        var title = view.LogJob is null ? $"{name} " : $"{name} log ";
+        var rule = new string('─', Math.Max(0, view.Width - title.Length - 4));
+        var lines = new List<string> { $"[dim]──[/] [bold]{title.EscapeMarkup()}[/][dim]{rule}[/]" };
+
+        var entries = view.LogJob?.Log.Tail(view.LogLines) ?? [];
+        if (entries.Count == 0)
         {
-            lines.AddRange(job.Log.Tail(view.LogLines).Select(entry => LogLine(entry.Text, view)));
+            lines.Add(view.LogJob is null ? "[dim]  waiting for a project to start[/]" : "[dim]  no output yet[/]");
+        }
+
+        lines.AddRange(entries.Select(entry => LogLine(entry, view)));
+
+        // Padded to a fixed height (continuing the gutter), so the jobs above don't jump around as the log fills up.
+        while (lines.Count < view.LogLines + 1)
+        {
+            lines.Add($"[grey]{LogGutter}[/]");
         }
 
         return lines;
@@ -180,9 +211,11 @@ internal static class DashboardLayout
         var elapsed = job.StartedAt is { } start ? StatusIcons.FormatDuration((job.FinishedAt ?? DateTimeOffset.Now) - start) : string.Empty;
         var details = $"{job.Request.Profile.Name} · {target} · {job.Request.EffectiveConfiguration}";
 
-        // The name and time always show; the details are cut to what's left of the line.
+        // The name and time always show; the details are cut to what's left of the line. The job whose log is shown
+        // has its name in colour, to match the log panel's title.
         var room = view.Width - job.Request.Project.Name.Length - elapsed.Length - 6;
-        return $"{StatusIcons.ForJob(job.Status, view.Frame)} [bold]{job.Request.Project.Name.EscapeMarkup()}[/] " +
+        var nameStyle = view.ShowLog && view.Live && job == view.LogJob ? $"bold {Widgets.PrimaryColorMarkup}" : "bold";
+        return $"{StatusIcons.ForJob(job.Status, view.Frame)} [{nameStyle}]{job.Request.Project.Name.EscapeMarkup()}[/] " +
                $"[dim]{Fit(details, room, view).EscapeMarkup()}[/]  [dim]{elapsed}[/]";
     }
 
@@ -209,10 +242,17 @@ internal static class DashboardLayout
 
     private static string ErrorLine(string error, DashboardView view) => $"    [red]{Fit(error, view.Width - 5, view).EscapeMarkup()}[/]";
 
-    private static string LogLine(string text, DashboardView view)
+    private const string LogGutter = "  │";
+
+    /// <summary>A log line, with errors in red and warnings in yellow so they stand out from the build output.</summary>
+    private static string LogLine(LogEntry entry, DashboardView view)
     {
-        const string prefix = "    │ ";
-        return $"[grey]{prefix}{DisplayText.Truncate(text, view.Width - prefix.Length - 1).EscapeMarkup()}[/]";
+        const string prefix = LogGutter + " ";
+        var color = entry.Source == LogSource.Error || entry.Text.Contains(": error ", StringComparison.Ordinal) ? "red"
+            : entry.Text.Contains(": warning ", StringComparison.Ordinal) ? "yellow"
+            : "grey";
+
+        return $"[grey]{prefix}[/][{color}]{DisplayText.Truncate(entry.Text, view.Width - prefix.Length - 1).EscapeMarkup()}[/]";
     }
 
     /// <summary>Cuts text to one line in the live view; the record after the run keeps it whole.</summary>

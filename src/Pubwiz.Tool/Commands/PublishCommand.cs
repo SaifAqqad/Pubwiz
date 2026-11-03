@@ -61,12 +61,12 @@ public sealed class PublishCommand(
         public bool IncludeAll { get; init; }
 
         [CommandOption("--show-log")]
-        [Description("Show the live build output while publishing (toggle with L)")]
+        [Description("Show the live build output while publishing (toggle with L, switch project with ←/→)")]
         public bool ShowLog { get; init; }
 
         [DefaultValue(10)]
         [CommandOption("--log-lines")]
-        [Description("How many lines of live output to show per project")]
+        [Description("How many lines of live output to show")]
         public int LogLines { get; init; }
 
         [CommandOption("--parallel")]
