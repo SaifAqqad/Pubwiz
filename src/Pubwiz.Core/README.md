@@ -28,9 +28,9 @@ The folders follow a publish from start to finish.
    | Folder | Publishes to | Also contains |
    |---|---|---|
    | `Folder/` | a folder, or a zip file | |
-   | `FileTransfer/` | FTP/FTPS and SFTP servers | the FTP and SFTP uploaders |
+   | `FileTransfer/` | FTP/FTPS and SFTP servers | the FTP and SFTP uploaders, SSH commands |
    | `WebDeploy/` | IIS, with `msdeploy.exe` (Windows) | the msdeploy wrapper, alternatives for other OSes |
-   | `Azure/` | App Service, Function Apps, WebJobs | the `az` wrapper, `Kudu/` (deploy API client) |
+   | `Azure/` | App Service, Function Apps, WebJobs, Static Web Apps | the `az` wrapper, `Kudu/` (deploy API client), `StaticWebApps/` (StaticSitesClient) |
    | `Containers/` | local images, tarballs, registries, Azure container hosts | the docker/podman wrapper |
    | `Maui/` | Android and iOS packages | keystore and Apple signing helpers |
 

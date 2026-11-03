@@ -68,8 +68,8 @@ Every list can be searched by typing. <kbd>Esc</kbd> or <kbd>Ctrl</kbd>+<kbd>C</
 ## Targets
 
 - **Local:** folder, zip file
-- **Servers:** IIS (Web Deploy, from Windows, Linux and macOS), FTP/FTPS, SFTP
-- **Azure:** App Service, Function Apps, WebJobs, Container Apps
+- **Servers:** IIS (Web Deploy, from Windows, Linux and macOS), FTP/FTPS, SFTP (with commands to run over SSH before and after uploading)
+- **Azure:** App Service, Function Apps, WebJobs, Container Apps, Static Web Apps (Blazor WebAssembly)
 - **Containers:** Docker/Podman, tarball, any registry
 - **Mobile:** Android (`.aab`, `.apk`), iOS (`.ipa`, macOS only)
 
@@ -189,6 +189,30 @@ else, with the same settings from the profile:
 
 The app is taken offline (`app_offline.htm`) while copying unless you pass `--no-app-offline`, and `--what-if` shows
 the changes without making them.
+
+## Linux and Windows servers over SSH
+
+SFTP profiles can run a command on the server before uploading and another one after, e.g. to stop and restart the
+app's service. The wizard asks for them; in a profile they're `PubwizSshPreDeployCommand` and `PubwizSshPostDeployCommand`:
+
+```xml
+<PubwizSshPreDeployCommand>sudo systemctl stop shop</PubwizSshPreDeployCommand>
+<PubwizSshPostDeployCommand>sudo systemctl restart shop</PubwizSshPostDeployCommand>
+```
+
+They use the same login as the upload and run in the server's own shell: bash or sh on Linux, cmd or PowerShell on
+Windows (whichever OpenSSH is set up with). `$(ProjectName)`, `$(Configuration)` and the other MSBuild variables are
+filled in first; anything else, like `$(whoami)`, is left for the shell. Their output goes to the log, and a non-zero
+exit code fails the publish. `sudo` can't ask for a password, so allow the command without one (`NOPASSWD` in sudoers).
+
+## Azure Static Web Apps
+
+Blazor WebAssembly apps can be deployed to a Static Web App without Node or the SWA CLI: Pubwiz does what `swa deploy`
+does. It gets the app's deployment token from `az`, downloads Microsoft's uploader (StaticSitesClient, checked against
+its published SHA-256 hash and shared with the SWA CLI in `~/.swa/deploy`), and uploads the site's files. When the app
+has no `staticwebapp.config.json`, one is added so that the app's routes work when opened directly. Set
+`PubwizStaticWebAppEnvironment` to deploy a preview environment instead of production. In CI without `az`, set
+`PubwizAzureAuthentication` to `DeploymentToken` and pass the token in `PUBWIZ_PASSWORD`.
 
 ## web.config transforms
 
