@@ -6,6 +6,27 @@ namespace Pubwiz.Tool.Rendering;
 internal static class PublishPlan
 {
     /// <summary>
+    /// The most projects we recommend publishing at the same time. Each one is a full build, so more than this tends
+    /// to make all of them slower on a typical machine, not faster.
+    /// </summary>
+    public const int RecommendedAtOnce = 4;
+
+    /// <summary>The tip shown when more than <see cref="RecommendedAtOnce"/> would be published at the same time (markup).</summary>
+    public static string TooManyAtOnceTip =>
+        $"[yellow]Tip:[/] [dim]each project is a full build, so more than {RecommendedAtOnce} at the same time tends to slow them all down. {RecommendedAtOnce} at a time is recommended.[/]";
+
+    /// <summary>
+    /// Whether a step would publish more than <see cref="RecommendedAtOnce"/> projects at the same time.
+    /// </summary>
+    /// <param name="steps">The step of each project.</param>
+    /// <param name="parallel">The limit on projects at once, if any.</param>
+    public static bool TooManyAtOnce(IEnumerable<int> steps, int? parallel)
+    {
+        var largestStep = steps.GroupBy(step => step).Select(step => step.Count()).DefaultIfEmpty(0).Max();
+        return Math.Min(largestStep, parallel ?? int.MaxValue) > RecommendedAtOnce;
+    }
+
+    /// <summary>
     /// The bracket that joins the rows of a step: <c>┌ ├ └</c> for a step of several projects, <c>─</c> for one alone.
     /// </summary>
     /// <param name="index">The row's place in its step (0 first).</param>

@@ -143,6 +143,7 @@ public sealed class OrderPrompt<T>(string title, IReadOnlyList<T> items, Func<T,
             grid,
             lastRow < state.Count ? new Markup("[dim]  ↓ more[/]") : Text.Empty,
             new Markup($"  [bold]{stepCount}:[/] {plan.EscapeMarkup()}"),
+            PublishPlan.TooManyAtOnce(steps, Parallel) ? new Markup($"  {PublishPlan.TooManyAtOnceTip}") : Text.Empty,
             Text.Empty,
             RenderKeys(state));
     }

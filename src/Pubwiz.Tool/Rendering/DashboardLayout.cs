@@ -20,7 +20,6 @@ internal enum DashboardDetail
 }
 
 /// <summary>What the dashboard is drawing right now.</summary>
-/// <param name="Frame">The animation step, for spinners.</param>
 /// <param name="ShowLog">Show the log panel (live view only).</param>
 /// <param name="LogLines">How many lines the log panel shows.</param>
 /// <param name="Width">The terminal width.</param>
@@ -30,7 +29,7 @@ internal enum DashboardDetail
 /// </param>
 /// <param name="LogJob">The job whose log the panel shows; <c>null</c> until a job starts.</param>
 /// <param name="CanSwitchLog">Whether there are other jobs to switch the log panel to.</param>
-internal sealed record DashboardView(int Frame, bool ShowLog, int LogLines, int Width, bool Live, PublishJob? LogJob = null, bool CanSwitchLog = false);
+internal sealed record DashboardView(bool ShowLog, int LogLines, int Width, bool Live, PublishJob? LogJob = null, bool CanSwitchLog = false);
 
 /// <summary>
 /// Turns the jobs into the dashboard's lines (markup, one terminal line each in the live view). A batch of many
@@ -274,7 +273,7 @@ internal static class DashboardLayout
             {
                 var label = $"{group.Count()} {Describe(group.Key)}: ";
                 var names = string.Join(", ", group.Select(j => j.Request.Project.Name));
-                return $"{StatusIcons.ForJob(group.Key, view.Frame)} {label.EscapeMarkup()}[dim]{Fit(names, view.Width - label.Length - 3, view).EscapeMarkup()}[/]";
+                return $"{StatusIcons.ForJob(group.Key, view.Live)} {label.EscapeMarkup()}[dim]{Fit(names, view.Width - label.Length - 3, view).EscapeMarkup()}[/]";
             })
             .ToList();
 
@@ -290,20 +289,22 @@ internal static class DashboardLayout
     private static string Header(PublishJob job, DashboardView view)
     {
         var target = job.TargetType is { } type ? PublishTargetCatalog.DisplayName(type) : "unsupported";
-        var elapsed = job.StartedAt is { } start ? StatusIcons.FormatDuration((job.FinishedAt ?? DateTimeOffset.Now) - start) : string.Empty;
+        var elapsed = job.StartedAt is not { } start ? string.Empty
+            : job.FinishedAt is { } end ? StatusIcons.FormatDuration(end - start)
+            : StatusIcons.FormatElapsed(DateTimeOffset.Now - start);
         var details = $"{job.Request.Profile.Name} · {target} · {job.Request.EffectiveConfiguration}";
 
         // The name and time always show; the details are cut to what's left of the line. The job whose log is shown
         // has its name in colour, to match the log panel's title.
         var room = view.Width - job.Request.Project.Name.Length - elapsed.Length - 6;
         var nameStyle = view.ShowLog && view.Live && job == view.LogJob ? $"bold {Widgets.PrimaryColorMarkup}" : "bold";
-        return $"{StatusIcons.ForJob(job.Status, view.Frame)} [{nameStyle}]{job.Request.Project.Name.EscapeMarkup()}[/] " +
+        return $"{StatusIcons.ForJob(job.Status, view.Live)} [{nameStyle}]{job.Request.Project.Name.EscapeMarkup()}[/] " +
                $"[dim]{Fit(details, room, view).EscapeMarkup()}[/]  [dim]{elapsed}[/]";
     }
 
     private static string StepLine(PublishStep step, DashboardView view)
     {
-        var line = $"  {StatusIcons.ForStep(step.Status, view.Frame)} {step.Name.EscapeMarkup()}";
+        var line = $"  {StatusIcons.ForStep(step.Status, view.Live)} {step.Name.EscapeMarkup()}";
 
         line += step.Status switch
         {

@@ -13,6 +13,7 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
 
     private enum Choice
     {
+        PublishRecommended,
         Publish,
         ChangeOrder,
         SaveAsPreset,
@@ -35,7 +36,8 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
         var orderChanged = false;
         while (true)
         {
-            List<Choice> choices = [Choice.Publish];
+            // More at once than recommended: the first (default) choice publishes 4 at a time instead.
+            List<Choice> choices = PublishPlan.TooManyAtOnce(batch.Steps, batch.Parallel) ? [Choice.PublishRecommended, Choice.Publish] : [Choice.Publish];
             if (batch.Selections.Count > 1)
             {
                 choices.Add(Choice.ChangeOrder);
@@ -58,6 +60,8 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
             {
                 choice = console.Choose(Question(batch), choices, c => c switch
                 {
+                    Choice.PublishRecommended => $"Publish now, {PublishPlan.RecommendedAtOnce} at a time [dim](recommended)[/]",
+                    Choice.Publish when choices.Contains(Choice.PublishRecommended) => "Publish now, with no limit",
                     Choice.Publish => "Publish now",
                     Choice.ChangeOrder => "Change the order",
                     Choice.SaveAsPreset => "Save this selection as a preset",
@@ -72,6 +76,9 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
 
             switch (choice)
             {
+                case Choice.PublishRecommended:
+                    return batch with { Parallel = PublishPlan.RecommendedAtOnce };
+
                 case Choice.Publish:
                     return batch;
 
@@ -162,6 +169,11 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets)
 
         console.Write(grid);
         console.MarkupLine($"  [dim]{Describe(batch).EscapeMarkup()}[/]");
+        if (PublishPlan.TooManyAtOnce(steps, batch.Parallel))
+        {
+            console.MarkupLine($"  {PublishPlan.TooManyAtOnceTip}");
+        }
+
         console.WriteLine();
     }
 
