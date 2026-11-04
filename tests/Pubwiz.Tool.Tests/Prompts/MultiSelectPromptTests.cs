@@ -170,4 +170,16 @@ public class MultiSelectPromptTests
 
         Assert.Equal("Worker", result!.Highlighted);
     }
+
+    [Fact]
+    public async Task SelectedSection_IsShownBeforeAnythingIsSelected()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Contains("Selected (0)", console.Output);
+        Assert.Contains("Nothing selected yet", console.Output);
+    }
 }

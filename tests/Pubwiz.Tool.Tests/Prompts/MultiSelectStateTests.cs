@@ -231,4 +231,16 @@ public class MultiSelectStateTests
         Assert.Equal(19, state.SelectedCursor);
         Assert.Equal(15, state.SelectedOffset);
     }
+
+    [Fact]
+    public void AlwaysShownSelectedSection_KeepsItsRowsWhileNothingIsSelected()
+    {
+        var state = new MultiSelectState(["A", "B"], [true, true], pageSize: 10, alwaysShowSelected: true);
+
+        Assert.True(state.ShowsSelected);
+        Assert.Equal(10 - 1 - MultiSelectState.SelectedChromeHeight, state.ListPageSize);
+
+        state.ToggleCursor();
+        Assert.Equal(10 - 1 - MultiSelectState.SelectedChromeHeight, state.ListPageSize);
+    }
 }

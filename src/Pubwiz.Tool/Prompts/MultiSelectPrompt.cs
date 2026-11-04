@@ -75,7 +75,8 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     {
         var searchTexts = items.Select(item => string.Join(' ', columns(item))).ToList();
         var headerHeight = Header is null && HeaderUpdate is null ? 0 : 2;
-        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - headerHeight, hasExitRow: ExitLabel is not null);
+        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - headerHeight,
+            hasExitRow: ExitLabel is not null, alwaysShowSelected: !SingleSelect);
         _header = Header;
 
         console.Cursor.Hide();
@@ -235,7 +236,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         }
 
         // Everything goes in one grid, so the selected section's columns line up with the list's.
-        if (state.Selected.Count > 0)
+        if (state.ShowsSelected)
         {
             var lastSelected = state.SelectedOffset + state.SelectedPageSize;
             var heading = $"Selected ({state.Selected.Count})"
@@ -245,6 +246,11 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
 
             grid.AddRow(Line(string.Empty, columnCount));
             grid.AddRow(Line($"[{headingStyle}]{heading}[/]", columnCount));
+            if (state.Selected.Count == 0)
+            {
+                grid.AddRow(Line("[dim]Nothing selected yet, press space to select[/]", columnCount));
+            }
+
             for (var row = state.SelectedOffset; row < lastSelected; row++)
             {
                 var isCursor = state.Focus == MultiSelectSection.Selected && row == state.SelectedCursor;

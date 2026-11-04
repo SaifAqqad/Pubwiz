@@ -21,6 +21,7 @@ public enum MultiSelectSection
 public sealed class MultiSelectState
 {
     /// <summary>Rows the selected section uses besides its items: a blank line and its heading.</summary>
+    /// <remarks>While nothing is selected, an always-shown section uses one more row for its placeholder.</remarks>
     public const int SelectedChromeHeight = 2;
 
     private readonly string[] _searchTexts;
@@ -34,7 +35,9 @@ public sealed class MultiSelectState
     /// <param name="selectable">One entry per item: whether it can be selected (unselectable items can still be highlighted).</param>
     /// <param name="pageSize">How many rows fit on screen at once, for both sections together.</param>
     /// <param name="hasExitRow">Adds an "Exit" row after the items.</param>
-    public MultiSelectState(IReadOnlyList<string> searchTexts, IReadOnlyList<bool> selectable, int pageSize, bool hasExitRow = false)
+    /// <param name="alwaysShowSelected">Keeps the selected section on screen while nothing is selected, so the list doesn't move.</param>
+    public MultiSelectState(IReadOnlyList<string> searchTexts, IReadOnlyList<bool> selectable, int pageSize, bool hasExitRow = false,
+        bool alwaysShowSelected = false)
     {
         if (searchTexts.Count == 0)
         {
@@ -52,11 +55,18 @@ public sealed class MultiSelectState
         _visible = _matches.ToList();
         PageSize = Math.Max(pageSize, 1);
         HasExitRow = hasExitRow;
+        AlwaysShowSelected = alwaysShowSelected;
     }
 
     public int PageSize { get; }
 
     public bool HasExitRow { get; }
+
+    /// <summary>The selected section is on screen while nothing is selected (with a placeholder row).</summary>
+    public bool AlwaysShowSelected { get; }
+
+    /// <summary>Whether the selected section is on screen.</summary>
+    public bool ShowsSelected => AlwaysShowSelected || _selectedRows.Count > 0;
 
     /// <summary>The search text; empty shows every item.</summary>
     public string Search { get; private set; } = string.Empty;
@@ -77,7 +87,7 @@ public sealed class MultiSelectState
     public int Offset { get; private set; }
 
     /// <summary>How many list rows fit on screen, after the selected section.</summary>
-    public int ListPageSize => Math.Max(PageSize - (SelectedPageSize > 0 ? SelectedPageSize + SelectedChromeHeight : 0), 1);
+    public int ListPageSize => Math.Max(PageSize - (ShowsSelected ? Math.Max(SelectedPageSize, 1) + SelectedChromeHeight : 0), 1);
 
     /// <summary>Selected item indexes, in list order, including items hidden by the search.</summary>
     public IReadOnlyList<int> Selected => _selectedRows;
