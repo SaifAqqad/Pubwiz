@@ -11,6 +11,12 @@ namespace Pubwiz.Core.Publishing;
 /// <param name="Profile">The saved profile to publish with.</param>
 public sealed record PublishRequest(ProjectInfo Project, PublishProfile Profile)
 {
+    /// <summary>
+    /// The step of the batch this project is published in (see <see cref="PublishOrder"/>): step 1 first, and
+    /// projects in the same step at the same time.
+    /// </summary>
+    public int Order { get; init; } = 1;
+
     /// <summary>Overrides the profile's build configuration when set.</summary>
     public string? Configuration { get; init; }
 

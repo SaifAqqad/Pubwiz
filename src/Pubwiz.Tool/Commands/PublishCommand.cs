@@ -70,7 +70,7 @@ public sealed class PublishCommand(
         public int LogLines { get; init; }
 
         [CommandOption("--parallel")]
-        [Description("How many projects to publish at the same time (default 1, or the preset's)")]
+        [Description("The most projects to publish at the same time (default: all the projects of a step, or the preset's)")]
         public int? Parallel { get; init; }
 
         [CommandOption("--no-app-offline")]
@@ -124,10 +124,12 @@ public sealed class PublishCommand(
         }
 
         var requests = await CreateRequestsAsync(batch, settings, interactive, cancellationToken);
-        var jobs = requests.Select(runner.CreateJob).ToList();
+
+        // Listed by step, so the dashboard and results show the batch in the order it's published.
+        var jobs = requests.OrderBy(r => r.Order).Select(runner.CreateJob).ToList();
 
         console.WriteLine();
-        await RunWithCtrlCAsync(jobs, batch.Parallel ?? 1, settings);
+        await RunWithCtrlCAsync(jobs, batch.Parallel ?? int.MaxValue, settings);
 
         results.WriteResults(jobs);
         WriteRequestedExports(jobs, settings);
@@ -194,14 +196,15 @@ public sealed class PublishCommand(
                 console.WriteLine();
             }
 
-            return !interactive || settings.Yes || confirmPage.Confirm(batch, "Cancel") ? batch : null;
+            return !interactive || settings.Yes ? batch : confirmPage.Confirm(batch, "Cancel");
         }
     }
 
     private async Task<List<PublishRequest>> CreateRequestsAsync(PublishBatch batch, Settings settings, bool interactive, CancellationToken cancellationToken)
     {
         var requests = new List<PublishRequest>();
-        foreach (var (project, profile) in batch.Selections)
+        var steps = batch.Steps;
+        foreach (var ((project, profile), step) in batch.Selections.Zip(steps))
         {
             // A job that can't run here fails straight away, so don't ask for its password.
             // With --yes (or no terminal), Web Deploy uses the profile's certificate setting.
@@ -209,6 +212,7 @@ public sealed class PublishCommand(
             requests.Add(new PublishRequest(project, profile)
             {
                 // Apps are taken offline unless --no-app-offline says otherwise (see PublishRequest.TakeAppOffline).
+                Order = step,
                 TakeAppOffline = settings.NoAppOffline ? false : null,
                 WhatIf = settings.WhatIf,
                 AllowUntrustedCertificate = ask ? await certificates.AskAsync(profile, cancellationToken) : null,

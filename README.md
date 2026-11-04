@@ -64,6 +64,8 @@ dotnet pubwiz
 
 <p align="center"><img src="assets/screenshots/choose-target.png" alt="Choosing a publish target, grouped into Local, Servers, Azure and Containers" width="820"></p>
 
+**With several projects, choose the order.** Each project gets a number: lower numbers are published first, and projects with the same number are published at the same time. Type a number (or use <kbd>←</kbd>/<kbd>→</kbd>) to move the highlighted project to that step, <kbd>A</kbd> puts everything at the same time, <kbd>O</kbd> one after another. The list stays sorted into steps, and the line below it says what will happen, e.g. *Api and Worker at the same time, then Web*. The confirm page shows the steps again and can **Change the order** before publishing.
+
 Every list can be searched by typing. <kbd>Esc</kbd> or <kbd>Ctrl</kbd>+<kbd>C</kbd> in the later steps goes back to the project list.
 
 **3. Watch it publish**, then export the logs or a report if you need them:
@@ -105,7 +107,7 @@ Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure
 | `--profile <NAME>` | The publish profile used with `--project`. |
 | `-y`, `--yes` | Don't ask for confirmation, and skip the menu after publishing. |
 | `--all` | Also list projects that normally aren't published (libraries, tests, Aspire AppHosts). |
-| `--parallel <N>` | How many projects to publish at the same time (default 1, or the preset's). The wizard asks when you pick several projects. Parallel jobs build in their own folder (`obj/pubwiz-build/<profile>`), so projects that share a library don't lock each other's files. |
+| `--parallel <N>` | The most projects to publish at the same time within a step (default: no limit, or the preset's). Without an order (`--project`), how many of them to publish at once (default 1). Parallel jobs build in their own folder (`obj/pubwiz-build/<profile>`), so projects that share a library don't lock each other's files. |
 | `--no-app-offline` | Keep IIS apps running while publishing. By default Web Deploy takes the app offline with `app_offline.htm` so locked files can be replaced (FTP/SFTP follow their profile). |
 | `--what-if` | Build, then only show what Web Deploy would change on the server (adds, updates, deletes), without deploying. Other targets fail with a message. |
 | `--show-log` | Show live build output while publishing (toggle with <kbd>L</kbd>; <kbd>←</kbd>/<kbd>→</kbd> switch between projects). |
@@ -125,10 +127,10 @@ Presets save a batch of projects and profiles, so the next publish is one comman
   "presets": {
     "release": {
       "configuration": "Release",
-      "parallel": 4,
       "projects": [
-        { "path": "src/Shop.Api/Shop.Api.csproj", "profile": "Production" },
-        { "path": "src/Shop.Worker/Shop.Worker.csproj", "profile": "Production-WebJob" }
+        { "path": "src/Shop.Api/Shop.Api.csproj", "profile": "Production", "order": 1 },
+        { "path": "src/Shop.Worker/Shop.Worker.csproj", "profile": "Production-WebJob", "order": 1 },
+        { "path": "src/Shop.Web/Shop.Web.csproj", "profile": "Production", "order": 2 }
       ]
     }
   }
@@ -138,6 +140,8 @@ Presets save a batch of projects and profiles, so the next publish is one comman
 ```bash
 dotnet pubwiz --preset release
 ```
+
+`order` works like in the wizard: Shop.Api and Shop.Worker are published at the same time, then Shop.Web once they're both done (even if one failed). Add `"parallel": 2` to publish at most 2 at a time within a step. Presets without `order` publish their projects one after another, or `parallel` at a time. Before publishing a preset, **Change the order** on the confirm page can save the new order back to it.
 
 When a `pubwiz.json` exists, the wizard also offers its presets before asking for projects.
 

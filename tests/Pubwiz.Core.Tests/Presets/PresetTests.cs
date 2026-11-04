@@ -30,6 +30,19 @@ public sealed class PresetTests : IDisposable
     }
 
     [Fact]
+    public void SaveThenLoad_KeepsTheOrderAndLeavesItOutWhenMissing()
+    {
+        var path = Path.Combine(_temp.Path, PresetFile.FileName);
+        var file = new PresetFile();
+        file.Presets["prod"] = new PublishPreset([new PresetProject("Api.csproj", "Prod", Order: 2), new PresetProject("Web.csproj", "Prod")]);
+
+        file.Save(path);
+
+        Assert.Equal([2, null], PresetFile.Load(path).Presets["prod"].Projects.Select(p => p.Order));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(path), "\"order\""));
+    }
+
+    [Fact]
     public void Load_AllowsCommentsAndTrailingCommas()
     {
         var path = _temp.CreateFile(PresetFile.FileName, """
@@ -87,7 +100,7 @@ public sealed class PresetTests : IDisposable
 
         var resolved = await _resolver.ResolveAsync(preset, _temp.Path, TestContext.Current.CancellationToken);
 
-        var (project, profile) = Assert.Single(resolved.Items);
+        var (project, profile, _) = Assert.Single(resolved.Items);
         Assert.Equal("Api", project.Name);
         Assert.Equal("Folder", profile.Name);
         Assert.False(resolved.IsValid);

@@ -6,14 +6,21 @@ namespace Pubwiz.Core.Presets;
 /// <summary>One project in a preset and the profile to publish it with.</summary>
 /// <param name="Path">The project file, relative to the preset file's folder.</param>
 /// <param name="Profile">The publish profile name.</param>
-public sealed record PresetProject(string Path, string Profile);
+/// <param name="Order">
+/// When it's published: lower numbers first, and projects with the same number at the same time
+/// (see <see cref="Publishing.PublishOrder"/>). Presets saved before orders existed have none.
+/// </param>
+public sealed record PresetProject(string Path, string Profile, int? Order = null);
 
 /// <summary>
 /// A saved batch: which projects to publish with which profiles, and how.
 /// </summary>
-/// <param name="Projects">The projects, published in this order.</param>
+/// <param name="Projects">The projects, published by their <see cref="PresetProject.Order"/> (or in this order when they have none).</param>
 /// <param name="Configuration">Overrides each profile's configuration when set.</param>
-/// <param name="Parallel">How many projects to publish at once (default 1).</param>
+/// <param name="Parallel">
+/// The most projects to publish at once within a step (default: all of the step). Without orders, how many projects
+/// to publish at once (default 1).
+/// </param>
 public sealed record PublishPreset(IReadOnlyList<PresetProject> Projects, string? Configuration = null, int? Parallel = null);
 
 /// <summary>
@@ -26,8 +33,11 @@ public sealed record PublishPreset(IReadOnlyList<PresetProject> Projects, string
 ///   "presets": {
 ///     "prod": {
 ///       "configuration": "Release",
-///       "parallel": 2,
-///       "projects": [ { "path": "src/Api/Api.csproj", "profile": "Prod" } ]
+///       "projects": [
+///         { "path": "src/Api/Api.csproj", "profile": "Prod", "order": 1 },
+///         { "path": "src/Worker/Worker.csproj", "profile": "Prod", "order": 1 },
+///         { "path": "src/Web/Web.csproj", "profile": "Prod", "order": 2 }
+///       ]
 ///     }
 ///   }
 /// }

@@ -69,6 +69,10 @@ internal static class DashboardLayout
     internal static string ProgressLine(IReadOnlyList<PublishJob> jobs)
     {
         var parts = new List<string> { $"{jobs.Count(j => j.IsFinished)}/{jobs.Count} done" };
+        if (CurrentStep(jobs) is { } step)
+        {
+            parts.Insert(0, $"step {step.Number}/{step.Count}");
+        }
 
         var failed = jobs.Count(j => j.Status == JobStatus.Failed);
         if (failed > 0)
@@ -99,16 +103,40 @@ internal static class DashboardLayout
         var lines = new List<string>();
         var summarize = detail >= DashboardDetail.Summarized;
 
+        // A batch published in several steps shows them: a heading per step, or just the current step when summarized.
+        var stepCount = jobs.Select(j => j.Request.Order).Distinct().Count();
+        if (summarize && CurrentStep(jobs) is { } current)
+        {
+            AddSection(lines, [$"[{Widgets.PrimaryColorMarkup} bold]Step {current.Number} of {current.Count}[/]"]);
+        }
+
         if (summarize)
         {
             AddSection(lines, SummaryLines(jobs.Where(j => j.IsFinished), view));
         }
 
+        int? shownStep = null;
         foreach (var job in jobs)
         {
+            var afterHeading = false;
+            if (stepCount > 1 && !summarize && job.Request.Order != shownStep)
+            {
+                shownStep = job.Request.Order;
+                AddSection(lines, [StepHeading(jobs, job.Request.Order, stepCount)]);
+                afterHeading = true;
+            }
+
             if (job.Status == JobStatus.Running || detail == DashboardDetail.Full)
             {
-                AddSection(lines, JobLines(job, view, currentStepOnly: detail == DashboardDetail.Minimal));
+                var jobLines = JobLines(job, view, currentStepOnly: detail == DashboardDetail.Minimal);
+                if (afterHeading)
+                {
+                    lines.AddRange(jobLines);
+                }
+                else
+                {
+                    AddSection(lines, jobLines);
+                }
             }
             else if (detail == DashboardDetail.RunningExpanded)
             {
@@ -133,6 +161,29 @@ internal static class DashboardLayout
         }
 
         return lines;
+    }
+
+    /// <summary>The step that's publishing (the first with unfinished jobs), when the batch has several steps.</summary>
+    private static (int Number, int Count)? CurrentStep(IReadOnlyList<PublishJob> jobs)
+    {
+        var steps = jobs.Select(j => j.Request.Order).Distinct().Order().ToList();
+        if (steps.Count < 2 || jobs.Where(j => !j.IsFinished).Select(j => (int?)j.Request.Order).Min() is not { } current)
+        {
+            return null;
+        }
+
+        return (steps.IndexOf(current) + 1, steps.Count);
+    }
+
+    /// <summary>e.g. "Step 1 of 2 · 3 at the same time", in colour while it's publishing.</summary>
+    private static string StepHeading(IReadOnlyList<PublishJob> jobs, int order, int stepCount)
+    {
+        var members = jobs.Where(j => j.Request.Order == order).ToList();
+        var number = jobs.Select(j => j.Request.Order).Distinct().Order().ToList().IndexOf(order) + 1;
+        var style = members.Any(j => j.Status == JobStatus.Running) ? $"{Widgets.PrimaryColorMarkup} bold"
+            : members.All(j => j.IsFinished) ? "dim" : "bold";
+        var together = members.Count > 1 ? $" [dim]· {members.Count} at the same time[/]" : string.Empty;
+        return $"[{style}]Step {number} of {stepCount}[/]{together}";
     }
 
     /// <summary>Adds a group of lines with a blank line between it and what came before.</summary>
