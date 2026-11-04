@@ -156,7 +156,7 @@ public sealed class DashboardLayoutTests : IAsyncLifetime
         Assert.Same(_jobs[5], focus.Current(_jobs));
     }
 
-    private static DashboardView LiveView(bool showLog = false) => new(Frame: 0, showLog, LogLines: 3, Width, Live: true);
+    private static DashboardView LiveView(bool showLog = false) => new(showLog, LogLines: 3, Width, Live: true);
 
     private static string Plain(string markup) => Markup.Remove(markup);
 

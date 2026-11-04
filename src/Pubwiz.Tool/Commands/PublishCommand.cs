@@ -70,7 +70,7 @@ public sealed class PublishCommand(
         public int LogLines { get; init; }
 
         [CommandOption("--parallel")]
-        [Description("The most projects to publish at the same time (default: all the projects of a step, or the preset's)")]
+        [Description("The most projects to publish at the same time (default: all the projects of a step, or the preset's). 4 is recommended")]
         public int? Parallel { get; init; }
 
         [CommandOption("--no-app-offline")]
