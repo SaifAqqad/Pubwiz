@@ -228,14 +228,12 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         var unicode = console.Profile.Capabilities.Unicode;
         var columnCount = columns(items[0]).Count;
 
-        var grid = new Grid();
-        grid.AddColumn(new GridColumn().NoWrap().PadRight(1));
-        for (var i = 0; i < columnCount; i++)
-        {
-            grid.AddColumn(new GridColumn().NoWrap().PadRight(3));
-        }
+        // The sections are separate grids with the same fixed column widths, so they line up, and the lines between
+        // them (headings, "more", messages) are drawn outside the grids, so a long message can't stretch a column.
+        var widths = ColumnWidths(console, columnCount, unicode);
+        var body = new List<IRenderable>();
+        Grid? grid = null;
 
-        // Everything goes in one grid, so the selected section's columns line up with the list's.
         if (state.ShowsSelected)
         {
             var lastSelected = state.SelectedOffset + state.SelectedPageSize;
@@ -244,27 +242,27 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
                 + (lastSelected < state.Selected.Count ? " ↓" : "");
             var headingStyle = state.Focus == MultiSelectSection.Selected ? $"{Widgets.PrimaryColorMarkup} bold" : "bold";
 
-            grid.AddRow(Line(string.Empty, columnCount));
-            grid.AddRow(Line($"[{headingStyle}]{heading}[/]", columnCount));
+            AddLine(string.Empty);
+            AddLine($"[{headingStyle}]{heading}[/]");
             if (state.Selected.Count == 0)
             {
-                grid.AddRow(Line("[dim]Nothing selected yet, press space to select[/]", columnCount));
+                AddLine("[dim]Nothing selected yet, press space to select[/]");
             }
 
             for (var row = state.SelectedOffset; row < lastSelected; row++)
             {
                 var isCursor = state.Focus == MultiSelectSection.Selected && row == state.SelectedCursor;
-                grid.AddRow(RenderItem(state.Selected[row], state, isCursor, unicode));
+                AddRow(RenderItem(state.Selected[row], state, isCursor, unicode));
             }
         }
 
-        grid.AddRow(Line(state.Offset > 0 ? "[dim]↑ more[/]" : string.Empty, columnCount));
+        AddLine(state.Offset > 0 ? "[dim]↑ more[/]" : string.Empty);
         if (state.VisibleItems.Count == 0)
         {
             var empty = state.Search.Length == 0
                 ? "Everything is selected"
                 : $"Nothing {(state.Selected.Count > 0 ? "else " : "")}matches '{state.Search.EscapeMarkup()}'";
-            grid.AddRow(Line($"[dim]{empty}[/]", columnCount));
+            AddLine($"[dim]{empty}[/]");
         }
 
         var listFocused = state.Focus == MultiSelectSection.List;
@@ -272,12 +270,12 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         for (var row = state.Offset; row < lastRow; row++)
         {
             var isCursor = listFocused && row == state.Cursor;
-            grid.AddRow(row < state.VisibleItems.Count
+            AddRow(row < state.VisibleItems.Count
                 ? RenderItem(state.VisibleItems[row], state, isCursor, unicode)
                 : RenderExitRow(columnCount, isCursor, unicode));
         }
 
-        grid.AddRow(Line(lastRow < state.RowCount ? "[dim]↓ more[/]" : string.Empty, columnCount));
+        AddLine(lastRow < state.RowCount ? "[dim]↓ more[/]" : string.Empty);
 
         var rows = new List<IRenderable>();
         if (_header is not null)
@@ -286,18 +284,66 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             rows.Add(new Text(string.Empty));
         }
 
-        rows.AddRange([new Markup(title), RenderSearch(state), grid, RenderKeys(state)]);
+        rows.AddRange([new Markup(title), RenderSearch(state), .. body, RenderKeys(state)]);
         if (Hint is not null)
         {
             rows.Add(new Markup($"[dim]{Hint}[/]"));
         }
 
         return new Rows(rows);
+
+        void AddRow(IRenderable[] cells)
+        {
+            if (grid is null)
+            {
+                grid = new Grid();
+                for (var i = 0; i < widths.Length; i++)
+                {
+                    grid.AddColumn(new GridColumn().NoWrap().Width(widths[i]).PadRight(i == 0 ? 1 : 3));
+                }
+
+                body.Add(grid);
+            }
+
+            grid.AddRow(cells);
+        }
+
+        // A line of markup lined up with the names (empty for a blank line); the next item row starts a new grid.
+        void AddLine(string markup)
+        {
+            grid = null;
+            body.Add(markup.Length == 0 ? Text.Empty : new Markup(new string(' ', widths[0] + 1) + markup));
+        }
     }
 
-    /// <summary>A grid row with <paramref name="markup"/> in the name column and the other cells empty.</summary>
-    private static Markup[] Line(string markup, int columnCount) =>
-        [new Markup(string.Empty), new Markup(markup), .. Enumerable.Range(0, columnCount - 1).Select(_ => new Markup(string.Empty))];
+    /// <summary>
+    /// The width of each grid column: the pointer and checkbox, then the widest text of each column over all the items
+    /// (and the exit row), so the columns don't move while searching or selecting.
+    /// </summary>
+    private int[] ColumnWidths(IAnsiConsole console, int columnCount, bool unicode)
+    {
+        var options = RenderOptions.Create(console);
+        int Measure(string text) => ((IRenderable)new Text(text)).Measure(options, int.MaxValue).Max;
+
+        var widths = new int[columnCount + 1];
+        widths[0] = SingleSelect ? 1 : unicode ? 3 : 5; // "❯", "❯ ◉" or "> [x]"
+        foreach (var item in items)
+        {
+            var cells = columns(item);
+            for (var i = 0; i < columnCount; i++)
+            {
+                widths[i + 1] = Math.Max(widths[i + 1], Measure(cells[i]));
+            }
+        }
+
+        if (ExitLabel is not null)
+        {
+            var icon = unicode ? ExitIcon.Unicode : ExitIcon.Ascii;
+            widths[1] = Math.Max(widths[1], Measure(SingleSelect ? $"{icon} {ExitLabel}" : ExitLabel));
+        }
+
+        return widths.Select(width => Math.Max(width, 1)).ToArray();
+    }
 
     private static Markup RenderSearch(MultiSelectState state) => state.Search.Length == 0
         ? new Markup("[dim]  Type to search[/]")

@@ -182,4 +182,30 @@ public class MultiSelectPromptTests
         Assert.Contains("Selected (0)", console.Output);
         Assert.Contains("Nothing selected yet", console.Output);
     }
+
+    [Fact]
+    public async Task ThePlaceholderLineDoesNotWidenTheNameColumn()
+    {
+        var console = CreateConsole();
+        console.Profile.Width = 120;
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        await new MultiSelectPrompt<string>("Pick projects", Projects, name => [name, "detail"]).ShowAsync(console, TestContext.Current.CancellationToken);
+
+        // The name column is as wide as "Worker", not as the "Nothing selected yet" line.
+        Assert.Matches(@"Api {6}detail", console.Output);
+    }
+
+    [Fact]
+    public async Task CtrlAThenEnter_ConfirmsEverythingInsteadOfExiting()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(CtrlA);
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var prompt = new MultiSelectPrompt<string>("Pick projects", Projects, name => [name]) { ExitLabel = "Exit" };
+        var result = await prompt.ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Api", "Worker", "Web"], result!.Selected);
+    }
 }

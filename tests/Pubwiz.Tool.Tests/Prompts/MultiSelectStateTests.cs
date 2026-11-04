@@ -226,7 +226,7 @@ public class MultiSelectStateTests
         Assert.Equal(5, state.SelectedPageSize);
         Assert.Equal(10 - 5 - MultiSelectState.SelectedChromeHeight, state.ListPageSize);
 
-        state.SwitchSection();
+        Assert.Equal(MultiSelectSection.Selected, state.Focus); // everything is selected, so the list is empty
         state.MoveToEnd();
         Assert.Equal(19, state.SelectedCursor);
         Assert.Equal(15, state.SelectedOffset);
@@ -242,5 +242,28 @@ public class MultiSelectStateTests
 
         state.ToggleCursor();
         Assert.Equal(10 - 1 - MultiSelectState.SelectedChromeHeight, state.ListPageSize);
+    }
+
+    [Fact]
+    public void SelectingEverything_MovesTheCursorOffTheExitRow()
+    {
+        var state = Create(3, hasExitRow: true);
+
+        state.ToggleAll();
+
+        Assert.False(state.IsOnExitRow);
+        Assert.Equal(MultiSelectSection.Selected, state.Focus);
+    }
+
+    [Fact]
+    public void SelectingTheLastListedItem_MovesTheCursorToTheSelection()
+    {
+        var state = Create(2, hasExitRow: true);
+        state.ToggleCursor();
+
+        state.ToggleCursor();
+
+        Assert.Equal(MultiSelectSection.Selected, state.Focus);
+        Assert.Equal([0, 1], state.Selected);
     }
 }

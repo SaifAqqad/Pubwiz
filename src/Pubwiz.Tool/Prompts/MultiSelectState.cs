@@ -283,6 +283,13 @@ public sealed class MultiSelectState
         else
         {
             SelectedCursor = Math.Min(SelectedCursor, _selectedRows.Count - 1);
+
+            // With every item selected, the list holds only the exit row; leaving the cursor there would make
+            // Enter exit instead of confirming the selection.
+            if (_visible.Count == 0)
+            {
+                Focus = MultiSelectSection.Selected;
+            }
         }
 
         KeepCursorsVisible();

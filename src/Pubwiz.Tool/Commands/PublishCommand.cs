@@ -45,7 +45,7 @@ public sealed class PublishCommand(
         public string? PresetFile { get; init; }
 
         [CommandOption("--project <NAME>")]
-        [Description("Publish this project (name or .csproj path) without the wizard; repeatable. Needs --profile")]
+        [Description("Publish this project (name or .csproj path) without the wizard; repeatable. Add :N for its order, e.g. Api:1 (the same number publishes at the same time). Needs --profile")]
         public string[] Projects { get; init; } = [];
 
         [CommandOption("--profile <NAME>")]
