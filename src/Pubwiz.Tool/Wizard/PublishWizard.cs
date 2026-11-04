@@ -118,11 +118,21 @@ public sealed class PublishWizard(
                 return null;
             }
 
-            var parallel = options.Parallel ?? (projects.Count > 1 ? AskParallelism(projects.Count) : null);
-            var batch = new PublishBatch(selections, Parallel: parallel, PresetFilePath: presetFilePath);
-            if (options.Confirm && !confirmPage.Confirm(batch, "Cancel [dim]· back to the projects[/]"))
+            // Everything at the same time to start with; the order list changes that.
+            var batch = new PublishBatch(selections.Select(s => s with { Order = 1 }).ToList(), Parallel: options.Parallel, PresetFilePath: presetFilePath);
+            if (selections.Count > 1)
             {
-                return null;
+                batch = confirmPage.ChooseOrder(batch);
+            }
+
+            if (options.Confirm)
+            {
+                if (confirmPage.Confirm(batch, "Cancel [dim]· back to the projects[/]") is not { } confirmed)
+                {
+                    return null;
+                }
+
+                batch = confirmed;
             }
 
             // Asked here rather than when publishing, so Esc or Ctrl+C in these prompts also goes back to the projects.
@@ -192,20 +202,6 @@ public sealed class PublishWizard(
         }
 
         return projects.Select((project, i) => new PublishSelection(project, chosen[i]!)).ToList();
-    }
-
-    /// <summary>Asks how many of the picked projects to publish at the same time, all of them first.</summary>
-    /// <exception cref="PromptCancelledException">Esc was pressed.</exception>
-    private int AskParallelism(int projectCount)
-    {
-        console.WriteLine();
-        var choices = Enumerable.Range(1, projectCount).Reverse();
-        return console.Choose("Publish in parallel?", choices, count => count switch
-        {
-            1 => "No, one at a time",
-            _ when count == projectCount => $"Yes, all {count} at once",
-            _ => $"{count} at a time"
-        });
     }
 
     private static IReadOnlyList<string> ProjectColumns(ProjectInfo project) =>

@@ -149,7 +149,7 @@ public static class Questions
     }
 
     /// <summary>A list disappears once answered, so its answer is written the way text answers look.</summary>
-    private static void WriteAnswer(IAnsiConsole console, string question, string answerMarkup)
+    internal static void WriteAnswer(IAnsiConsole console, string question, string answerMarkup)
     {
         var separator = question.EndsWith('?') ? " " : ": ";
         console.MarkupLine($"[bold]{question.EscapeMarkup()}[/]{separator}[{Widgets.PrimaryColorMarkup}]{Markup.Remove(answerMarkup).EscapeMarkup()}[/]");

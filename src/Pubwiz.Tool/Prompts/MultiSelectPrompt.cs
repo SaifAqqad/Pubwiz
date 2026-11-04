@@ -15,8 +15,10 @@ public sealed record MultiSelectResult<T>(IReadOnlyList<T> Selected, T Highlight
 /// <remarks>
 /// Spectre's <see cref="MultiSelectionPrompt{T}"/> can't say which item was highlighted when Enter is pressed
 /// with nothing selected, and can't search. Pubwiz uses that case to mean "just this one", so it needs its own prompt.
-/// Keys: ↑/↓ move, PgUp/PgDn/Home/End jump, Space toggles, Ctrl+A toggles all (or all matches), Enter confirms,
-/// typing searches, Backspace edits the search, Esc clears the search, then exits or cancels.
+/// Selected items move to a section above the list, and the cursor stays on the next item.
+/// Keys: ↑/↓ move, PgUp/PgDn/Home/End jump, Space toggles, Ctrl+A toggles all (or all matches), Tab moves between
+/// the list and the selected items, Enter confirms, typing searches, Backspace edits the search,
+/// Esc clears the search, then leaves the selected items, then exits or cancels.
 /// </remarks>
 public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, Func<T, IReadOnlyList<string>> columns) : IPrompt<MultiSelectResult<T>?>
     where T : notnull
@@ -73,7 +75,8 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     {
         var searchTexts = items.Select(item => string.Join(' ', columns(item))).ToList();
         var headerHeight = Header is null && HeaderUpdate is null ? 0 : 2;
-        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - headerHeight, hasExitRow: ExitLabel is not null);
+        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - headerHeight,
+            hasExitRow: ExitLabel is not null, alwaysShowSelected: !SingleSelect);
         _header = Header;
 
         console.Cursor.Hide();
@@ -132,16 +135,19 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
                 state.Move(1);
                 break;
             case ConsoleKey.PageUp:
-                state.MoveTo(state.Cursor - state.PageSize);
+                state.MovePage(-1);
                 break;
             case ConsoleKey.PageDown:
-                state.MoveTo(state.Cursor + state.PageSize);
+                state.MovePage(1);
                 break;
             case ConsoleKey.Home:
                 state.MoveTo(0);
                 break;
             case ConsoleKey.End:
-                state.MoveTo(state.RowCount - 1);
+                state.MoveToEnd();
+                break;
+            case ConsoleKey.Tab:
+                state.SwitchSection();
                 break;
             case ConsoleKey.Spacebar when SingleSelect:
                 state.SetSearch(state.Search + ' ');
@@ -163,6 +169,9 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
                 return TryConfirm(state, out result);
             case ConsoleKey.Escape when state.Search.Length > 0:
                 state.SetSearch(string.Empty);
+                break;
+            case ConsoleKey.Escape when state.Focus == MultiSelectSection.Selected:
+                state.SwitchSection();
                 break;
             case ConsoleKey.Escape when state.HasExitRow && EscapeChoosesExitRow:
                 return true;
@@ -219,20 +228,54 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         var unicode = console.Profile.Capabilities.Unicode;
         var columnCount = columns(items[0]).Count;
 
-        var grid = new Grid();
-        grid.AddColumn(new GridColumn().NoWrap().PadRight(1));
-        for (var i = 0; i < columnCount; i++)
+        // The sections are separate grids with the same fixed column widths, so they line up, and the lines between
+        // them (headings, "more", messages) are drawn outside the grids, so a long message can't stretch a column.
+        var widths = ColumnWidths(console, columnCount, unicode);
+        var body = new List<IRenderable>();
+        Grid? grid = null;
+
+        if (state.ShowsSelected)
         {
-            grid.AddColumn(new GridColumn().NoWrap().PadRight(3));
+            var lastSelected = state.SelectedOffset + state.SelectedPageSize;
+            var heading = $"Selected ({state.Selected.Count})"
+                + (state.SelectedOffset > 0 ? " ↑" : "")
+                + (lastSelected < state.Selected.Count ? " ↓" : "");
+            var headingStyle = state.Focus == MultiSelectSection.Selected ? $"{Widgets.PrimaryColorMarkup} bold" : "bold";
+
+            AddLine(string.Empty);
+            AddLine($"[{headingStyle}]{heading}[/]");
+            if (state.Selected.Count == 0)
+            {
+                AddLine("[dim]Nothing selected yet, press space to select[/]");
+            }
+
+            for (var row = state.SelectedOffset; row < lastSelected; row++)
+            {
+                var isCursor = state.Focus == MultiSelectSection.Selected && row == state.SelectedCursor;
+                AddRow(RenderItem(state.Selected[row], state, isCursor, unicode));
+            }
         }
 
-        var lastRow = Math.Min(state.Offset + state.PageSize, state.RowCount);
+        AddLine(state.Offset > 0 ? "[dim]↑ more[/]" : string.Empty);
+        if (state.VisibleItems.Count == 0)
+        {
+            var empty = state.Search.Length == 0
+                ? "Everything is selected"
+                : $"Nothing {(state.Selected.Count > 0 ? "else " : "")}matches '{state.Search.EscapeMarkup()}'";
+            AddLine($"[dim]{empty}[/]");
+        }
+
+        var listFocused = state.Focus == MultiSelectSection.List;
+        var lastRow = Math.Min(state.Offset + state.ListPageSize, state.RowCount);
         for (var row = state.Offset; row < lastRow; row++)
         {
-            grid.AddRow(row < state.VisibleItems.Count
-                ? RenderItem(state.VisibleItems[row], state, isCursor: row == state.Cursor, unicode)
-                : RenderExitRow(columnCount, isCursor: row == state.Cursor, unicode));
+            var isCursor = listFocused && row == state.Cursor;
+            AddRow(row < state.VisibleItems.Count
+                ? RenderItem(state.VisibleItems[row], state, isCursor, unicode)
+                : RenderExitRow(columnCount, isCursor, unicode));
         }
+
+        AddLine(lastRow < state.RowCount ? "[dim]↓ more[/]" : string.Empty);
 
         var rows = new List<IRenderable>();
         if (_header is not null)
@@ -241,22 +284,65 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             rows.Add(new Text(string.Empty));
         }
 
-        rows.AddRange([new Markup(title), RenderSearch(state)]);
-        rows.Add(state.Offset > 0 ? new Markup("[dim]  ↑ more[/]") : new Text(string.Empty));
-        if (state.VisibleItems.Count == 0)
-        {
-            rows.Add(new Markup($"[dim]  Nothing matches '{state.Search.EscapeMarkup()}'[/]"));
-        }
-
-        rows.Add(grid);
-        rows.Add(lastRow < state.RowCount ? new Markup("[dim]  ↓ more[/]") : new Text(string.Empty));
-        rows.Add(RenderKeys(state));
+        rows.AddRange([new Markup(title), RenderSearch(state), .. body, RenderKeys(state)]);
         if (Hint is not null)
         {
             rows.Add(new Markup($"[dim]{Hint}[/]"));
         }
 
         return new Rows(rows);
+
+        void AddRow(IRenderable[] cells)
+        {
+            if (grid is null)
+            {
+                grid = new Grid();
+                for (var i = 0; i < widths.Length; i++)
+                {
+                    grid.AddColumn(new GridColumn().NoWrap().Width(widths[i]).PadRight(i == 0 ? 1 : 3));
+                }
+
+                body.Add(grid);
+            }
+
+            grid.AddRow(cells);
+        }
+
+        // A line of markup lined up with the names (empty for a blank line); the next item row starts a new grid.
+        void AddLine(string markup)
+        {
+            grid = null;
+            body.Add(markup.Length == 0 ? Text.Empty : new Markup(new string(' ', widths[0] + 1) + markup));
+        }
+    }
+
+    /// <summary>
+    /// The width of each grid column: the pointer and checkbox, then the widest text of each column over all the items
+    /// (and the exit row), so the columns don't move while searching or selecting.
+    /// </summary>
+    private int[] ColumnWidths(IAnsiConsole console, int columnCount, bool unicode)
+    {
+        var options = RenderOptions.Create(console);
+        int Measure(string text) => ((IRenderable)new Text(text)).Measure(options, int.MaxValue).Max;
+
+        var widths = new int[columnCount + 1];
+        widths[0] = SingleSelect ? 1 : unicode ? 3 : 5; // "❯", "❯ ◉" or "> [x]"
+        foreach (var item in items)
+        {
+            var cells = columns(item);
+            for (var i = 0; i < columnCount; i++)
+            {
+                widths[i + 1] = Math.Max(widths[i + 1], Measure(cells[i]));
+            }
+        }
+
+        if (ExitLabel is not null)
+        {
+            var icon = unicode ? ExitIcon.Unicode : ExitIcon.Ascii;
+            widths[1] = Math.Max(widths[1], Measure(SingleSelect ? $"{icon} {ExitLabel}" : ExitLabel));
+        }
+
+        return widths.Select(width => Math.Max(width, 1)).ToArray();
     }
 
     private static Markup RenderSearch(MultiSelectState state) => state.Search.Length == 0
@@ -312,13 +398,20 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     private Markup RenderKeys(MultiSelectState state)
     {
         var escape = state.Search.Length > 0 ? "clear search" : state.HasExitRow && EscapeChoosesExitRow ? "exit" : SingleSelect ? "back" : "cancel";
+        var inSelected = state.Focus == MultiSelectSection.Selected;
+        if (inSelected && state.Search.Length == 0)
+        {
+            escape = "back to list";
+        }
+
         (string Key, string Action)[] keys = SingleSelect
             ? [("↑/↓", "move"), ("enter", "choose"), ("esc", escape)]
             :
         [
             ("↑/↓", "move"),
-            ("space", "select"),
+            ("space", inSelected ? "unselect" : "select"),
             ("ctrl+a", state.Search.Length > 0 ? "select matches" : "select all"),
+            .. state.Selected.Count > 0 ? [("tab", inSelected ? "back to list" : "go to selected")] : Array.Empty<(string, string)>(),
             ("enter", "confirm"),
             ("esc", escape)
         ];

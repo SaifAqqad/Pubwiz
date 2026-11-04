@@ -45,16 +45,27 @@ public sealed class PublishRunner(IEnumerable<IPublishTarget> targets)
     }
 
     /// <summary>
-    /// Runs the jobs. Failures are recorded on each job instead of being thrown.
+    /// Runs the jobs step by step (<see cref="PublishRequest.Order"/>): the jobs of a step run at the same time, and
+    /// the next step starts when they're all finished. Failures are recorded on each job instead of being thrown,
+    /// and don't stop the later steps.
     /// </summary>
-    /// <param name="maxParallelism">How many jobs run at the same time (1 = one after another).</param>
+    /// <param name="maxParallelism">How many jobs of a step run at the same time at most (1 = one after another).</param>
     public async Task RunAsync(IReadOnlyList<PublishJob> jobs, int maxParallelism, CancellationToken cancellationToken)
     {
-        var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, maxParallelism) };
-        var isolateBuilds = BuildIsolation.IsNeeded(jobs.Count, maxParallelism);
+        if (jobs.Count == 0)
+        {
+            return;
+        }
 
-        // The token isn't passed to ForEachAsync: cancelling must still let every job mark itself as cancelled.
-        await Parallel.ForEachAsync(jobs, options, async (job, _) => await RunJobAsync(job, isolateBuilds, cancellationToken));
+        var options = new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, maxParallelism) };
+        var steps = jobs.GroupBy(j => j.Request.Order).OrderBy(step => step.Key).Select(step => step.ToList()).ToList();
+        var isolateBuilds = BuildIsolation.IsNeeded(steps.Max(step => step.Count), maxParallelism);
+
+        foreach (var step in steps)
+        {
+            // The token isn't passed to ForEachAsync: cancelling must still let every job mark itself as cancelled.
+            await Parallel.ForEachAsync(step, options, async (job, _) => await RunJobAsync(job, isolateBuilds, cancellationToken));
+        }
     }
 
     private static async Task RunJobAsync(PublishJob job, bool isolateBuild, CancellationToken cancellationToken)

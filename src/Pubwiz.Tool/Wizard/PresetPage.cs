@@ -1,16 +1,30 @@
 using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Presets;
+using Pubwiz.Core.Publishing;
 using Pubwiz.Tool.Rendering;
 using Pubwiz.Tool.Infrastructure;
 
 namespace Pubwiz.Tool.Wizard;
 
 /// <summary>The projects to publish and the batch options, however they were chosen.</summary>
-/// <param name="Selections">Projects with their profiles.</param>
+/// <param name="Selections">Projects with their profiles and orders.</param>
 /// <param name="Configuration">A configuration override from a preset.</param>
-/// <param name="Parallel">A parallelism setting from a preset.</param>
+/// <param name="Parallel">The most projects to publish at the same time in a step, from a preset or <c>--parallel</c>.</param>
 /// <param name="PresetFilePath">Where the selection can be saved as a preset; <c>null</c> when it came from a preset or the command line.</param>
-public sealed record PublishBatch(IReadOnlyList<PublishSelection> Selections, string? Configuration = null, int? Parallel = null, string? PresetFilePath = null);
+/// <param name="Preset">The preset it came from, whose order can be updated from the confirm page.</param>
+public sealed record PublishBatch(IReadOnlyList<PublishSelection> Selections, string? Configuration = null, int? Parallel = null, string? PresetFilePath = null,
+    PresetSource? Preset = null)
+{
+    /// <summary>The step each selection is published in (1, 2, ... without gaps), in selection order.</summary>
+    public IReadOnlyList<int> Steps => PublishOrder.ToSteps(Selections.Select(s => s.Order).ToList(), Parallel);
+
+    /// <summary>The same batch with these orders (one per selection, in selection order).</summary>
+    public PublishBatch WithOrders(IReadOnlyList<int> orders) =>
+        this with { Selections = Selections.Select((selection, i) => selection with { Order = orders[i] }).ToList() };
+}
+
+/// <summary>A preset in a preset file.</summary>
+public sealed record PresetSource(string Name, string FilePath);
 
 /// <summary>
 /// Runs and saves batch presets (<c>pubwiz.json</c>).
@@ -58,7 +72,7 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         var choice = console.Prompt(Questions.Menu<string>("Run a saved preset?")
             .AddChoices(file.Presets.Keys.Order())
             .AddChoices(chooseProjects)
-            .UseConverter(name => name == chooseProjects ? "[dim]No, choose projects[/]" : $"{name.EscapeMarkup()} [dim]({DescribeProjects(file.Presets[name])})[/]"));
+            .UseConverter(name => name == chooseProjects ? "[dim]No, choose projects[/]" : $"{name.EscapeMarkup()} [dim]({DescribeProjects(file.Presets[name]).EscapeMarkup()})[/]"));
 
         return choice == chooseProjects ? null : await ResolveAsync(choice, file.Presets[choice], filePath, cancellationToken);
     }
@@ -82,8 +96,10 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
     /// <param name="selections">The projects and profiles to save.</param>
     /// <param name="filePath">From <see cref="GetPresetFilePath"/>.</param>
     /// <param name="suggestedName">The default name, if any.</param>
-    /// <param name="parallel">How many projects to publish at the same time; not saved when it's one at a time.</param>
-    public void Save(IReadOnlyList<PublishSelection> selections, string filePath, string? suggestedName = null, int? parallel = null)
+    /// <param name="parallel">The most projects to publish at the same time in a step; not saved when there's no limit.</param>
+    /// <param name="steps">The step of each selection; saved as each project's order. Without it, the projects run one after another.</param>
+    public void Save(IReadOnlyList<PublishSelection> selections, string filePath, string? suggestedName = null, int? parallel = null,
+        IReadOnlyList<int>? steps = null)
     {
         var file = PresetFile.LoadOrCreate(filePath);
         var name = console.Ask("Preset name", defaultValue: suggestedName, validate: n => string.IsNullOrWhiteSpace(n) ? "Enter a name" : null);
@@ -94,12 +110,31 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         }
 
         var baseDirectory = Path.GetDirectoryName(filePath)!;
-        var projects = selections.Select(s => PresetResolver.CreateEntry(s.Project, s.Profile, baseDirectory)).ToList();
-        file.Presets[name] = new PublishPreset(projects, Parallel: parallel > 1 ? parallel : null);
+        var projects = selections.Select((s, i) => PresetResolver.CreateEntry(s.Project, s.Profile, baseDirectory, steps?[i])).ToList();
+        file.Presets[name] = new PublishPreset(projects, Parallel: parallel);
         file.Save(filePath);
 
         console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved preset [{Widgets.PrimaryColorMarkup}]{name.EscapeMarkup()}[/] in {DisplayText.Link(filePath)}");
         console.MarkupLine($"[dim]Run it with: {ToolInfo.CommandName} --preset {name.EscapeMarkup()}[/]");
+    }
+
+    /// <summary>Saves the batch's order to the preset it came from, keeping the preset's other settings.</summary>
+    public void SaveOrder(PublishBatch batch)
+    {
+        var (name, filePath) = batch.Preset ?? throw new InvalidOperationException("The batch didn't come from a preset.");
+        var file = Load(filePath);
+        if (!file.Presets.TryGetValue(name, out var preset))
+        {
+            throw new UserErrorException($"The preset '{name}' is no longer in {filePath}.");
+        }
+
+        var baseDirectory = Path.GetDirectoryName(filePath)!;
+        var steps = batch.Steps;
+        var projects = batch.Selections.Select((s, i) => PresetResolver.CreateEntry(s.Project, s.Profile, baseDirectory, steps[i])).ToList();
+        file.Presets[name] = preset with { Projects = projects };
+        file.Save(filePath);
+
+        console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved the order to preset [{Widgets.PrimaryColorMarkup}]{name.EscapeMarkup()}[/]");
     }
 
     private async Task<PublishBatch> ResolveAsync(string name, PublishPreset preset, string filePath, CancellationToken cancellationToken)
@@ -114,8 +149,8 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         }
 
         console.MarkupLine($"Preset [{Widgets.PrimaryColorMarkup}]{name.EscapeMarkup()}[/]: {resolved.Items.Count} project(s)");
-        var selections = resolved.Items.Select(i => new PublishSelection(i.Project, i.Profile)).ToList();
-        return new PublishBatch(selections, preset.Configuration, preset.Parallel);
+        var selections = resolved.Items.Select(i => new PublishSelection(i.Project, i.Profile) { Order = i.Order }).ToList();
+        return new PublishBatch(selections, preset.Configuration, preset.Parallel, Preset: new PresetSource(name, filePath));
     }
 
     private static PresetFile Load(string filePath)
@@ -130,6 +165,14 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         }
     }
 
-    private static string DescribeProjects(PublishPreset preset) =>
-        string.Join(", ", preset.Projects.Select(p => Path.GetFileNameWithoutExtension(p.Path)));
+    /// <summary>The projects by step, e.g. "Api + Worker → Web".</summary>
+    internal static string DescribeProjects(PublishPreset preset)
+    {
+        var steps = PublishOrder.ToSteps(preset.Projects.Select(p => p.Order).ToList(), preset.Parallel);
+        return string.Join(" → ", preset.Projects
+            .Select((project, i) => (Name: Path.GetFileNameWithoutExtension(project.Path), Step: steps[i]))
+            .GroupBy(p => p.Step)
+            .OrderBy(step => step.Key)
+            .Select(step => string.Join(" + ", step.Select(p => p.Name))));
+    }
 }

@@ -7,7 +7,7 @@ namespace Pubwiz.Core.Presets;
 public sealed record PresetProblem(PresetProject Entry, string Reason);
 
 /// <summary>The projects and profiles of a preset, ready to publish.</summary>
-public sealed record ResolvedPreset(IReadOnlyList<(ProjectInfo Project, PublishProfile Profile)> Items, IReadOnlyList<PresetProblem> Problems)
+public sealed record ResolvedPreset(IReadOnlyList<(ProjectInfo Project, PublishProfile Profile, int? Order)> Items, IReadOnlyList<PresetProblem> Problems)
 {
     public bool IsValid => Problems.Count == 0;
 }
@@ -28,7 +28,11 @@ public sealed class PresetResolver(ProjectInspector inspector)
         foreach (var entry in preset.Projects)
         {
             var fullPath = Path.GetFullPath(Path.Combine(baseDirectory, entry.Path.Replace('\\', '/')));
-            if (File.Exists(fullPath))
+            if (entry.Order is < 1)
+            {
+                problems.Add(new PresetProblem(entry, $"the order must be 1 or more, not {entry.Order}"));
+            }
+            else if (File.Exists(fullPath))
             {
                 existing.Add((entry, fullPath));
             }
@@ -40,7 +44,7 @@ public sealed class PresetResolver(ProjectInspector inspector)
 
         var projects = await inspector.InspectAsync(existing.Select(e => new SolutionProject(e.FullPath, SolutionFolder: null)).ToList(), cancellationToken);
 
-        var items = new List<(ProjectInfo, PublishProfile)>();
+        var items = new List<(ProjectInfo, PublishProfile, int?)>();
         for (var i = 0; i < existing.Count; i++)
         {
             var (entry, _) = existing[i];
@@ -57,7 +61,7 @@ public sealed class PresetResolver(ProjectInspector inspector)
             }
             else
             {
-                items.Add((project, profile));
+                items.Add((project, profile, entry.Order));
             }
         }
 
@@ -65,6 +69,6 @@ public sealed class PresetResolver(ProjectInspector inspector)
     }
 
     /// <summary>Builds a preset entry for a project, with its path relative to <paramref name="baseDirectory"/> using forward slashes.</summary>
-    public static PresetProject CreateEntry(ProjectInfo project, PublishProfile profile, string baseDirectory) =>
-        new(Path.GetRelativePath(baseDirectory, project.FilePath).Replace('\\', '/'), profile.Name);
+    public static PresetProject CreateEntry(ProjectInfo project, PublishProfile profile, string baseDirectory, int? order = null) =>
+        new(Path.GetRelativePath(baseDirectory, project.FilePath).Replace('\\', '/'), profile.Name, order);
 }

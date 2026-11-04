@@ -1,4 +1,5 @@
 using Pubwiz.Core.Presets;
+using Pubwiz.Core.Publishing;
 using Pubwiz.Tool.Rendering;
 using System.ComponentModel;
 using Pubwiz.Tool.Infrastructure;
@@ -33,12 +34,17 @@ public sealed class PresetsListCommand(IAnsiConsole console) : Command<PresetSet
         var table = new Table()
             .Border(TableBorder.Rounded)
             .BorderStyle(new Style(Widgets.PrimaryColor, decoration: Decoration.Dim))
-            .AddColumns("Preset", "Projects", "Configuration", "Parallel");
+            .AddColumns("Preset", "Order", "Projects", "Configuration", "At once");
 
         foreach (var (name, preset) in file.Presets.OrderBy(p => p.Key))
         {
-            var projects = string.Join(Environment.NewLine, preset.Projects.Select(p => $"{p.Path} ({p.Profile})"));
-            table.AddRow(name.EscapeMarkup(), projects.EscapeMarkup(), preset.Configuration ?? "[dim]profile[/]", preset.Parallel?.ToString() ?? "1");
+            // By step: the same number is published at the same time.
+            var steps = PublishOrder.ToSteps(preset.Projects.Select(p => p.Order).ToList(), preset.Parallel);
+            var rows = preset.Projects.Select((p, i) => (Project: p, Step: steps[i])).OrderBy(r => r.Step).ToList();
+            var order = string.Join(Environment.NewLine, rows.Select(r => r.Step));
+            var projects = string.Join(Environment.NewLine, rows.Select(r => $"{r.Project.Path} ({r.Project.Profile})"));
+            table.AddRow(name.EscapeMarkup(), $"[{Widgets.PrimaryColorMarkup}]{order}[/]", projects.EscapeMarkup(), preset.Configuration ?? "[dim]profile[/]",
+                preset.Parallel?.ToString() ?? "[dim]no limit[/]");
         }
 
         console.MarkupLine($"[dim]{DisplayText.Link(Path.GetFullPath(path))}[/]");

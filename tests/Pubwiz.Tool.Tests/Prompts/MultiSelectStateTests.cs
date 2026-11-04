@@ -114,4 +114,156 @@ public class MultiSelectStateTests
         Assert.Equal([2, 3, 1, 0], state.VisibleItems);
         Assert.Equal(2, state.CursorItem);
     }
+
+    [Fact]
+    public void ToggleCursor_MovesTheItemToTheSelectedSectionAndKeepsTheCursorOnTheNextItem()
+    {
+        var state = Create(4);
+        state.MoveTo(1);
+
+        state.ToggleCursor();
+
+        Assert.Equal([1], state.Selected);
+        Assert.Equal([0, 2, 3], state.VisibleItems);
+        Assert.Equal(MultiSelectSection.List, state.Focus);
+        Assert.Equal(2, state.CursorItem);
+    }
+
+    [Fact]
+    public void ToggleCursor_OnTheLastItem_StaysOnTheLastItemInsteadOfTheExitRow()
+    {
+        var state = Create(3, hasExitRow: true);
+        state.MoveTo(2);
+
+        state.ToggleCursor();
+
+        Assert.False(state.IsOnExitRow);
+        Assert.Equal(1, state.CursorItem);
+    }
+
+    [Fact]
+    public void SwitchSection_MovesBetweenTheListAndTheSelection()
+    {
+        var state = Create(4);
+        state.ToggleCursor(); // 0
+        state.ToggleCursor(); // 1, the cursor is now on 2
+
+        state.SwitchSection();
+        Assert.Equal(MultiSelectSection.Selected, state.Focus);
+        Assert.Equal(0, state.CursorItem);
+
+        state.Move(1);
+        Assert.Equal(1, state.CursorItem);
+
+        state.SwitchSection();
+        Assert.Equal(MultiSelectSection.List, state.Focus);
+        Assert.Equal(2, state.CursorItem);
+    }
+
+    [Fact]
+    public void SwitchSection_DoesNothingWithoutASelection()
+    {
+        var state = Create(2);
+
+        state.SwitchSection();
+
+        Assert.Equal(MultiSelectSection.List, state.Focus);
+    }
+
+    [Fact]
+    public void ToggleCursor_InTheSelection_PutsTheItemBackAndKeepsBothCursors()
+    {
+        var state = Create(5);
+        state.ToggleCursor(); // 0
+        state.ToggleCursor(); // 1
+        state.ToggleCursor(); // 2, the list cursor is now on 3
+        state.SwitchSection();
+        state.Move(1); // 1
+
+        state.ToggleCursor();
+
+        Assert.Equal([0, 2], state.Selected);
+        Assert.Equal([1, 3, 4], state.VisibleItems);
+        Assert.Equal(2, state.CursorItem); // the next selected item
+
+        state.SwitchSection();
+        Assert.Equal(3, state.CursorItem);
+    }
+
+    [Fact]
+    public void UnselectingTheLastSelectedItem_ReturnsToTheList()
+    {
+        var state = Create(3);
+        state.ToggleCursor();
+        state.SwitchSection();
+
+        state.ToggleCursor();
+
+        Assert.Empty(state.Selected);
+        Assert.Equal(MultiSelectSection.List, state.Focus);
+    }
+
+    [Fact]
+    public void Search_ReturnsToTheListAndKeepsTheSelectionVisible()
+    {
+        var state = new MultiSelectState(["Shop.Api", "Shop.Web", "Billing.Api"], [true, true, true], pageSize: 10);
+        state.ToggleCursor(); // Shop.Api
+        state.SwitchSection();
+
+        state.SetSearch("api");
+
+        Assert.Equal(MultiSelectSection.List, state.Focus);
+        Assert.Equal([0], state.Selected);
+        Assert.Equal([2], state.VisibleItems);
+    }
+
+    [Fact]
+    public void SelectedSection_TakesAtMostHalfThePage()
+    {
+        var state = Create(20, pageSize: 10);
+        state.ToggleAll();
+
+        Assert.Equal(5, state.SelectedPageSize);
+        Assert.Equal(10 - 5 - MultiSelectState.SelectedChromeHeight, state.ListPageSize);
+
+        Assert.Equal(MultiSelectSection.Selected, state.Focus); // everything is selected, so the list is empty
+        state.MoveToEnd();
+        Assert.Equal(19, state.SelectedCursor);
+        Assert.Equal(15, state.SelectedOffset);
+    }
+
+    [Fact]
+    public void AlwaysShownSelectedSection_KeepsItsRowsWhileNothingIsSelected()
+    {
+        var state = new MultiSelectState(["A", "B"], [true, true], pageSize: 10, alwaysShowSelected: true);
+
+        Assert.True(state.ShowsSelected);
+        Assert.Equal(10 - 1 - MultiSelectState.SelectedChromeHeight, state.ListPageSize);
+
+        state.ToggleCursor();
+        Assert.Equal(10 - 1 - MultiSelectState.SelectedChromeHeight, state.ListPageSize);
+    }
+
+    [Fact]
+    public void SelectingEverything_MovesTheCursorOffTheExitRow()
+    {
+        var state = Create(3, hasExitRow: true);
+
+        state.ToggleAll();
+
+        Assert.False(state.IsOnExitRow);
+        Assert.Equal(MultiSelectSection.Selected, state.Focus);
+    }
+
+    [Fact]
+    public void SelectingTheLastListedItem_MovesTheCursorToTheSelection()
+    {
+        var state = Create(2, hasExitRow: true);
+        state.ToggleCursor();
+
+        state.ToggleCursor();
+
+        Assert.Equal(MultiSelectSection.Selected, state.Focus);
+        Assert.Equal([0, 1], state.Selected);
+    }
 }

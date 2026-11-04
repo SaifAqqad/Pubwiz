@@ -15,7 +15,7 @@ namespace Pubwiz.Core.Publishing;
 public static class BuildIsolation
 {
     /// <summary><c>true</c> when the jobs run at the same time and so need separate build folders.</summary>
-    /// <param name="jobCount">How many jobs run.</param>
+    /// <param name="jobCount">How many jobs run in the biggest step of the batch (only jobs of the same step run together).</param>
     /// <param name="maxParallelism">How many of them run at the same time.</param>
     public static bool IsNeeded(int jobCount, int maxParallelism) => jobCount > 1 && maxParallelism > 1;
 

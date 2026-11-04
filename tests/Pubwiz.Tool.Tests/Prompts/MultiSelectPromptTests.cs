@@ -125,4 +125,87 @@ public class MultiSelectPromptTests
         Assert.Equal("Api", result?.Highlighted);
         Assert.Contains("3 commits to pull", console.Output);
     }
+
+    [Fact]
+    public async Task SelectedItems_AreShownAboveTheList()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.DownArrow);
+        console.Input.PushKey(ConsoleKey.Spacebar); // Worker
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var result = await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Worker"], result!.Selected);
+        Assert.Equal("Web", result.Highlighted); // the cursor moved on to the next item
+        Assert.Contains("Selected (1)", console.Output);
+    }
+
+    [Fact]
+    public async Task Tab_MovesToTheSelectionWhereSpaceUnselects()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.Spacebar); // Api
+        console.Input.PushKey(ConsoleKey.Spacebar); // Worker
+        console.Input.PushKey(ConsoleKey.Tab);
+        console.Input.PushKey(ConsoleKey.Spacebar); // unselects Api
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var result = await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Worker"], result!.Selected);
+        Assert.Equal("Worker", result.Highlighted);
+    }
+
+    [Fact]
+    public async Task Escape_LeavesTheSelectionBeforeCancelling()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.Spacebar); // Api, the cursor moves to Worker
+        console.Input.PushKey(ConsoleKey.Tab);
+        console.Input.PushKey(ConsoleKey.Escape);
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var result = await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Worker", result!.Highlighted);
+    }
+
+    [Fact]
+    public async Task SelectedSection_IsShownBeforeAnythingIsSelected()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        await CreatePrompt().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Contains("Selected (0)", console.Output);
+        Assert.Contains("Nothing selected yet", console.Output);
+    }
+
+    [Fact]
+    public async Task ThePlaceholderLineDoesNotWidenTheNameColumn()
+    {
+        var console = CreateConsole();
+        console.Profile.Width = 120;
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        await new MultiSelectPrompt<string>("Pick projects", Projects, name => [name, "detail"]).ShowAsync(console, TestContext.Current.CancellationToken);
+
+        // The name column is as wide as "Worker", not as the "Nothing selected yet" line.
+        Assert.Matches(@"Api {6}detail", console.Output);
+    }
+
+    [Fact]
+    public async Task CtrlAThenEnter_ConfirmsEverythingInsteadOfExiting()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(CtrlA);
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var prompt = new MultiSelectPrompt<string>("Pick projects", Projects, name => [name]) { ExitLabel = "Exit" };
+        var result = await prompt.ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Api", "Worker", "Web"], result!.Selected);
+    }
 }
