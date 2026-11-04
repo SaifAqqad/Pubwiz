@@ -56,7 +56,7 @@ Run it in a folder with a solution or project:
 dotnet pubwiz
 ```
 
-**1. Pick the projects.** Type to search, press <kbd>Space</kbd> to select several for a batch (<kbd>Ctrl</kbd>+<kbd>A</kbd> selects all), or <kbd>Enter</kbd> to publish just the highlighted one.
+**1. Pick the projects.** Type to search, press <kbd>Space</kbd> to select several for a batch (<kbd>Ctrl</kbd>+<kbd>A</kbd> selects all; selected projects move to a section at the top, and <kbd>Tab</kbd> jumps between it and the list), or <kbd>Enter</kbd> to publish just the highlighted one.
 
 <p align="center"><img src="assets/screenshots/select-projects.png" alt="Selecting three of the solution's projects"></p>
 
