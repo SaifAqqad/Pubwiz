@@ -51,8 +51,10 @@ public static class PubxmlSerializer
                 item.Metadata.Select(m => new XElement(m.Key, m.Value))))));
         }
 
+        // The same header Visual Studio writes.
         var document = new XDocument(
-            new XComment(" Created by Pubwiz. Compatible with Visual Studio and `dotnet publish -p:PublishProfile=<name>` "),
+            new XDeclaration("1.0", "utf-8", standalone: null),
+            new XComment(" https://go.microsoft.com/fwlink/?LinkID=208121. "),
             project);
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filePath))!);

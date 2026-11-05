@@ -26,7 +26,7 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
     public PublishTargetType Type => destination;
 
     public bool CanPublish(PublishProfile profile) =>
-        ContainerProfile.IsContainerProfile(profile) && ContainerProfile.Read(profile, "app").Destination == destination;
+        ContainerProfile.IsContainerProfile(profile) && ContainerProfile.Read(profile, projectName: "app").Destination == destination;
 
     /// <summary>Only registries with a user name in the profile need a password; ACR uses az, others existing docker logins.</summary>
     public bool RequiresPassword(PublishProfile profile) =>
@@ -64,13 +64,12 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
                 steps.Add(new RegistrySignInStep(az, containers, container, dockerfileTool: null));
             }
 
-            steps.Add(CreateSdkPublishStep(request, archivePath));
+            steps.Add(CreateSdkPublishStep(request, container, archivePath));
         }
 
         if (container.AzureHost is not null)
         {
-            var resourceGroup = request.Profile[ProfileProperties.PubwizAzureResourceGroup] ?? throw new ArgumentException("The profile has no PubwizAzureResourceGroup.");
-            var appName = request.Profile[ProfileProperties.PubwizAzureAppName] ?? throw new ArgumentException("The profile has no PubwizAzureAppName.");
+            var (resourceGroup, appName) = GetAzureApp(request.Profile);
             steps.Add(new AzureImageUpdateStep(az, container, resourceGroup, appName));
         }
 
@@ -81,15 +80,43 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
     }
 
     /// <summary>
+    /// The app an image is deployed to: Visual Studio's <c>ResourceId</c> and <c>ResourceGroup</c>, or the
+    /// <c>PubwizAzure*</c> properties of profiles from earlier Pubwiz versions.
+    /// </summary>
+    private static (string ResourceGroup, string AppName) GetAzureApp(PublishProfile profile)
+    {
+        var resourceId = profile[ProfileProperties.ResourceId];
+        var resourceGroup = profile[ProfileProperties.PubwizAzureResourceGroup] ?? profile[ProfileProperties.ResourceGroup] ?? AzureResourceIds.GetResourceGroup(resourceId);
+        var appName = profile[ProfileProperties.PubwizAzureAppName] ?? AzureResourceIds.GetName(resourceId);
+
+        return resourceGroup is null || appName is null
+            ? throw new ArgumentException($"The profile '{profile.Name}' has no {ProfileProperties.ResourceId} of the Azure app to update.")
+            : (resourceGroup, appName);
+    }
+
+    /// <summary>
     /// <c>dotnet publish -t:PublishContainer</c> with the profile. <c>EnableSdkContainerSupport</c> is needed for
     /// console and worker projects; web projects have it on by default.
     /// </summary>
-    private DotnetPublishStep CreateSdkPublishStep(PublishRequest request, string? archivePath)
+    /// <remarks>
+    /// The registry and repository are passed too, so the SDK pushes exactly where Pubwiz shows, whichever
+    /// property names the profile uses (e.g. Visual Studio's <c>RegistryUrl</c>) and whatever the SDK would default to.
+    /// </remarks>
+    private DotnetPublishStep CreateSdkPublishStep(PublishRequest request, ContainerProfile container, string? archivePath)
     {
-        var properties = new Dictionary<string, string> { ["EnableSdkContainerSupport"] = "true" };
+        var properties = new Dictionary<string, string>
+        {
+            ["EnableSdkContainerSupport"] = "true",
+            [ProfileProperties.ContainerRepository] = container.Repository
+        };
+
         if (archivePath is not null)
         {
             properties[ProfileProperties.ContainerArchiveOutputPath] = archivePath;
+        }
+        else if (container.Registry is not null)
+        {
+            properties[ProfileProperties.ContainerRegistry] = container.Registry;
         }
 
         var options = new DotnetPublishOptions(request.Project.FilePath)

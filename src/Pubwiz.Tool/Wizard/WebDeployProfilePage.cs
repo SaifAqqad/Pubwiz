@@ -46,6 +46,9 @@ public sealed class WebDeployProfilePage(IAnsiConsole console)
         profile[ProfileProperties.AuthType] = userName.Length > 0 ? "Basic" : "NTLM";
         profile[ProfileProperties.AllowUntrustedCertificate] = allowUntrusted ? "true" : "false";
         profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
+
+        // Visual Studio opens Azure Web Deploy profiles from their URL; others are "Web Server (IIS)" profiles.
+        profile[ProfileProperties.TargetId] = endpoint.IsAzure ? null : VisualStudioTargetIds.IisWebDeploy;
         return profile;
     }
 }

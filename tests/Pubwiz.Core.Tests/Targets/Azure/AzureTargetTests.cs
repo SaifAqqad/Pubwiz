@@ -21,10 +21,10 @@ public sealed class AzureTargetTests : IDisposable
     private readonly FakeHttpHandler _kudu = new();
     private readonly DotnetCli _dotnet = new(new ProcessRunner(), DotnetLocator.Find()!);
 
-    private PublishRunner CreateRunner()
+    private PublishRunner CreateRunner(AzCli? az = null)
     {
         var kudu = new KuduClient(new HttpClient(_kudu)) { PollInterval = TimeSpan.Zero };
-        var credentials = new KuduCredentialsProvider(new AzCli(new ProcessRunner()));
+        var credentials = new KuduCredentialsProvider(az ?? new AzCli(new ProcessRunner()));
         return new PublishRunner(
         [
             new FolderTarget(_dotnet),
@@ -117,6 +117,20 @@ public sealed class AzureTargetTests : IDisposable
     }
 
     [Fact]
+    public async Task AppServiceJob_SignsInWithAzWhenThereIsNoPassword()
+    {
+        // The password lookup gives none for apps with basic authentication turned off.
+        _kudu.Respond(HttpStatusCode.Accepted, location: new Uri("/api/deployments/1", UriKind.Relative))
+            .Respond(HttpStatusCode.OK, """{"id":"1","status":4}""");
+        var az = new FakeAzRunner().Answer("account get-access-token", "az-token");
+
+        var job = await RunAsync(Profile("ZipDeploy", "https://contoso.scm.azurewebsites.net/"), password: null, az.CreateAzCli());
+
+        Assert.Null(job.Error);
+        Assert.Equal("Bearer az-token", _kudu.Requests[0].Authorization);
+    }
+
+    [Fact]
     public async Task WebJobJob_AddsARunScriptAndUploadsToTheWebJobsApi()
     {
         _kudu.Respond(HttpStatusCode.OK, "{}");
@@ -134,15 +148,15 @@ public sealed class AzureTargetTests : IDisposable
         Assert.Contains("0 0 2 * * *", File.ReadAllText(Path.Combine(job.OutputDirectory!, "settings.job")));
     }
 
-    private async Task<PublishJob> RunAsync(PublishProfile profile)
+    private async Task<PublishJob> RunAsync(PublishProfile profile, string? password = "secret", AzCli? az = null)
     {
         var projectPath = _temp.CreateProject("App/App.csproj", properties: "<TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType>");
         _temp.CreateFile("App/Program.cs", """System.Console.WriteLine("hi");""");
         var saved = PublishProfileStore.Save(Path.GetDirectoryName(projectPath)!, profile);
 
         var project = new ProjectInfo { Name = "App", FilePath = projectPath, Kind = ProjectKind.Console, TargetFrameworks = ["net10.0"] };
-        var runner = CreateRunner();
-        var job = runner.CreateJob(new PublishRequest(project, saved) { Password = "secret" });
+        var runner = CreateRunner(az);
+        var job = runner.CreateJob(new PublishRequest(project, saved) { Password = password });
         await runner.RunAsync([job], 1, TestContext.Current.CancellationToken);
         return job;
     }

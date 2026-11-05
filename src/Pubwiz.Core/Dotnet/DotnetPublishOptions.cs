@@ -1,3 +1,5 @@
+using Pubwiz.Core.Profiles;
+
 namespace Pubwiz.Core.Dotnet;
 
 /// <summary>
@@ -66,7 +68,10 @@ public sealed record DotnetPublishOptions(string ProjectPath)
 
         if (ProfileName is not null)
         {
-            arguments.Add($"-p:PublishProfile={ProfileName}");
+            // The SDK strips an "extension" from PublishProfile before adding .pubxml, so a name with a dot
+            // (e.g. "api - contoso.azurecr.io") loses its last part and the profile isn't found (NETSDK1198).
+            // Passing the file name keeps the whole name.
+            arguments.Add($"-p:PublishProfile={ProfileName}{PubxmlSerializer.FileExtension}");
         }
 
         arguments.AddRange(Targets.Select(t => $"-t:{t}"));

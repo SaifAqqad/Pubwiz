@@ -23,6 +23,12 @@ public sealed class AzCli(IProcessRunner processRunner)
 
     private Lazy<string?> _executablePath = new(() => ExecutableLocator.FindInPath("az"));
 
+    /// <summary>For tests: runs <paramref name="executablePath"/> instead of looking for az.</summary>
+    internal AzCli(IProcessRunner processRunner, string executablePath) : this(processRunner)
+    {
+        _executablePath = new Lazy<string?>(() => executablePath);
+    }
+
     public bool IsInstalled => _executablePath.Value is not null;
 
     /// <summary>Looks for az again, e.g. right after installing it.</summary>
@@ -187,6 +193,30 @@ public sealed class AzCli(IProcessRunner processRunner)
         var result = await RunAsync(arguments, onOutput: null, cancellationToken);
         EnsureSucceeded(result, "az webapp deployment list-publishing-profiles");
         return Deserialize<List<AzurePublishingProfile>>(result.Output) ?? [];
+    }
+
+    /// <summary>
+    /// Whether the app's Kudu site accepts its publishing user name and password. Azure can turn this off
+    /// ("SCM Basic Auth Publishing Credentials"), and then only Entra ID tokens work.
+    /// </summary>
+    public async Task<bool> IsScmBasicAuthAllowedAsync(AzureAppReference app, CancellationToken cancellationToken = default)
+    {
+        var parent = app.Slot is null ? $"sites/{app.Name}" : $"sites/{app.Name}/slots/{app.Slot}";
+        List<string> arguments =
+        [
+            "resource", "show", "--resource-group", app.ResourceGroup, "--namespace", "Microsoft.Web",
+            "--resource-type", "basicPublishingCredentialsPolicies", "--parent", parent, "--name", "scm",
+            "--query", "properties.allow", "-o", "tsv"
+        ];
+
+        if (app.SubscriptionId is not null)
+        {
+            arguments.AddRange(["--subscription", app.SubscriptionId]);
+        }
+
+        var result = await RunAsync(arguments, onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az resource show");
+        return !string.Equals(result.Output.Trim(), "false", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>An Entra ID access token for Azure Resource Manager, which Kudu also accepts.</summary>

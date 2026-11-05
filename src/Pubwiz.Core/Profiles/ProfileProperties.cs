@@ -15,6 +15,16 @@ public static class ProfileProperties
     public const string PublishProvider = nameof(PublishProvider);
     public const string LastUsedBuildConfiguration = nameof(LastUsedBuildConfiguration);
     public const string LastUsedPlatform = nameof(LastUsedPlatform);
+
+    /// <summary>
+    /// Used instead of <see cref="LastUsedBuildConfiguration"/> and <see cref="LastUsedPlatform"/> by Visual Studio
+    /// folder profiles of non-web projects.
+    /// </summary>
+    public const string Configuration = nameof(Configuration);
+
+    /// <inheritdoc cref="Configuration"/>
+    public const string Platform = nameof(Platform);
+
     public const string TargetFramework = nameof(TargetFramework);
     public const string RuntimeIdentifier = nameof(RuntimeIdentifier);
     public const string SelfContained = nameof(SelfContained);
@@ -22,6 +32,12 @@ public static class ProfileProperties
     public const string LaunchSiteAfterPublish = nameof(LaunchSiteAfterPublish);
     public const string ExcludeAppData = "ExcludeApp_Data";
     public const string UserName = nameof(UserName);
+
+    /// <summary>
+    /// Which Visual Studio publish target the profile belongs to, e.g. <c>Folder</c>; VS uses it to open the profile
+    /// with the right settings page. Values are in <see cref="VisualStudioTargetIds"/>.
+    /// </summary>
+    public const string TargetId = "_TargetId";
 
     // Folder, Zip deploy, FTP
     public const string PublishUrl = nameof(PublishUrl);
@@ -68,6 +84,12 @@ public static class ProfileProperties
     /// <summary>The app's resource group, written by Visual Studio.</summary>
     public const string ResourceGroup = nameof(ResourceGroup);
 
+    /// <summary>The name of the <see cref="ResourceId"/> resource, written by Visual Studio for container registries.</summary>
+    public const string ResourceName = nameof(ResourceName);
+
+    /// <summary><c>true</c> when the App Service runs on Linux, written by Visual Studio.</summary>
+    public const string IsLinux = nameof(IsLinux);
+
     // Azure WebJobs (same names as the Web SDK's OneDeploy task)
 
     /// <summary>The WebJob's name; when set, a Zip/One deploy profile deploys a WebJob instead of the app.</summary>
@@ -81,11 +103,37 @@ public static class ProfileProperties
     /// <summary>Where to push the image; empty means the local Docker/Podman.</summary>
     public const string ContainerRegistry = nameof(ContainerRegistry);
 
+    /// <summary>
+    /// The registry as Visual Studio writes it (e.g. <c>contoso.azurecr.io</c>, or <c>https://registry.hub.docker.com/contoso</c>
+    /// in older profiles). The SDK uses it as <see cref="ContainerRegistry"/>.
+    /// </summary>
+    public const string RegistryUrl = nameof(RegistryUrl);
+
+    /// <summary>How Visual Studio builds the image: <c>NetSdk</c> for the SDK's container support.</summary>
+    public const string ContainerPublishMethod = nameof(ContainerPublishMethod);
+
+    /// <summary>The value of <see cref="PublishProvider"/> for container registry profiles (Visual Studio).</summary>
+    public const string ContainerRegistryProvider = "ContainerRegistry";
+
+    /// <summary>
+    /// The registry of an Azure app's image (Visual Studio writes <see cref="ResourceId"/> for the app itself), e.g.
+    /// <c>/subscriptions/{id}/resourceGroups/{group}/providers/Microsoft.ContainerRegistry/registries/{name}</c>.
+    /// </summary>
+    public const string ContainerResourceId = nameof(ContainerResourceId);
+
+    public const string ContainerResourceName = nameof(ContainerResourceName);
+
     /// <summary>The image name, e.g. <c>contoso/api</c>.</summary>
     public const string ContainerRepository = nameof(ContainerRepository);
 
     /// <summary>Semicolon-separated tags, e.g. <c>1.2.0;latest</c>.</summary>
     public const string ContainerImageTags = nameof(ContainerImageTags);
+
+    /// <summary>A single tag (the SDK's other tag property).</summary>
+    public const string ContainerImageTag = nameof(ContainerImageTag);
+
+    /// <summary>A single tag as Visual Studio writes it. The SDK uses it as <see cref="ContainerImageTag"/>.</summary>
+    public const string PublishImageTag = nameof(PublishImageTag);
 
     /// <summary>Write the image to this .tar.gz file (or folder) instead of pushing it.</summary>
     public const string ContainerArchiveOutputPath = nameof(ContainerArchiveOutputPath);
@@ -170,7 +218,10 @@ public static class ProfileProperties
 
     public const string PubwizAzureAppName = nameof(PubwizAzureAppName);
 
-    /// <summary><c>true</c> when the App Service runs on Linux (WebJobs then get a run.sh instead of run.cmd).</summary>
+    /// <summary>
+    /// <c>true</c> when the App Service runs on Linux (WebJobs then get a run.sh instead of run.cmd). Written by
+    /// earlier Pubwiz versions; new profiles use <see cref="IsLinux"/>.
+    /// </summary>
     public const string PubwizAzureLinux = nameof(PubwizAzureLinux);
 
     /// <summary>A CRON schedule for triggered WebJobs, written to settings.job, e.g. <c>0 */15 * * * *</c>.</summary>

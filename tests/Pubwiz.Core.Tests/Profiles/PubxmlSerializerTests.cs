@@ -69,6 +69,21 @@ public sealed class PubxmlSerializerTests : IDisposable
     }
 
     [Fact]
+    public void Write_UsesTheVisualStudioHeader()
+    {
+        var path = Path.Combine(_temp.Path, "Folder.pubxml");
+        var profile = new PublishProfile("Folder");
+        profile[ProfileProperties.WebPublishMethod] = "FileSystem";
+
+        PubxmlSerializer.Write(profile, path);
+
+        var lines = File.ReadAllLines(path);
+        Assert.Equal("""<?xml version="1.0" encoding="utf-8"?>""", lines[0]);
+        Assert.Equal("<!-- https://go.microsoft.com/fwlink/?LinkID=208121. -->", lines[1]);
+        Assert.Equal("<Project>", lines[2]);
+    }
+
+    [Fact]
     public void WriteThenRead_KeepsPropertiesAndOrder()
     {
         var profile = new PublishProfile("Folder");

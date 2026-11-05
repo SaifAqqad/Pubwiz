@@ -38,6 +38,10 @@ public enum PasswordPrompt
 /// A broken secret store (no keyring running, access denied, ...) never stops publishing:
 /// it's reported as a warning and the password is asked for instead.
 /// </para>
+/// <para>
+/// An App Service app with basic authentication turned off gets no password at all (<c>null</c>): no password works
+/// there, so publishing signs in with az instead.
+/// </para>
 /// </remarks>
 public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, AzurePublishingCredentials azure)
 {
@@ -47,14 +51,16 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
     /// <summary>Used for every profile when no profile-specific variable is set.</summary>
     public const string PasswordVariable = "PUBWIZ_PASSWORD";
 
-    private readonly Dictionary<string, string> _asked = new(StringComparer.Ordinal);
+    /// <summary>The answers so far; <c>null</c> for apps that sign in with az instead.</summary>
+    private readonly Dictionary<string, string?> _asked = new(StringComparer.Ordinal);
 
     /// <param name="project">The project being published.</param>
     /// <param name="profile">The saved profile.</param>
     /// <param name="prompt">When the user may be asked.</param>
     /// <param name="cancellationToken">Cancels the secret store lookup.</param>
+    /// <returns>The password, or <c>null</c> when the App Service app signs in with az instead.</returns>
     /// <exception cref="UserErrorException">No password was found and prompting isn't allowed.</exception>
-    public async Task<string> GetAsync(ProjectInfo project, PublishProfile profile, PasswordPrompt prompt, CancellationToken cancellationToken)
+    public async Task<string?> GetAsync(ProjectInfo project, PublishProfile profile, PasswordPrompt prompt, CancellationToken cancellationToken)
     {
         if (ReadEnvironment(profile) is { } fromEnvironment)
         {
@@ -67,10 +73,15 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
             return asked;
         }
 
-        if (await TryFetchFromAzureAsync(profile, cancellationToken) is { } fromAzure)
+        switch (await TryFetchFromAzureAsync(profile, cancellationToken))
         {
-            _asked[key] = fromAzure;
-            return fromAzure;
+            case AzureCredentialsResult.Found found:
+                _asked[key] = found.Password;
+                return found.Password;
+
+            case AzureCredentialsResult.UseAzSignIn:
+                _asked[key] = null;
+                return null;
         }
 
         if (await TryReadAsync(key, cancellationToken) is { } saved)
@@ -191,7 +202,8 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
         return string.IsNullOrEmpty(value) ? null : value;
     }
 
-    private async Task<string?> TryFetchFromAzureAsync(PublishProfile profile, CancellationToken cancellationToken)
+    /// <returns>What Azure said (also written to the console), or <c>null</c> for profiles that aren't App Service ones.</returns>
+    private async Task<AzureCredentialsResult?> TryFetchFromAzureAsync(PublishProfile profile, CancellationToken cancellationToken)
     {
         if (!AzurePublishingCredentials.Applies(profile))
         {
@@ -207,15 +219,18 @@ public sealed class PasswordProvider(IAnsiConsole console, ISecretStore store, A
         {
             case AzureCredentialsResult.Found found:
                 console.MarkupLine($"[dim]Using the publishing credentials of {found.AppName.EscapeMarkup()} from Azure for {profile.Name.EscapeMarkup()}[/]");
-                return found.Password;
+                break;
+
+            case AzureCredentialsResult.UseAzSignIn useAz:
+                console.MarkupLine($"[dim]{useAz.AppName.EscapeMarkup()} has basic authentication turned off, so {profile.Name.EscapeMarkup()} signs in with your Azure account (az) instead of a password[/]");
+                break;
 
             case AzureCredentialsResult.NotFound notFound:
                 console.MarkupLine($"[dim]Couldn't get the password of {profile.Name.EscapeMarkup()} from Azure: {notFound.Reason.EscapeMarkup()}[/]");
-                return null;
-
-            default:
-                return null;
+                break;
         }
+
+        return fetched;
     }
 
     private async Task<string?> TryReadAsync(string key, CancellationToken cancellationToken)

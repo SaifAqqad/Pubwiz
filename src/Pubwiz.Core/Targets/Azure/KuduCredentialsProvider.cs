@@ -7,16 +7,20 @@ namespace Pubwiz.Core.Targets.Azure;
 /// <summary>
 /// Picks the Kudu credentials for a request: the profile's publishing credentials, or an Entra ID token from az.
 /// </summary>
+/// <remarks>
+/// A profile with a user name but a request without a password also signs in with az: that's how the password
+/// lookup says the app has basic authentication turned off (see <see cref="AzureCredentialsResult.UseAzSignIn"/>).
+/// </remarks>
 public sealed class KuduCredentialsProvider(AzCli azCli)
 {
     public async Task<KuduCredentials> GetAsync(PublishContext context, CancellationToken cancellationToken)
     {
         var profile = context.Request.Profile;
-        if (!AzureProfile.UsesAzCli(profile))
+        if (!AzureProfile.UsesAzCli(profile) && context.Request.Password is { } password)
         {
             var userName = profile[ProfileProperties.UserName]!;
             context.Log.Info($"Signing in to Kudu as {userName} (publishing credentials)");
-            return new KuduCredentials.Basic(userName, context.Request.Password ?? string.Empty);
+            return new KuduCredentials.Basic(userName, password);
         }
 
         context.ReportDetail("getting a token from az...");

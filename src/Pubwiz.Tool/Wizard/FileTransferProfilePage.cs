@@ -42,6 +42,7 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
             }
 
             profile[ProfileProperties.WebPublishMethod] = "FTP";
+            profile[ProfileProperties.TargetId] = VisualStudioTargetIds.Ftp;
             profile[ProfileProperties.PubwizFtpSecurity] = security.ToString();
             profile[ProfileProperties.FtpPassiveMode] = console.AskYesNo("Use passive mode?", defaultValue: true) ? "true" : "false";
             profile[ProfileProperties.AllowUntrustedCertificate] = security != FtpSecurity.None && console.AskYesNo("Allow an untrusted (self-signed) certificate?", defaultValue: false) ? "true" : null;
@@ -69,6 +70,8 @@ public sealed class FileTransferProfilePage(IAnsiConsole console)
 
         var siteUrl = console.Ask("Site URL", hint: "optional, shown after publishing", defaultValue: defaults?.SiteUrl, optional: true);
         profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = siteUrl.Length > 0 ? siteUrl : null;
+        profile[ProfileProperties.LaunchSiteAfterPublish] = siteUrl.Length > 0 ? "true" : null;
+        profile[ProfileProperties.ExcludeAppData] = project.Kind is ProjectKind.Web ? "false" : null;
 
         var targetFramework = CommonPrompts.ChooseTargetFramework(console, project);
         profile[ProfileProperties.LastUsedBuildConfiguration] = CommonPrompts.ChooseConfiguration(console);

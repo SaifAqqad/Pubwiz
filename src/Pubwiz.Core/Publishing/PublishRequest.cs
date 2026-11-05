@@ -42,12 +42,21 @@ public sealed record PublishRequest(ProjectInfo Project, PublishProfile Profile)
     /// </summary>
     public bool? AllowUntrustedCertificate { get; init; }
 
-    /// <summary>The deployment password (Web Deploy, FTP, ...), when the target needs one.</summary>
+    /// <summary>
+    /// The deployment password (Web Deploy, FTP, ...), when the target needs one. Azure App Service profiles without
+    /// one sign in with az instead, e.g. for apps that have basic authentication turned off.
+    /// </summary>
     public string? Password { get; init; }
 
     /// <summary>The branch and last commit of the project's repository, for reports; <c>null</c> outside a git repository.</summary>
     public GitInfo? Git { get; init; }
 
-    /// <summary>The configuration to build: the override, then the profile's last used one, then Release.</summary>
-    public string EffectiveConfiguration => Configuration ?? Profile[ProfileProperties.LastUsedBuildConfiguration] ?? "Release";
+    /// <summary>
+    /// The configuration to build: the override, then the profile's (<c>LastUsedBuildConfiguration</c>, or
+    /// <c>Configuration</c> in Visual Studio folder profiles of non-web projects), then Release.
+    /// </summary>
+    public string EffectiveConfiguration => Configuration
+        ?? Profile[ProfileProperties.LastUsedBuildConfiguration]
+        ?? Profile[ProfileProperties.Configuration]
+        ?? "Release";
 }
