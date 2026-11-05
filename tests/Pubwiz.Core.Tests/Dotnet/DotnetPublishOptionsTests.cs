@@ -9,7 +9,15 @@ public class DotnetPublishOptionsTests
     {
         var options = new DotnetPublishOptions("/src/Api/Api.csproj") { ProfileName = "Folder" };
 
-        Assert.Equal(["publish", "/src/Api/Api.csproj", "-c", "Release", "-p:PublishProfile=Folder", "-nologo", "-tl:off", "-v:m"], options.ToArguments());
+        Assert.Equal(["publish", "/src/Api/Api.csproj", "-c", "Release", "-p:PublishProfile=Folder.pubxml", "-nologo", "-tl:off", "-v:m"], options.ToArguments());
+    }
+
+    [Fact]
+    public void ToArguments_PassesTheProfileFileName_SoDotsInTheNameAreKept()
+    {
+        var arguments = new DotnetPublishOptions("Api.csproj") { ProfileName = "srta.api - contoso.azurecr.io" }.ToArguments();
+
+        Assert.Contains("-p:PublishProfile=srta.api - contoso.azurecr.io.pubxml", arguments);
     }
 
     [Fact]

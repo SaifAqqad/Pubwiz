@@ -35,11 +35,13 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
         profile[ProfileProperties.PublishProvider] = ProfileProperties.AzureWebSiteProvider;
         profile[ProfileProperties.PublishUrl] = app.ScmUrl.AbsoluteUri;
         profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{app.DefaultHostName}";
+        profile[ProfileProperties.LaunchSiteAfterPublish] = "true";
         profile[ProfileProperties.PubwizAzureAuthentication] = AzureProfile.AzCliAuthentication;
-        profile[ProfileProperties.PubwizAzureSubscriptionId] = subscription.Id;
-        profile[ProfileProperties.PubwizAzureResourceGroup] = app.ResourceGroup;
-        profile[ProfileProperties.PubwizAzureAppName] = app.Name;
-        profile[ProfileProperties.PubwizAzureLinux] = app.IsLinux ? "true" : "false";
+
+        // The app as Visual Studio stores it; Pubwiz finds the app for az from the ResourceId too.
+        profile[ProfileProperties.ResourceId] = AzureResourceIds.WebApp(subscription.Id, app.ResourceGroup, app.Name);
+        profile[ProfileProperties.ResourceGroup] = app.ResourceGroup;
+        profile[ProfileProperties.IsLinux] = app.IsLinux ? "true" : "false";
 
         if (kind == AzureAppKind.WebJob)
         {

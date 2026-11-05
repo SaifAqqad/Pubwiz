@@ -22,7 +22,7 @@ public sealed class AzureWebJobTarget(DotnetCli dotnet, KuduClient kudu, KuduCre
     {
         var profile = request.Profile;
         var zipPath = StagingPublish.GetStagingDirectory(request) + ".zip";
-        var isLinux = string.Equals(profile[ProfileProperties.PubwizAzureLinux], "true", StringComparison.OrdinalIgnoreCase);
+        var isLinux = string.Equals(profile[ProfileProperties.IsLinux] ?? profile[ProfileProperties.PubwizAzureLinux], "true", StringComparison.OrdinalIgnoreCase);
 
         return
         [

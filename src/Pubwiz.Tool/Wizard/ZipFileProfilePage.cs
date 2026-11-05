@@ -20,17 +20,8 @@ public sealed class ZipFileProfilePage(IAnsiConsole console)
         var zipFile = console.Ask("Zip file", hint: "relative to the project folder", defaultValue: $"bin/{configuration}/{project.Name}.zip");
 
         var folder = $"bin/{configuration}/{targetFramework}/publish/";
-        var profile = new PublishProfile("ZipProfile");
-        profile[ProfileProperties.WebPublishMethod] = "FileSystem";
-        profile[ProfileProperties.PublishProtocol] = "FileSystem";
-        profile[ProfileProperties.PublishProvider] = "FileSystem";
-        profile[ProfileProperties.PublishUrl] = folder;
-        profile[ProfileProperties.PublishDir] = folder;
+        var profile = FolderProfilePage.CreateFolderProfile("ZipProfile", project, folder, configuration, targetFramework);
         profile[ProfileProperties.PubwizZipFile] = zipFile;
-        profile[ProfileProperties.LastUsedBuildConfiguration] = configuration;
-        profile[ProfileProperties.LastUsedPlatform] = "Any CPU";
-        profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
-        profile[ProfileProperties.ExcludeAppData] = project.Kind is ProjectKind.Web ? "false" : null;
         return profile;
     }
 }
