@@ -36,6 +36,19 @@ public class ProfileVariablesTests
     }
 
     [Fact]
+    public void EffectiveConfiguration_ReadsVisualStudioConsoleFolderProfiles()
+    {
+        // Visual Studio writes Configuration instead of LastUsedBuildConfiguration for non-web projects.
+        var project = new ProjectInfo { Name = "Worker", FilePath = Path.Combine(ProjectDirectory, "Worker.csproj"), Kind = ProjectKind.Console };
+        var profile = new PublishProfile("FolderProfile");
+        profile[ProfileProperties.PublishProtocol] = "FileSystem";
+        profile[ProfileProperties.Configuration] = "Debug";
+
+        Assert.Equal("Debug", new PublishRequest(project, profile).EffectiveConfiguration);
+        Assert.Equal("Release", new PublishRequest(project, profile) { Configuration = "Release" }.EffectiveConfiguration);
+    }
+
+    [Fact]
     public void Expand_LeavesUnknownVariables()
     {
         Assert.Equal("$(SolutionDir)out", ProfileVariables.Expand("$(SolutionDir)out", Request("x")));

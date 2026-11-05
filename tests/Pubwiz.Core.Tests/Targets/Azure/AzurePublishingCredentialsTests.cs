@@ -1,5 +1,6 @@
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets.Azure;
+using Pubwiz.Core.Tests.TestHelpers;
 
 namespace Pubwiz.Core.Tests.Targets.Azure;
 
@@ -16,6 +17,50 @@ public class AzurePublishingCredentialsTests
             "userName": "$contoso", "userPWD": "web-deploy-secret" }
         ]
         """;
+
+    private const string Account = """{ "id": "sub-1", "name": "Contoso", "tenantId": "tenant-1", "isDefault": true }""";
+
+    /// <summary>A Visual Studio Zip Deploy profile that signs in with the app's publishing credentials.</summary>
+    private static PublishProfile VisualStudioZipDeploy()
+    {
+        var profile = new PublishProfile("contoso - Zip Deploy");
+        profile[ProfileProperties.WebPublishMethod] = "ZipDeploy";
+        profile[ProfileProperties.PublishProvider] = "AzureWebSite";
+        profile[ProfileProperties.ResourceId] = "/subscriptions/sub-1/resourceGroups/rg/providers/Microsoft.Web/sites/contoso";
+        profile[ProfileProperties.PublishUrl] = "https://contoso.scm.azurewebsites.net/";
+        profile[ProfileProperties.UserName] = "$contoso";
+        return profile;
+    }
+
+    [Fact]
+    public async Task TryGetAsync_FetchesThePasswordWhenBasicAuthIsOn()
+    {
+        var az = new FakeAzRunner()
+            .Answer("account show", Account)
+            .Answer("account list", $"[{Account}]")
+            .Answer("resource show", "true")
+            .Answer("webapp deployment list-publishing-profiles", AzOutput);
+
+        var result = await new AzurePublishingCredentials(az.CreateAzCli()).TryGetAsync(VisualStudioZipDeploy(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(new AzureCredentialsResult.Found("web-deploy-secret", "contoso"), result);
+        Assert.Contains(az.Commands, c => c.Contains("--parent sites/contoso --name scm") && c.Contains("--subscription sub-1"));
+    }
+
+    [Fact]
+    public async Task TryGetAsync_SignsInWithAzWhenBasicAuthIsOff()
+    {
+        // Azure has no usable password for these apps, so asking for one would be pointless.
+        var az = new FakeAzRunner()
+            .Answer("account show", Account)
+            .Answer("account list", $"[{Account}]")
+            .Answer("resource show", "false");
+
+        var result = await new AzurePublishingCredentials(az.CreateAzCli()).TryGetAsync(VisualStudioZipDeploy(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(new AzureCredentialsResult.UseAzSignIn("contoso"), result);
+        Assert.DoesNotContain(az.Commands, c => c.StartsWith("webapp deployment list-publishing-profiles", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void PickPassword_UsesTheEntryWithTheProfilesUserName()

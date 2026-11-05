@@ -15,6 +15,16 @@ public static class ProfileProperties
     public const string PublishProvider = nameof(PublishProvider);
     public const string LastUsedBuildConfiguration = nameof(LastUsedBuildConfiguration);
     public const string LastUsedPlatform = nameof(LastUsedPlatform);
+
+    /// <summary>
+    /// Used instead of <see cref="LastUsedBuildConfiguration"/> and <see cref="LastUsedPlatform"/> by Visual Studio
+    /// folder profiles of non-web projects.
+    /// </summary>
+    public const string Configuration = nameof(Configuration);
+
+    /// <inheritdoc cref="Configuration"/>
+    public const string Platform = nameof(Platform);
+
     public const string TargetFramework = nameof(TargetFramework);
     public const string RuntimeIdentifier = nameof(RuntimeIdentifier);
     public const string SelfContained = nameof(SelfContained);

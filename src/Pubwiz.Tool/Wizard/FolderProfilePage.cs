@@ -23,8 +23,9 @@ public sealed class FolderProfilePage(IAnsiConsole console)
     }
 
     /// <summary>
-    /// A folder profile with the properties Visual Studio writes: web projects get <c>WebPublishMethod</c> and
-    /// <c>PublishUrl</c>, other projects <c>PublishProtocol</c> and <c>PublishDir</c>.
+    /// A folder profile with the properties Visual Studio writes: web projects get <c>WebPublishMethod</c>,
+    /// <c>PublishUrl</c> and <c>LastUsedBuildConfiguration</c>, other projects <c>PublishProtocol</c>,
+    /// <c>PublishDir</c> and <c>Configuration</c>.
     /// </summary>
     internal static PublishProfile CreateFolderProfile(string name, ProjectInfo project, string folder, string configuration, string targetFramework)
     {
@@ -35,15 +36,18 @@ public sealed class FolderProfilePage(IAnsiConsole console)
             profile[ProfileProperties.PublishProvider] = "FileSystem";
             profile[ProfileProperties.PublishUrl] = folder;
             profile[ProfileProperties.ExcludeAppData] = "false";
+            profile[ProfileProperties.LaunchSiteAfterPublish] = "true";
+            profile[ProfileProperties.LastUsedBuildConfiguration] = configuration;
+            profile[ProfileProperties.LastUsedPlatform] = "Any CPU";
         }
         else
         {
-            profile[ProfileProperties.PublishProtocol] = "FileSystem";
+            profile[ProfileProperties.Configuration] = configuration;
+            profile[ProfileProperties.Platform] = "Any CPU";
             profile[ProfileProperties.PublishDir] = folder;
+            profile[ProfileProperties.PublishProtocol] = "FileSystem";
         }
 
-        profile[ProfileProperties.LastUsedBuildConfiguration] = configuration;
-        profile[ProfileProperties.LastUsedPlatform] = "Any CPU";
         profile[ProfileProperties.TargetFramework] = project.TargetFrameworks.Count > 1 ? targetFramework : null;
         profile[ProfileProperties.TargetId] = VisualStudioTargetIds.Folder;
         return profile;

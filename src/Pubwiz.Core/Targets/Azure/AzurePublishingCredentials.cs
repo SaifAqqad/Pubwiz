@@ -11,6 +11,13 @@ public abstract record AzureCredentialsResult
 
     /// <param name="Reason">Why not, e.g. "az isn't signed in" (plain text, shown before asking).</param>
     public sealed record NotFound(string Reason) : AzureCredentialsResult;
+
+    /// <summary>
+    /// The app doesn't accept publishing credentials (basic authentication is turned off in Azure), so there's no
+    /// password to use: sign in with the signed-in az instead, as Visual Studio does.
+    /// </summary>
+    /// <param name="AppName">The app, e.g. <c>contoso</c> or <c>contoso/staging</c>.</param>
+    public sealed record UseAzSignIn(string AppName) : AzureCredentialsResult;
 }
 
 /// <summary>
@@ -21,6 +28,7 @@ public abstract record AzureCredentialsResult
 /// The app is found from the profile's resource ID (Visual Studio profiles), the Pubwiz Azure properties, or else by
 /// matching its SCM host against the apps in the active subscription, then the others (e.g. imported .publishsettings).
 /// Only a password for the profile's own user name is used, so user-level deployment credentials are still asked for.
+/// When the app has basic authentication turned off, no password works, so the az sign-in is used instead.
 /// </remarks>
 public sealed class AzurePublishingCredentials(AzCli az)
 {
@@ -55,6 +63,11 @@ public sealed class AzurePublishingCredentials(AzCli az)
             }
 
             var appName = app.Slot is null ? app.Name : $"{app.Name}/{app.Slot}";
+            if (!await IsBasicAuthAllowedAsync(app, cancellationToken))
+            {
+                return new AzureCredentialsResult.UseAzSignIn(appName);
+            }
+
             var profiles = await az.ListPublishingProfilesAsync(app, cancellationToken);
             return PickPassword(profiles, profile[ProfileProperties.UserName]) is { } password
                 ? new AzureCredentialsResult.Found(password, appName)
@@ -76,6 +89,19 @@ public sealed class AzurePublishingCredentials(AzCli az)
                     && (method.Equals("MSDeploy", StringComparison.OrdinalIgnoreCase) || method.Equals("ZipDeploy", StringComparison.OrdinalIgnoreCase)))
         .FirstOrDefault(p => p.Password is { Length: > 0 } && string.Equals(p.UserName, userName, StringComparison.OrdinalIgnoreCase))
         ?.Password;
+
+    /// <summary>When the setting can't be read (e.g. too few permissions), the publishing credentials are tried anyway.</summary>
+    private async Task<bool> IsBasicAuthAllowedAsync(AzureAppReference app, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await az.IsScmBasicAuthAllowedAsync(app, cancellationToken);
+        }
+        catch (AzCliException)
+        {
+            return true;
+        }
+    }
 
     /// <returns>The subscriptions, or <c>null</c> when az isn't signed in.</returns>
     private async Task<IReadOnlyList<AzureSubscription>?> ListSubscriptionsAsync(CancellationToken cancellationToken)

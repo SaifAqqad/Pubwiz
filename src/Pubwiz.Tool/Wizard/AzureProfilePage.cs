@@ -30,12 +30,14 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
         var subscription = await session.EnsureReadyAsync(cancellationToken);
         var app = await ChooseAppAsync(kind, subscription, cancellationToken);
 
-        var profile = new PublishProfile(kind == AzureAppKind.WebJob ? $"{app.Name} - WebJob" : $"{app.Name} - Zip Deploy");
-        profile[ProfileProperties.WebPublishMethod] = "ZipDeploy";
+        // Visual Studio writes OneDeploy for WebJobs and ZipDeploy for apps, and doesn't open the site after a WebJob.
+        var isWebJob = kind == AzureAppKind.WebJob;
+        var profile = new PublishProfile(isWebJob ? $"{app.Name} - WebJob" : $"{app.Name} - Zip Deploy");
+        profile[ProfileProperties.WebPublishMethod] = isWebJob ? "OneDeploy" : "ZipDeploy";
         profile[ProfileProperties.PublishProvider] = ProfileProperties.AzureWebSiteProvider;
         profile[ProfileProperties.PublishUrl] = app.ScmUrl.AbsoluteUri;
         profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{app.DefaultHostName}";
-        profile[ProfileProperties.LaunchSiteAfterPublish] = "true";
+        profile[ProfileProperties.LaunchSiteAfterPublish] = isWebJob ? "false" : "true";
         profile[ProfileProperties.PubwizAzureAuthentication] = AzureProfile.AzCliAuthentication;
 
         // The app as Visual Studio stores it; Pubwiz finds the app for az from the ResourceId too.
@@ -43,7 +45,7 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
         profile[ProfileProperties.ResourceGroup] = app.ResourceGroup;
         profile[ProfileProperties.IsLinux] = app.IsLinux ? "true" : "false";
 
-        if (kind == AzureAppKind.WebJob)
+        if (isWebJob)
         {
             AskWebJobSettings(project, profile);
         }
