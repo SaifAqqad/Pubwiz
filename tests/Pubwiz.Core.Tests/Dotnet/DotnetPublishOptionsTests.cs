@@ -15,9 +15,9 @@ public class DotnetPublishOptionsTests
     [Fact]
     public void ToArguments_PassesTheProfileFileName_SoDotsInTheNameAreKept()
     {
-        var arguments = new DotnetPublishOptions("Api.csproj") { ProfileName = "srta.api - contoso.azurecr.io" }.ToArguments();
+        var arguments = new DotnetPublishOptions("Api.csproj") { ProfileName = "contoso.api - contoso.azurecr.io" }.ToArguments();
 
-        Assert.Contains("-p:PublishProfile=srta.api - contoso.azurecr.io.pubxml", arguments);
+        Assert.Contains("-p:PublishProfile=contoso.api - contoso.azurecr.io.pubxml", arguments);
     }
 
     [Fact]

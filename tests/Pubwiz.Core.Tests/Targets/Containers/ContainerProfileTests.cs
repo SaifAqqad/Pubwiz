@@ -54,7 +54,7 @@ public class ContainerProfileTests
     }
 
     [Theory]
-    [InlineData("Srta.Api", "srta-api")]
+    [InlineData("Contoso.Api", "contoso-api")]
     [InlineData("Contoso.Shop_Api", "contoso-shop-api")]
     [InlineData("My  App", "my-app")]
     [InlineData("...", "app")]
