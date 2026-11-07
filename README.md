@@ -21,21 +21,26 @@
   <img src="assets/screenshots/publishing.png" alt="Pubwiz publishing four projects in parallel, with live steps and build output">
 </p>
 
-> [!NOTE]
-> Pubwiz is in early development. Bug reports are very welcome.
-
 ## What it does
 
-Pubwiz runs `dotnet publish` for you with the publish profiles already in your repository. Pick the projects you
-want, choose a profile for each one (or make a new one), and watch them build and deploy side by side.
+Pubwiz is the publish step of Visual Studio, in your terminal. It uses the publish profiles (`.pubxml`) already in
+your repository, so it works next to Rider, VS Code or Visual Studio, on any OS. Pick the projects you want, choose a
+profile for each one (or make a new one), and watch them build and deploy side by side.
+
+What sets it apart:
+
+- **Web Deploy to IIS from macOS and Linux.** Pubwiz has its own Web Deploy client, so you don't need Windows or
+  `msdeploy.exe` to publish to an IIS server.
+- **Several projects in one go,** in the order you choose (e.g. the API and the worker together, then the web app),
+  with each one's build output on screen as it runs.
+- **Azure from the same wizard:** App Service, Function Apps, WebJobs and Container Apps, signed in with the Azure CLI,
+  and Static Web Apps (Blazor WebAssembly) without Node or the SWA CLI.
 
 It also:
 
-- publishes several projects at once, with each one's build output on screen as it runs
-- deploys to IIS with Web Deploy from Windows, macOS or Linux
+- saves a batch of projects as a preset in `pubwiz.json`, so a release is one command, on your machine or in CI
 - imports `.publishsettings` files from Azure and IIS
-- saves a batch of projects as a preset in `pubwiz.json`, so the next release is one command, on your machine or in CI
-- keeps passwords out of your repository: in your OS keychain, or fetched from Azure for App Service
+- runs commands over SSH before and after an SFTP upload, e.g. to restart a service
 - shows the git branch, the last commit and any commits you haven't pulled before you publish
 
 ## Install
@@ -47,6 +52,12 @@ dotnet tool install -g Pubwiz
 ```
 
 Update it later with `dotnet tool update -g Pubwiz`.
+
+To try it without installing anything, run it once with `dnx` (part of the .NET 10 SDK):
+
+```bash
+dnx Pubwiz
+```
 
 ## Quick start
 
@@ -174,7 +185,7 @@ To sign in to a server with your own login, whatever the profiles in the reposit
 dotnet pubwiz servers set 10.0.0.5 --user deploy
 ```
 
-Every Web Deploy, FTP and SFTP profile for that server (its `MSDeployServiceURL` or `PublishUrl`, matched by IP address or name as written in the profile; any port) then signs in with that user and password instead of the profile's. For SFTP it replaces the profile's SSH key too. Web Deploy profiles that sign in as the current Windows user can then publish from Linux and macOS. The user name is kept in `servers.json` in your config folder (`~/.config/pubwiz` on Linux, `%APPDATA%\pubwiz` on Windows) and the password in the OS keychain. For setup scripts, pass `--password-stdin`.
+Every Web Deploy, FTP and SFTP profile for that server (its `MSDeployServiceURL` or `PublishUrl`, matched by IP address or name as written in the profile; any port) then signs in with that user and password instead of the profile's. For SFTP it replaces the profile's SSH key too. Web Deploy profiles that sign in as the current Windows user can then publish from Linux and macOS. The user name is kept in `servers.json` in your config folder (`~/.config/pubwiz` on Linux, `~/Library/Application Support/pubwiz` on macOS, `%APPDATA%\pubwiz` on Windows) and the password in the OS keychain. For setup scripts, pass `--password-stdin`.
 
 ## IIS (Web Deploy)
 

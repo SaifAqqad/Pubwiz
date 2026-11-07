@@ -1,4 +1,5 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Infrastructure.Platform;
 using Pubwiz.Core.Profiles;
 
 namespace Pubwiz.Tool.Wizard;
@@ -69,6 +70,6 @@ public sealed class ArgumentSelection(WorkspacePage workspacePage)
         }
 
         var fullPath = Path.GetFullPath(nameOrPath);
-        return workspace.Projects.FirstOrDefault(p => string.Equals(p.FilePath, fullPath, StringComparison.Ordinal));
+        return workspace.Projects.FirstOrDefault(p => string.Equals(p.FilePath, fullPath, OperatingSystemInfo.PathComparison));
     }
 }

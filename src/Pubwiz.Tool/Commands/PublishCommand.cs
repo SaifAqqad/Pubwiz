@@ -1,5 +1,6 @@
 using Pubwiz.Core.Infrastructure.Git;
 using Pubwiz.Core.Infrastructure.Platform;
+using Pubwiz.Core.Presets;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Reporting;
 using Pubwiz.Tool.Credentials;
@@ -24,7 +25,8 @@ public sealed class PublishCommand(
     PublishRunner runner,
     GitCli git,
     PublishDashboard dashboard,
-    ResultsView results) : AsyncCommand<PublishCommand.Settings>
+    ResultsView results,
+    RecentRunStore recentRuns) : AsyncCommand<PublishCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
@@ -105,6 +107,11 @@ public sealed class PublishCommand(
                 return ValidationResult.Error("--parallel must be at least 1");
             }
 
+            if (Profile is not null && Projects.Length == 0)
+            {
+                return ValidationResult.Error("--profile is used with --project: add --project <name> for each project to publish with it");
+            }
+
             return Projects.Length > 0 && (Preset is not null || PresetFile is not null)
                 ? ValidationResult.Error("Use either --project or --preset, not both")
                 : ValidationResult.Success();
@@ -131,6 +138,13 @@ public sealed class PublishCommand(
         console.WriteLine();
         await RunWithCtrlCAsync(jobs, batch.Parallel ?? int.MaxValue, settings);
 
+        // Remembered for "Repeat last publish" next time; not in CI, where nobody is asked.
+        if (interactive && requests.Count > 0)
+        {
+            var projects = requests.Select(r => new PresetProject(r.Project.FilePath, r.Profile.Name, r.Order)).ToList();
+            recentRuns.Save(GetStartPath(settings), new RecentRun(DateTimeOffset.Now, projects, settings.Configuration ?? batch.Configuration, batch.Parallel));
+        }
+
         results.WriteResults(jobs);
         WriteRequestedExports(jobs, settings);
         if (interactive && !settings.Yes)
@@ -140,6 +154,9 @@ public sealed class PublishCommand(
 
         return GetExitCode(jobs);
     }
+
+    /// <summary>The folder or file Pubwiz was started with, which the last publish is remembered for.</summary>
+    private static string GetStartPath(Settings settings) => System.IO.Path.GetFullPath(settings.Path ?? Directory.GetCurrentDirectory());
 
     private static string GetStartDirectory(Settings settings)
     {
@@ -175,14 +192,18 @@ public sealed class PublishCommand(
             throw new UserErrorException("There's no terminal for the wizard. Use --preset <name>, or --project <name> with --profile <name>.");
         }
 
-        if (await presets.OfferAsync(startDirectory, cancellationToken) is { } preset)
+        // The last publish from here is offered at the top of the first list: the presets, or else the wizard's.
+        var recent = recentRuns.Find(GetStartPath(settings));
+        var offer = await presets.OfferAsync(startDirectory, recent, cancellationToken);
+        if (offer.Batch is { } preset)
         {
             return await ConfirmAsync(preset);
         }
 
         // The wizard asks before publishing itself, since cancelling there goes back to its project list.
         // It shows the git line above its project list.
-        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes, Git: gitStatus, Parallel: settings.Parallel), cancellationToken);
+        return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes, Git: gitStatus, Parallel: settings.Parallel,
+            Recent: offer.Shown ? null : recent), cancellationToken);
 
         async Task<PublishBatch?> ConfirmAsync(PublishBatch batch)
         {

@@ -77,20 +77,63 @@ public sealed class PresetFile
         return null;
     }
 
-    /// <exception cref="InvalidDataException">The file isn't valid JSON.</exception>
+    /// <exception cref="InvalidDataException">The file isn't valid JSON, or a preset is missing something it needs.</exception>
     public static PresetFile Load(string path)
     {
+        PresetFile? file;
         try
         {
-            var file = JsonSerializer.Deserialize<PresetFile>(File.ReadAllText(path), JsonOptions) ?? new PresetFile();
-
-            // System.Text.Json fills the dictionary without the case-insensitive comparer.
-            return new PresetFile { Presets = new Dictionary<string, PublishPreset>(file.Presets, StringComparer.OrdinalIgnoreCase) };
+            file = JsonSerializer.Deserialize<PresetFile>(File.ReadAllText(path), JsonOptions);
         }
         catch (JsonException ex)
         {
             throw new InvalidDataException($"{path} is not a valid preset file: {ex.Message}", ex);
         }
+
+        var presets = file?.Presets ?? [];
+        if (Validate(presets) is { } problem)
+        {
+            throw new InvalidDataException($"{path} is not a valid preset file: {problem}");
+        }
+
+        // System.Text.Json fills the dictionary without the case-insensitive comparer.
+        return new PresetFile { Presets = new Dictionary<string, PublishPreset>(presets, StringComparer.OrdinalIgnoreCase) };
+    }
+
+    /// <summary>What's wrong with a hand-edited file (JSON can leave out anything), or <c>null</c> when it's usable.</summary>
+    private static string? Validate(Dictionary<string, PublishPreset> presets)
+    {
+        if (presets.Keys.GroupBy(name => name, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1) is { } duplicate)
+        {
+            return $"the presets {string.Join(" and ", duplicate.Select(name => $"'{name}'"))} differ only in case; rename one of them.";
+        }
+
+        foreach (var (name, preset) in presets)
+        {
+            if (preset?.Projects is null)
+            {
+                return $"the preset '{name}' has no \"projects\" list.";
+            }
+
+            for (var i = 0; i < preset.Projects.Count; i++)
+            {
+                var project = preset.Projects[i];
+                var missing = project switch
+                {
+                    null => "is empty",
+                    { Path: null or "" } => "has no \"path\"",
+                    { Profile: null or "" } => "has no \"profile\"",
+                    _ => null
+                };
+
+                if (missing is not null)
+                {
+                    return $"project {i + 1} of the preset '{name}' {missing}.";
+                }
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Loads the file when it exists, otherwise returns an empty one.</summary>

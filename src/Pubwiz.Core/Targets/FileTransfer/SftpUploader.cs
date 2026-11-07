@@ -47,7 +47,9 @@ public sealed class SftpUploader(SftpConnection connection) : IFileUploader
 
     public async Task UploadDirectoryAsync(string localDirectory, string remoteDirectory, UploadOptions options, Action<UploadProgress> onProgress, CancellationToken cancellationToken)
     {
-        var root = remoteDirectory.TrimEnd('/');
+        // "/" stays "/": an empty path would mean the user's home folder to the server.
+        var root = remoteDirectory.TrimEnd('/') is { Length: > 0 } trimmed ? trimmed : "/";
+        var prefix = root.EndsWith('/') ? root : root + "/";
         var files = Directory.GetFiles(localDirectory, "*", SearchOption.AllDirectories)
             .Select(path => Path.GetRelativePath(localDirectory, path).Replace('\\', '/'))
             .Order(StringComparer.Ordinal)
@@ -59,25 +61,27 @@ public sealed class SftpUploader(SftpConnection connection) : IFileUploader
             if (options.UseAppOffline)
             {
                 using var page = new MemoryStream(Encoding.UTF8.GetBytes(AppOffline.Content));
-                await _client.UploadFileAsync(page, $"{root}/{AppOffline.FileName}", cancellationToken);
+                await _client.UploadFileAsync(page, prefix + AppOffline.FileName, cancellationToken);
             }
 
             for (var i = 0; i < files.Count; i++)
             {
                 onProgress(new UploadProgress(i, files.Count, files[i]));
-                await UploadFileAsync(Path.Combine(localDirectory, files[i]), $"{root}/{files[i]}", cancellationToken);
+                await UploadFileAsync(Path.Combine(localDirectory, files[i]), prefix + files[i], cancellationToken);
             }
 
             onProgress(new UploadProgress(files.Count, files.Count, null));
 
             if (options.DeleteExtraFiles)
             {
-                DeleteExtraFiles(root, files.ToHashSet(StringComparer.Ordinal), keep: options.UseAppOffline ? AppOffline.FileName : null);
+                FindExtraFiles(root, files.ToHashSet(StringComparer.Ordinal), keep: options.UseAppOffline ? AppOffline.FileName : null, ListFolder)
+                    .ToList()
+                    .ForEach(_client.DeleteFile);
             }
 
             if (options.UseAppOffline)
             {
-                _client.DeleteFile($"{root}/{AppOffline.FileName}");
+                _client.DeleteFile(prefix + AppOffline.FileName);
             }
         }
         catch (Exception ex) when (ex is SshException or SftpPermissionDeniedException or SftpPathNotFoundException)
@@ -114,24 +118,34 @@ public sealed class SftpUploader(SftpConnection connection) : IFileUploader
         }
     }
 
+    private IEnumerable<(string Name, bool IsDirectory)> ListFolder(string folder) =>
+        _client.ListDirectory(folder).Select(entry => (entry.Name, entry.IsDirectory));
+
+    /// <summary>The remote files under <paramref name="root"/> that aren't in <paramref name="localFiles"/>, as full paths.</summary>
+    /// <remarks>
+    /// Paths are built from <paramref name="root"/> and the entry names, not taken from the server's listing: the server
+    /// reports resolved paths (symlinks followed), which wouldn't start with <paramref name="root"/>.
+    /// </remarks>
     /// <param name="root">The remote folder.</param>
     /// <param name="localFiles">Paths relative to <paramref name="root"/> that must stay.</param>
     /// <param name="keep">A file in the root to leave alone (app_offline.htm).</param>
-    private void DeleteExtraFiles(string root, HashSet<string> localFiles, string? keep)
+    /// <param name="list">Lists a remote folder's entries.</param>
+    internal static IEnumerable<string> FindExtraFiles(string root, HashSet<string> localFiles, string? keep, Func<string, IEnumerable<(string Name, bool IsDirectory)>> list)
     {
-        var pending = new Stack<string>([root]);
+        var prefix = root.EndsWith('/') ? root : root + "/";
+        var pending = new Stack<string>([string.Empty]);
         while (pending.TryPop(out var folder))
         {
-            foreach (var entry in _client.ListDirectory(folder).Where(e => e.Name is not ("." or "..")))
+            foreach (var (name, isDirectory) in list(folder.Length == 0 ? root : prefix + folder).Where(e => e.Name is not ("." or "..")))
             {
-                var relative = entry.FullName[(root.Length + 1)..];
-                if (entry.IsDirectory)
+                var relative = folder.Length == 0 ? name : $"{folder}/{name}";
+                if (isDirectory)
                 {
-                    pending.Push(entry.FullName);
+                    pending.Push(relative);
                 }
                 else if (!localFiles.Contains(relative) && relative != keep)
                 {
-                    _client.DeleteFile(entry.FullName);
+                    yield return prefix + relative;
                 }
             }
         }

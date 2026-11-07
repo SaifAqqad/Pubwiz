@@ -8,7 +8,11 @@ namespace Pubwiz.Tool.Wizard;
 /// <param name="PresetFilePath">Where "Save a profile as a preset" saves to; <c>null</c> hides that option.</param>
 /// <param name="PreviousProject">In a batch, the project before this one, offered as "Back to …"; <c>null</c> for the first.</param>
 /// <param name="Selected">The profile picked for this project earlier (after going back to it), highlighted in the list.</param>
-public sealed record ProfilePageOptions(string? PresetFilePath, string? PreviousProject = null, PublishProfile? Selected = null);
+/// <param name="PublishAgain">The last publish from here, e.g. "Shop.Api → Production · 2 hours ago", offered at the top; <c>null</c> hides it.</param>
+/// <param name="ShowSolution">The solution whose projects can be shown instead, e.g. "Shop.slnx"; <c>null</c> hides that option.</param>
+/// <param name="BackExits">There's no project list to go back to: "Back" becomes "Exit".</param>
+public sealed record ProfilePageOptions(string? PresetFilePath, string? PreviousProject = null, PublishProfile? Selected = null,
+    string? PublishAgain = null, string? ShowSolution = null, bool BackExits = false);
 
 /// <summary>What the user did in a project's profile list.</summary>
 public abstract record ProfilePageResult
@@ -19,8 +23,14 @@ public abstract record ProfilePageResult
     /// <summary>Back to the previous project in the batch, to change its profile.</summary>
     public sealed record PreviousProject : ProfilePageResult;
 
-    /// <summary>Back to the project list.</summary>
+    /// <summary>Back to the project list (or exit, see <see cref="ProfilePageOptions.BackExits"/>).</summary>
     public sealed record BackToProjects : ProfilePageResult;
+
+    /// <summary>Publish what was published last time from here.</summary>
+    public sealed record PublishAgain : ProfilePageResult;
+
+    /// <summary>Show the projects of the solution this project belongs to.</summary>
+    public sealed record ShowSolution : ProfilePageResult;
 }
 
 /// <summary>
@@ -40,11 +50,15 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
 
         public sealed record SaveAsPreset : Choice;
 
+        public sealed record PublishAgain(string Description) : Choice;
+
+        public sealed record ShowSolution(string Name) : Choice;
+
         /// <summary>Back to the previous project in a batch.</summary>
         public sealed record PreviousProject(string Name) : Choice;
 
-        /// <summary>Back to the project list; Esc picks it too.</summary>
-        public sealed record Back : Choice;
+        /// <summary>Back to the project list (or exit); Esc picks it too.</summary>
+        public sealed record Back(bool Exits) : Choice;
     }
 
     public async Task<ProfilePageResult> ChooseAsync(ProjectInfo project, ProfilePageOptions options, CancellationToken cancellationToken)
@@ -117,6 +131,12 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
                 case Choice.PreviousProject:
                     return new ProfilePageResult.PreviousProject();
 
+                case Choice.PublishAgain:
+                    return new ProfilePageResult.PublishAgain();
+
+                case Choice.ShowSolution:
+                    return new ProfilePageResult.ShowSolution();
+
                 case Choice.Back:
                     return new ProfilePageResult.BackToProjects();
             }
@@ -138,11 +158,18 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
             : $"[{Widgets.PrimaryColorMarkup}]{project.Name.EscapeMarkup()}[/] has no publish profiles yet:";
 
         var existing = profiles.Select(p => new Choice.Existing(p)).ToList();
-        var prompt = Questions.Menu<Choice>(title)
-            .AddChoices(existing)
+        var back = new Choice.Back(options.BackExits);
+        var prompt = Questions.Menu<Choice>(title).UseConverter(Describe);
+
+        // First, so it's the default: publishing the same as last time is one key press.
+        if (options.PublishAgain is { } again)
+        {
+            prompt.AddChoice(new Choice.PublishAgain(again));
+        }
+
+        prompt.AddChoices(existing)
             .AddChoices(new Choice.Create(), new Choice.Import())
-            .AddCancelResult(new Choice.Back())
-            .UseConverter(Describe);
+            .AddCancelResult(back);
 
         // Coming back to this project: start on the profile picked before (the list is read again, so match by file).
         if (existing.FirstOrDefault(c => options.Selected is { FilePath: { } path } && c.Profile.FilePath == path) is { } selected)
@@ -155,12 +182,17 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
             prompt.AddChoice(new Choice.SaveAsPreset());
         }
 
+        if (options.ShowSolution is { } solution)
+        {
+            prompt.AddChoice(new Choice.ShowSolution(solution));
+        }
+
         if (options.PreviousProject is { } previous)
         {
             prompt.AddChoice(new Choice.PreviousProject(previous));
         }
 
-        prompt.AddChoice(new Choice.Back());
+        prompt.AddChoice(back);
         return prompt;
     }
 
@@ -170,7 +202,10 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
         Choice.Create => "[green]+[/] Create a new profile",
         Choice.Import => "[blue]↓[/] Import a profile (.publishsettings or .pubxml)",
         Choice.SaveAsPreset => "[yellow]★[/] Save a profile as a preset",
+        Choice.PublishAgain again => $"[{Widgets.PrimaryColorMarkup}]↻ Repeat last publish[/] [dim]{again.Description.EscapeMarkup()}[/]",
+        Choice.ShowSolution solution => $"[blue]≡[/] Show all projects in {solution.Name.EscapeMarkup()}",
         Choice.PreviousProject previous => $"[dim]← Back to {previous.Name.EscapeMarkup()} (the previous project)[/]",
+        Choice.Back { Exits: true } => "[dim]✕ Exit[/]",
         Choice.Back => "[dim]← Back to the projects[/]",
         _ => throw new ArgumentOutOfRangeException(nameof(choice))
     };

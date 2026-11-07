@@ -1,3 +1,5 @@
+using Pubwiz.Core.Infrastructure.Platform;
+
 namespace Pubwiz.Core.Discovery;
 
 /// <summary>
@@ -8,7 +10,8 @@ namespace Pubwiz.Core.Discovery;
 /// <list type="number">
 ///   <item>solutions in the start folder;</item>
 ///   <item>solutions in the parent folders (up to <see cref="MaxParentDepth"/> levels, never above the git repository root,
-///   the home folder or the drive root) that include a project inside the start folder;</item>
+///   the home folder or the drive root) that include a project inside the start folder. When the start folder is a
+///   project's own folder, that project is reported too (<see cref="WorkspaceScanResult.StartProjectPaths"/>);</item>
 ///   <item>the start folder and its subfolders, level by level up to <see cref="MaxDepth"/> levels down: at each level
 ///   solutions win over projects, and the first level with any match ends the search;</item>
 ///   <item>the nearest parent solution inside the same git repository, even when it doesn't include the start folder
@@ -65,7 +68,8 @@ public static class WorkspaceScanner
         var (including, nearestInRepository) = await FindParentSolutionsAsync(fullPath, cancellationToken);
         if (including.Count > 0)
         {
-            return new WorkspaceScanResult(including, []);
+            var startProjects = await FindIncludedAsync(FindFiles([fullPath], ProjectExtensions), including, cancellationToken);
+            return new WorkspaceScanResult(including, [], startProjects);
         }
 
         var below = ScanDown(fullPath);
@@ -172,6 +176,30 @@ public static class WorkspaceScanner
         }
     }
 
+    /// <summary>The <paramref name="projectPaths"/> that at least one of <paramref name="solutionPaths"/> includes.</summary>
+    private static async Task<List<string>> FindIncludedAsync(List<string> projectPaths, List<string> solutionPaths, CancellationToken cancellationToken)
+    {
+        if (projectPaths.Count == 0)
+        {
+            return [];
+        }
+
+        var included = new HashSet<string>(PathComparison == StringComparison.OrdinalIgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        foreach (var solution in solutionPaths)
+        {
+            try
+            {
+                included.UnionWith((await SolutionReader.ReadProjectsAsync(solution, cancellationToken)).Select(p => p.FilePath));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Already read once by IncludesFolderAsync; if it fails now, the whole solution is shown instead.
+            }
+        }
+
+        return projectPaths.Where(included.Contains).ToList();
+    }
+
     /// <summary>The original search: the start folder, then its subfolders level by level.</summary>
     private static WorkspaceScanResult ScanDown(string startFolder)
     {
@@ -243,8 +271,7 @@ public static class WorkspaceScanner
         return Directory.Exists(git) || File.Exists(git);
     }
 
-    private static StringComparison PathComparison =>
-        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private static StringComparison PathComparison => OperatingSystemInfo.PathComparison;
 
     private static bool SamePath(string a, string b) =>
         string.Equals(Path.TrimEndingDirectorySeparator(a), Path.TrimEndingDirectorySeparator(b), PathComparison);

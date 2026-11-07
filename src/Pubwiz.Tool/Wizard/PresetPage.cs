@@ -57,24 +57,76 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         return await ResolveAsync(name, preset, filePath, cancellationToken);
     }
 
+    /// <summary>What <see cref="OfferAsync"/> did.</summary>
+    /// <param name="Shown">The preset list was shown (so the wizard shouldn't offer the last publish again).</param>
+    /// <param name="Batch">The chosen preset or last publish, or <c>null</c> to continue with the wizard.</param>
+    public sealed record Offer(bool Shown, PublishBatch? Batch);
+
     /// <summary>
-    /// When a <c>pubwiz.json</c> with presets exists, offers to run one instead of choosing projects.
+    /// When a <c>pubwiz.json</c> with presets exists, offers to run one instead of choosing projects, with the last
+    /// publish from here (<paramref name="recent"/>) at the top.
     /// </summary>
-    /// <returns>The chosen preset's batch, or <c>null</c> to continue with the wizard.</returns>
-    public async Task<PublishBatch?> OfferAsync(string startDirectory, CancellationToken cancellationToken)
+    public async Task<Offer> OfferAsync(string startDirectory, RecentRun? recent, CancellationToken cancellationToken)
     {
         if (PresetFile.Find(startDirectory) is not { } filePath || Load(filePath) is not { Presets.Count: > 0 } file)
         {
-            return null;
+            return new Offer(Shown: false, Batch: null);
         }
 
         const string chooseProjects = "\0choose";
-        var choice = console.Prompt(Questions.Menu<string>("Run a saved preset?")
-            .AddChoices(file.Presets.Keys.Order())
-            .AddChoices(chooseProjects)
-            .UseConverter(name => name == chooseProjects ? "[dim]No, choose projects[/]" : $"{name.EscapeMarkup()} [dim]({DescribeProjects(file.Presets[name]).EscapeMarkup()})[/]"));
+        const string publishAgain = "\0again";
+        var prompt = Questions.Menu<string>("Run a saved preset?")
+            .UseConverter(name => name switch
+            {
+                chooseProjects => "[dim]No, choose projects[/]",
+                publishAgain => $"[{Widgets.PrimaryColorMarkup}]↻ Repeat last publish[/] [dim]{DescribeRecent(recent!, DateTimeOffset.Now).EscapeMarkup()}[/]",
+                _ => $"{name.EscapeMarkup()} [dim]({DescribeProjects(file.Presets[name]).EscapeMarkup()})[/]"
+            });
 
-        return choice == chooseProjects ? null : await ResolveAsync(choice, file.Presets[choice], filePath, cancellationToken);
+        if (recent is not null)
+        {
+            prompt.AddChoice(publishAgain);
+        }
+
+        var choice = console.Prompt(prompt.AddChoices(file.Presets.Keys.Order()).AddChoices(chooseProjects));
+        return choice switch
+        {
+            chooseProjects => new Offer(Shown: true, Batch: null),
+            publishAgain => new Offer(Shown: true, await TryResolveRecentAsync(recent!, filePath, cancellationToken)),
+            _ => new Offer(Shown: true, await ResolveAsync(choice, file.Presets[choice], filePath, cancellationToken))
+        };
+    }
+
+    /// <summary>
+    /// The last publish from here as a batch, or <c>null</c> (after saying why) when it can't be published any more,
+    /// e.g. a project was moved or a profile renamed.
+    /// </summary>
+    /// <param name="presetFilePath">Where the batch can be saved as a preset.</param>
+    public async Task<PublishBatch?> TryResolveRecentAsync(RecentRun recent, string? presetFilePath, CancellationToken cancellationToken)
+    {
+        // The paths are full paths, so the base folder doesn't matter.
+        var resolved = await console.Status().StartAsync("Loading the last publish...",
+            _ => resolver.ResolveAsync(recent.ToPreset(), Directory.GetCurrentDirectory(), cancellationToken));
+
+        if (!resolved.IsValid)
+        {
+            var problems = string.Join(Environment.NewLine, resolved.Problems.Select(p => $"  - {DisplayText.ShortPath(p.Entry.Path)} ({p.Entry.Profile}): {p.Reason}"));
+            console.Write(Widgets.Warning($"The last publish can't be repeated:{Environment.NewLine}{problems}"));
+            console.WriteLine();
+            return null;
+        }
+
+        var selections = resolved.Items.Select(i => new PublishSelection(i.Project, i.Profile) { Order = i.Order }).ToList();
+        return new PublishBatch(selections, recent.Configuration, recent.Parallel, presetFilePath);
+    }
+
+    /// <summary>The last publish, e.g. "Shop.Api with Production · 2 hours ago" or "Api + Worker → Web · yesterday".</summary>
+    internal static string DescribeRecent(RecentRun recent, DateTimeOffset now)
+    {
+        var projects = DescribeProjects(recent.ToPreset());
+        var profiles = recent.Projects.Select(p => p.Profile).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var profile = profiles.Count == 1 ? $" with {profiles[0]}" : string.Empty;
+        return $"{DisplayText.Truncate(projects, 60)}{profile} · {DisplayText.RelativeTime(recent.PublishedAt, now)}";
     }
 
     /// <summary>

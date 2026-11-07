@@ -1,4 +1,5 @@
 using Pubwiz.Core.Discovery;
+using Pubwiz.Core.Presets;
 using Pubwiz.Tool.Rendering;
 using Pubwiz.Core.Profiles;
 
@@ -24,4 +25,5 @@ public sealed record PublishSelection(ProjectInfo Project, PublishProfile Profil
 /// <param name="Confirm">Ask "Publish now?" before returning the selection.</param>
 /// <param name="Git">The start folder's git state, shown above the project list (and updated there after the fetch).</param>
 /// <param name="Parallel">The most projects to publish at the same time, from <c>--parallel</c>; <c>null</c> for no limit.</param>
-public sealed record WizardOptions(string Path, bool IncludeAll, bool Confirm, GitStatus? Git = null, int? Parallel = null);
+/// <param name="Recent">The last publish from here, offered at the top of the first list; <c>null</c> for none.</param>
+public sealed record WizardOptions(string Path, bool IncludeAll, bool Confirm, GitStatus? Git = null, int? Parallel = null, RecentRun? Recent = null);

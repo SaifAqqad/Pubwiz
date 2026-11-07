@@ -1,3 +1,4 @@
+using Pubwiz.Tool.Rendering;
 using Spectre.Console.Rendering;
 
 namespace Pubwiz.Tool.Prompts;
@@ -39,6 +40,13 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     public Func<T, bool> IsSelectable { get; init; } = _ => true;
 
     /// <summary>
+    /// Items that are actions (e.g. "Repeat last publish") rather than things to select: put them first in the list. They're
+    /// drawn as one line (the first column, then the second dimmed), Enter chooses them when nothing is selected,
+    /// Space and Ctrl+A skip them, and they're hidden while searching.
+    /// </summary>
+    public Func<T, bool> IsAction { get; init; } = _ => false;
+
+    /// <summary>
     /// Adds a row with this label after the items. Choosing it (or pressing Esc, see <see cref="EscapeChoosesExitRow"/>)
     /// returns <c>null</c>. Without it, Esc throws <see cref="PromptCancelledException"/>.
     /// </summary>
@@ -73,9 +81,10 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     /// <returns>The chosen items, or <c>null</c> when the exit row was chosen.</returns>
     public async Task<MultiSelectResult<T>?> ShowAsync(IAnsiConsole console, CancellationToken cancellationToken)
     {
-        var searchTexts = items.Select(item => string.Join(' ', columns(item))).ToList();
+        // Actions have no text to search, so a search hides them.
+        var searchTexts = items.Select(item => IsAction(item) ? string.Empty : string.Join(' ', columns(item))).ToList();
         var headerHeight = Header is null && HeaderUpdate is null ? 0 : 2;
-        var state = new MultiSelectState(searchTexts, items.Select(IsSelectable).ToList(), console.Profile.Height - ChromeHeight - headerHeight,
+        var state = new MultiSelectState(searchTexts, items.Select(item => !IsAction(item) && IsSelectable(item)).ToList(), console.Profile.Height - ChromeHeight - headerHeight,
             hasExitRow: ExitLabel is not null, alwaysShowSelected: !SingleSelect);
         _header = Header;
 
@@ -208,7 +217,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             return true;
         }
 
-        if (state.CursorItem is { } item && state.IsSelectable(item))
+        if (state.CursorItem is { } item && (state.IsSelectable(item) || IsAction(items[item])))
         {
             result = new MultiSelectResult<T>([], items[item]);
             return true;
@@ -270,6 +279,13 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         for (var row = state.Offset; row < lastRow; row++)
         {
             var isCursor = listFocused && row == state.Cursor;
+            if (row < state.VisibleItems.Count && IsAction(items[state.VisibleItems[row]]))
+            {
+                grid = null;
+                body.Add(RenderAction(items[state.VisibleItems[row]], isCursor, widths[0], console.Profile.Width, unicode));
+                continue;
+            }
+
             AddRow(row < state.VisibleItems.Count
                 ? RenderItem(state.VisibleItems[row], state, isCursor, unicode)
                 : RenderExitRow(columnCount, isCursor, unicode));
@@ -327,7 +343,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
 
         var widths = new int[columnCount + 1];
         widths[0] = SingleSelect ? 1 : unicode ? 3 : 5; // "❯", "❯ ◉" or "> [x]"
-        foreach (var item in items)
+        foreach (var item in items.Where(item => !IsAction(item)))
         {
             var cells = columns(item);
             for (var i = 0; i < columnCount; i++)
@@ -379,6 +395,23 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             : $"[{(selectable ? "default" : "grey")}]{(unicode ? "○" : "[[ ]]")}[/]";
 
         return [new Markup($"{pointer} {checkbox}"), .. cells];
+    }
+
+    /// <summary>An action row: its label lined up with the names, then its detail, cut to the terminal's width.</summary>
+    private Markup RenderAction(T item, bool isCursor, int pointerWidth, int consoleWidth, bool unicode)
+    {
+        var cells = columns(item);
+        var pointer = isCursor ? $"[{Widgets.PrimaryColorMarkup} bold]{(unicode ? "❯" : ">")}[/]" : " ";
+        var label = cells[0];
+        var detail = cells.Count > 1 ? cells[1] : string.Empty;
+
+        // The pointer column, the space after it, the label and two spaces before the detail.
+        var room = consoleWidth - 1 - pointerWidth - 1 - label.Length - 2;
+        detail = room > 3 ? DisplayText.Truncate(detail, room) : string.Empty;
+
+        var labelStyle = isCursor ? Widgets.HighlightMarkup : $"{Widgets.PrimaryColorMarkup}";
+        var line = $"{pointer}{new string(' ', pointerWidth)}[{labelStyle}]{label.EscapeMarkup()}[/]";
+        return new Markup(detail.Length > 0 ? $"{line}  [dim]{detail.EscapeMarkup()}[/]" : line);
     }
 
     private Markup[] RenderExitRow(int columnCount, bool isCursor, bool unicode)

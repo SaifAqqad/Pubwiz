@@ -42,6 +42,7 @@ public static class ServiceRegistration
         services.AddSingleton<ProjectInspector>();
         services.AddSingleton<WorkspaceLoader>();
         services.AddSingleton<PresetResolver>();
+        services.AddSingleton(new RecentRunStore(RecentRunStore.DefaultFilePath));
         services.AddSingleton<PublishRunner>();
         services.AddSingleton<AzCli>();
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromMinutes(30) });

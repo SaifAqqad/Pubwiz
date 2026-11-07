@@ -63,6 +63,28 @@ public sealed class PresetTests : IDisposable
         Assert.Throws<InvalidDataException>(() => PresetFile.Load(path));
     }
 
+    [Theory]
+    [InlineData("""{ "presets": { "prod": { "configuration": "Release" } } }""", "the preset 'prod' has no \"projects\" list")]
+    [InlineData("""{ "presets": { "prod": { "projects": [ { "profile": "Prod" } ] } } }""", "project 1 of the preset 'prod' has no \"path\"")]
+    [InlineData("""{ "presets": { "prod": { "projects": [ { "path": "A.csproj", "profile": "P" }, { "path": "B.csproj" } ] } } }""", "project 2 of the preset 'prod' has no \"profile\"")]
+    [InlineData("""{ "presets": { "prod": { "projects": [ null ] } } }""", "project 1 of the preset 'prod' is empty")]
+    [InlineData("""{ "presets": { "Prod": { "projects": [] }, "prod": { "projects": [] } } }""", "the presets 'Prod' and 'prod' differ only in case")]
+    public void Load_ExplainsWhatsMissingFromAHandEditedFile(string json, string problem)
+    {
+        var path = _temp.CreateFile(PresetFile.FileName, json);
+
+        var error = Assert.Throws<InvalidDataException>(() => PresetFile.Load(path));
+        Assert.Contains(problem, error.Message);
+    }
+
+    [Fact]
+    public void Load_AcceptsAFileWithoutPresets()
+    {
+        var path = _temp.CreateFile(PresetFile.FileName, """{ "presets": null }""");
+
+        Assert.Empty(PresetFile.Load(path).Presets);
+    }
+
     [Fact]
     public void Find_LooksInParentFolders()
     {
