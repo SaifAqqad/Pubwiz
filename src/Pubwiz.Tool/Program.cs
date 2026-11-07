@@ -65,6 +65,11 @@ static int HandleException(Exception exception)
                 Widgets.Write(Widgets.Error(missing.Message));
                 return ExitCodes.MissingPrerequisite;
 
+            // A hand-edited file Pubwiz reads (pubwiz.json, servers.json) is invalid; the message says which and why.
+            case InvalidDataException invalidFile:
+                Widgets.Write(Widgets.Error(invalidFile.Message));
+                return ExitCodes.InvalidInput;
+
             case UserErrorException userError:
                 Widgets.Write(Widgets.Error(userError.Message));
                 return userError.ExitCode;

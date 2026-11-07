@@ -22,6 +22,10 @@ public static class OperatingSystemInfo
 
     public static bool IsWindows => OperatingSystem.IsWindows();
 
+    /// <summary>How file paths compare here: ignoring case on Windows and macOS, whose file systems usually do.</summary>
+    public static StringComparison PathComparison { get; } =
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
     public static bool IsMacOS => OperatingSystem.IsMacOS();
 
     public static bool IsLinux => OperatingSystem.IsLinux();

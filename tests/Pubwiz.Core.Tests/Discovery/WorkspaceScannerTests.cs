@@ -108,6 +108,44 @@ public sealed class WorkspaceScannerTests : IDisposable
     }
 
     [Fact]
+    public async Task Scan_FromAProjectsFolder_ReportsThatProjectToo()
+    {
+        CreateRepositoryRoot();
+        var api = _temp.CreateProject("src/Api/Api.csproj");
+        _temp.CreateProject("src/Web/Web.csproj");
+        CreateSolution("App.slnx", "src/Api/Api.csproj", "src/Web/Web.csproj");
+
+        var result = await ScanAsync(System.IO.Path.Combine(_temp.Path, "src", "Api"));
+
+        Assert.Equal([api], result.StartProjects);
+    }
+
+    [Fact]
+    public async Task Scan_FromAFolderAboveTheProjects_ReportsNoStartProjects()
+    {
+        CreateRepositoryRoot();
+        _temp.CreateProject("src/Api/Api.csproj");
+        CreateSolution("App.slnx", "src/Api/Api.csproj");
+
+        var result = await ScanAsync(System.IO.Path.Combine(_temp.Path, "src"));
+
+        Assert.Empty(result.StartProjects);
+    }
+
+    [Fact]
+    public async Task Scan_LeavesOutAProjectTheSolutionDoesNotInclude()
+    {
+        CreateRepositoryRoot();
+        _temp.CreateProject("src/Api/Api.csproj");
+        _temp.CreateProject("src/Api/Scratch.csproj");
+        CreateSolution("App.slnx", "src/Api/Api.csproj");
+
+        var result = await ScanAsync(System.IO.Path.Combine(_temp.Path, "src", "Api"));
+
+        Assert.Equal(["Api.csproj"], result.StartProjects.Select(System.IO.Path.GetFileName));
+    }
+
+    [Fact]
     public async Task Scan_PrefersTheNearestParentSolution()
     {
         CreateRepositoryRoot();

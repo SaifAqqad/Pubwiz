@@ -12,6 +12,8 @@ Requires the .NET 10 SDK or later.
 dotnet tool install --global Pubwiz
 ```
 
+Or run it once without installing, with `dnx Pubwiz`.
+
 ## Use it
 
 Run it in a folder with a solution or project, then pick the projects and a publish profile for each:
@@ -20,12 +22,13 @@ Run it in a folder with a solution or project, then pick the projects and a publ
 dotnet pubwiz
 ```
 
-It uses the `.pubxml` profiles already in your repository (or imports a `.publishsettings` file), and it also:
+It's the publish step of Visual Studio, in your terminal: it uses the `.pubxml` profiles already in your repository
+(or imports a `.publishsettings` file), on any OS.
 
-- publishes several projects at once, with each one's build output on screen as it runs
-- deploys to IIS with Web Deploy from Windows, macOS or Linux
-- saves a batch of projects as a preset in `pubwiz.json`, so the next release is one command, on your machine or in CI
-- keeps passwords out of your repository: in your OS keychain, or fetched from Azure for App Service
+- **Web Deploy to IIS from macOS and Linux,** with its own client: no Windows or `msdeploy.exe` needed
+- **Several projects in one go,** in the order you choose, with each one's build output on screen as it runs
+- **Azure from the same wizard:** App Service, Function Apps, WebJobs and Container Apps, signed in with the Azure CLI, and Static Web Apps (Blazor WebAssembly) without Node or the SWA CLI
+- presets in `pubwiz.json`, so a release is one command, on your machine or in CI
 
 ## Targets
 

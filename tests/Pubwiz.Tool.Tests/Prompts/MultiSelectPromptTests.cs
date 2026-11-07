@@ -48,6 +48,47 @@ public class MultiSelectPromptTests
         Assert.Equal(["Api", "Web"], result!.Selected);
     }
 
+    private static MultiSelectPrompt<string> CreatePromptWithAction() =>
+        new("Pick projects", ["↻ Repeat last publish", .. Projects], name => [name, "detail"]) { IsAction = name => name.StartsWith('↻') };
+
+    [Fact]
+    public async Task ActionRow_IsHighlightedFirstAndEnterChoosesIt()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var result = await CreatePromptWithAction().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Empty(result!.Selected);
+        Assert.Equal("↻ Repeat last publish", result.Highlighted);
+        Assert.Contains("↻ Repeat last publish", console.Output);
+    }
+
+    [Fact]
+    public async Task ActionRow_IsNeverSelected()
+    {
+        var console = CreateConsole();
+        console.Input.PushKey(ConsoleKey.Spacebar);
+        console.Input.PushKey(CtrlA);
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var result = await CreatePromptWithAction().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal(Projects, result!.Selected);
+    }
+
+    [Fact]
+    public async Task ActionRow_IsHiddenWhileSearching()
+    {
+        var console = CreateConsole();
+        console.Input.PushText("wo");
+        console.Input.PushKey(ConsoleKey.Enter);
+
+        var result = await CreatePromptWithAction().ShowAsync(console, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Worker", result!.Highlighted);
+    }
+
     [Fact]
     public async Task Escape_Cancels()
     {

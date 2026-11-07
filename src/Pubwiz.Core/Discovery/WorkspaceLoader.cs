@@ -5,7 +5,15 @@ namespace Pubwiz.Core.Discovery;
 /// </summary>
 /// <param name="SolutionPath">The solution the projects were read from, or <c>null</c> when loose project files were found.</param>
 /// <param name="Projects">All projects, including ones that aren't publishable.</param>
-public sealed record Workspace(string? SolutionPath, IReadOnlyList<ProjectInfo> Projects);
+/// <param name="ParentSolutionPaths">
+/// When only the start folder's projects were loaded (Pubwiz was started in a project's folder): the solutions that
+/// include them, whose projects can be loaded on request. <c>null</c> when the whole solution (or folder) was loaded.
+/// </param>
+public sealed record Workspace(string? SolutionPath, IReadOnlyList<ProjectInfo> Projects, IReadOnlyList<string>? ParentSolutionPaths = null)
+{
+    /// <summary><c>true</c> when only the start folder's projects were loaded, see <see cref="ParentSolutionPaths"/>.</summary>
+    public bool IsStartFolderOnly => ParentSolutionPaths is { Count: > 0 };
+}
 
 /// <summary>
 /// Turns a scan result into a <see cref="Workspace"/> by reading the solution (if any) and inspecting its projects.
