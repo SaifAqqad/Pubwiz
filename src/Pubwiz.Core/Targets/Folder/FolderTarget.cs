@@ -33,7 +33,7 @@ public sealed class FolderTarget(DotnetCli dotnet) : IPublishTarget
             Configuration = request.EffectiveConfiguration,
             ProfileName = request.Profile.Name,
             TargetFramework = request.Profile[ProfileProperties.TargetFramework],
-            RuntimeIdentifier = request.Profile[ProfileProperties.RuntimeIdentifier],
+            RuntimeIdentifier = request.Platform.RuntimeIdentifier,
             Properties = new Dictionary<string, string> { [ProfileProperties.PublishDir] = outputDirectory + Path.DirectorySeparatorChar },
             Verbose = request.Verbose
         };

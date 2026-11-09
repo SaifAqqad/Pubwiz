@@ -29,6 +29,9 @@ public sealed class MauiTarget(DotnetCli dotnet, MauiPlatform platform) : IPubli
     public bool RequiresPassword(PublishProfile profile) =>
         platform == MauiPlatform.Android && string.Equals(profile[ProfileProperties.AndroidKeyStore], "true", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>The profile's Android or iOS runtime decides it.</summary>
+    public TargetPlatform GetPlatform(PublishProfile profile) => TargetPlatform.None;
+
     public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request)
     {
         var outputDirectory = StagingPublish.GetStagingDirectory(request);

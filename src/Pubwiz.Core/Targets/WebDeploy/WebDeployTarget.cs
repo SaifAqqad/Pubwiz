@@ -39,6 +39,9 @@ public sealed class WebDeployTarget(DotnetCli dotnet, MsDeployCli msdeploy, WebD
     /// </summary>
     public bool RequiresPassword(PublishProfile profile) => FindServerLogin(profile) is null && profile[ProfileProperties.UserName] is not null;
 
+    /// <summary>IIS only runs on Windows (Azure App Service profiles go to <see cref="Azure.AzureAppServiceTarget"/>).</summary>
+    public TargetPlatform GetPlatform(PublishProfile profile) => TargetPlatform.Of(PublishOs.Windows);
+
     public string? GetSetupError(PublishProfile profile)
     {
         try

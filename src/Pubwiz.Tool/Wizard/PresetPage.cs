@@ -12,8 +12,16 @@ namespace Pubwiz.Tool.Wizard;
 /// <param name="Parallel">The most projects to publish at the same time in a step, from a preset or <c>--parallel</c>.</param>
 /// <param name="PresetFilePath">Where the selection can be saved as a preset; <c>null</c> when it came from a preset or the command line.</param>
 /// <param name="Preset">The preset it came from, whose order can be updated from the confirm page.</param>
+/// <param name="Os">
+/// The OS to build for when a project's target doesn't decide it (<c>--os</c>, a preset, or the confirm page);
+/// <c>null</c> for this machine's. See <see cref="PublishPlatform"/>.
+/// </param>
+/// <param name="Architecture">
+/// The architecture to build for, e.g. <c>arm64</c> (<c>--arch</c>, a preset, or the confirm page); <c>null</c> for
+/// each target's default.
+/// </param>
 public sealed record PublishBatch(IReadOnlyList<PublishSelection> Selections, string? Configuration = null, int? Parallel = null, string? PresetFilePath = null,
-    PresetSource? Preset = null)
+    PresetSource? Preset = null, PublishOs? Os = null, string? Architecture = null)
 {
     /// <summary>The step each selection is published in (1, 2, ... without gaps), in selection order.</summary>
     public IReadOnlyList<int> Steps => PublishOrder.ToSteps(Selections.Select(s => s.Order).ToList(), Parallel);
@@ -117,7 +125,8 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
         }
 
         var selections = resolved.Items.Select(i => new PublishSelection(i.Project, i.Profile) { Order = i.Order }).ToList();
-        return new PublishBatch(selections, recent.Configuration, recent.Parallel, presetFilePath);
+        return new PublishBatch(selections, recent.Configuration, recent.Parallel, presetFilePath, Os: PublishPlatform.ParseOs(recent.Os),
+            Architecture: PublishPlatform.ParseArchitecture(recent.Arch));
     }
 
     /// <summary>The last publish, e.g. "Shop.Api with Production · 2 hours ago" or "Api + Worker → Web · yesterday".</summary>
@@ -150,8 +159,10 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
     /// <param name="suggestedName">The default name, if any.</param>
     /// <param name="parallel">The most projects to publish at the same time in a step; not saved when there's no limit.</param>
     /// <param name="steps">The step of each selection; saved as each project's order. Without it, the projects run one after another.</param>
+    /// <param name="os">The OS chosen to build for; not saved when it's this machine's.</param>
+    /// <param name="architecture">The architecture chosen to build for; not saved when it's each target's default.</param>
     public void Save(IReadOnlyList<PublishSelection> selections, string filePath, string? suggestedName = null, int? parallel = null,
-        IReadOnlyList<int>? steps = null)
+        IReadOnlyList<int>? steps = null, PublishOs? os = null, string? architecture = null)
     {
         var file = PresetFile.LoadOrCreate(filePath);
         var name = console.Ask("Preset name", defaultValue: suggestedName, validate: n => string.IsNullOrWhiteSpace(n) ? "Enter a name" : null);
@@ -163,7 +174,8 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
 
         var baseDirectory = Path.GetDirectoryName(filePath)!;
         var projects = selections.Select((s, i) => PresetResolver.CreateEntry(s.Project, s.Profile, baseDirectory, steps?[i])).ToList();
-        file.Presets[name] = new PublishPreset(projects, Parallel: parallel);
+        file.Presets[name] = new PublishPreset(projects, Parallel: parallel, Os: os is { } chosen ? PublishPlatform.ToIdentifier(chosen) : null,
+            Arch: architecture);
         file.Save(filePath);
 
         console.MarkupLine($"{Widgets.SuccessCheckMarkup} Saved preset [{Widgets.PrimaryColorMarkup}]{name.EscapeMarkup()}[/] in {DisplayText.Link(filePath)}");
@@ -202,7 +214,8 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
 
         console.MarkupLine($"Preset [{Widgets.PrimaryColorMarkup}]{name.EscapeMarkup()}[/]: {resolved.Items.Count} project(s)");
         var selections = resolved.Items.Select(i => new PublishSelection(i.Project, i.Profile) { Order = i.Order }).ToList();
-        return new PublishBatch(selections, preset.Configuration, preset.Parallel, Preset: new PresetSource(name, filePath));
+        return new PublishBatch(selections, preset.Configuration, preset.Parallel, Preset: new PresetSource(name, filePath),
+            Os: PublishPlatform.ParseOs(preset.Os), Architecture: PublishPlatform.ParseArchitecture(preset.Arch));
     }
 
     private static PresetFile Load(string filePath)

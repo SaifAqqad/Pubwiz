@@ -41,6 +41,7 @@ public sealed class PublishRunner(IEnumerable<IPublishTarget> targets)
             return new PublishJob(request, target.Type, steps: [], "A preview (--what-if) is only possible with Web Deploy profiles; nothing was published.");
         }
 
+        request = request with { TargetPlatform = target.GetPlatform(request.Profile) };
         return new PublishJob(request, target.Type, target.CreateSteps(request), setupError: null);
     }
 

@@ -21,7 +21,13 @@ public sealed record PresetProject(string Path, string Profile, int? Order = nul
 /// The most projects to publish at once within a step (default: all of the step). Without orders, how many projects
 /// to publish at once (default 1).
 /// </param>
-public sealed record PublishPreset(IReadOnlyList<PresetProject> Projects, string? Configuration = null, int? Parallel = null);
+/// <param name="Os">
+/// The OS to build for (<c>win</c>, <c>linux</c> or <c>osx</c>) when the target doesn't decide it, like <c>--os</c>;
+/// <c>null</c> builds for the machine publishing.
+/// </param>
+/// <param name="Arch">The architecture to build for (<c>x64</c>, <c>arm64</c>, ...), like <c>--arch</c>.</param>
+public sealed record PublishPreset(IReadOnlyList<PresetProject> Projects, string? Configuration = null, int? Parallel = null, string? Os = null,
+    string? Arch = null);
 
 /// <summary>
 /// The <c>pubwiz.json</c> file holding named presets. It's meant to be committed, so a team (or CI) can run
@@ -113,6 +119,16 @@ public sealed class PresetFile
             if (preset?.Projects is null)
             {
                 return $"the preset '{name}' has no \"projects\" list.";
+            }
+
+            if (preset.Os is not null && Publishing.PublishPlatform.ParseOs(preset.Os) is null)
+            {
+                return $"the preset '{name}' has \"os\": \"{preset.Os}\"; use \"win\", \"linux\" or \"osx\".";
+            }
+
+            if (preset.Arch is not null && Publishing.PublishPlatform.ParseArchitecture(preset.Arch) is null)
+            {
+                return $"the preset '{name}' has \"arch\": \"{preset.Arch}\"; use {string.Join(", ", Publishing.PublishPlatform.Architectures.Select(a => $"\"{a}\""))}.";
             }
 
             for (var i = 0; i < preset.Projects.Count; i++)

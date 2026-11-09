@@ -300,6 +300,8 @@ public sealed class PublishWizard(
     /// <summary>The confirm question (unless --yes), then the certificate and password questions.</summary>
     private async Task<PublishBatch?> ConfirmAndAskAsync(PublishBatch batch, WizardOptions options, string cancelLabel, CancellationToken cancellationToken)
     {
+        // --os and --arch win over the last publish's choice; applied here so the confirm page shows them.
+        batch = batch with { Os = options.Os ?? batch.Os, Architecture = options.Architecture ?? batch.Architecture };
         if (options.Confirm)
         {
             if (confirmPage.Confirm(batch, cancelLabel) is not { } confirmed)

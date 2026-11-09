@@ -20,6 +20,24 @@ public sealed record PublishRequest(ProjectInfo Project, PublishProfile Profile)
     /// <summary>Overrides the profile's build configuration when set.</summary>
     public string? Configuration { get; init; }
 
+    /// <summary>
+    /// The OS to build for (<c>--os</c>, a preset, or the confirm page), used when neither the profile nor the target
+    /// decides it. See <see cref="PublishPlatform"/>.
+    /// </summary>
+    public PublishOs? Os { get; init; }
+
+    /// <summary>
+    /// The architecture to build for, e.g. <c>arm64</c> (<c>--arch</c>, a preset, or the confirm page), used unless the
+    /// profile has a runtime. See <see cref="PublishPlatform"/>.
+    /// </summary>
+    public string? Architecture { get; init; }
+
+    /// <summary>What the target says about the platform; set by <see cref="PublishRunner.CreateJob"/>.</summary>
+    public TargetPlatform TargetPlatform { get; init; } = TargetPlatform.Any;
+
+    /// <summary>The platform to build for, and the runtime identifier passed to <c>dotnet publish</c>.</summary>
+    public ResolvedPlatform Platform => PublishPlatform.Resolve(Project, Profile, TargetPlatform, Os, Architecture);
+
     /// <summary>Use detailed build output.</summary>
     public bool Verbose { get; init; }
 

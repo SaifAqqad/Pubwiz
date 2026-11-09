@@ -114,6 +114,8 @@ Azure targets sign in with the [Azure CLI](https://learn.microsoft.com/cli/azure
 | Option | Description |
 |---|---|
 | `-c`, `--configuration` | Build configuration, overriding the profiles' (e.g. `Release` or `Debug`). |
+| `--os <OS>` | The OS to build for (`win`, `linux` or `osx`) when the target doesn't decide it: folders, zips, FTP and SFTP. Add the architecture to set both, e.g. `--os linux-arm64`. See [Platform](#platform). |
+| `-a`, `--arch <ARCH>` | The architecture to build for: `x64`, `arm64`, `x86` or `arm`. See [Platform](#platform). |
 | `--preset <NAME>` | Run a saved preset from `pubwiz.json`. |
 | `--preset-file <FILE>` | The preset file to use (default: `pubwiz.json` in the folder or its parents). |
 | `--project <NAME>` | Publish this project (name or `.csproj` path) without the wizard; repeatable. Add `:N` to set its order, e.g. `--project Shop.Api:1 --project Shop.Worker:1 --project Shop.Web:2` (the same number publishes at the same time). Needs `--profile`. |
@@ -155,8 +157,29 @@ dotnet pubwiz --preset release
 ```
 
 `order` works like in the wizard: Shop.Api and Shop.Worker are published at the same time, then Shop.Web once they're both done (even if one failed). Add `"parallel": 2` to publish at most 2 at a time within a step. Presets without `order` publish their projects one after another, or `parallel` at a time. Before publishing a preset, **Change the order** on the confirm page can save the new order back to it.
+Add `"os": "linux"` and `"arch": "arm64"` to choose the platform, like `--os` and `--arch` (see [Platform](#platform)).
 
 When a `pubwiz.json` exists, the wizard also offers its presets before asking for projects.
+
+## Platform
+
+Each project is built for the OS and architecture it will run on, so an app published from a Mac to IIS gets a Windows `.exe`, not a macOS one. The confirm page shows what each project is built for, and **Change the platform** picks another (e.g. `Linux arm64`).
+
+The **OS** is the first of these that applies:
+
+1. The profile's own `RuntimeIdentifier`.
+2. The target: IIS (Web Deploy) is Windows, an Azure app is Linux or Windows (from the app's `IsLinux`), and SDK container images are Linux.
+3. The OS you choose: `--os`, a preset's `"os"`, or the confirm page. Used for folders, zips, FTP and SFTP, and Azure profiles that don't say which OS the app runs on.
+4. This machine's.
+
+The **architecture** is the profile's, then the one you choose (`--arch`, a preset's `"arch"`, or the confirm page; it applies even when the target decides the OS, e.g. `--arch arm64` for images on Arm servers), then x64 for servers, Azure, registries and other OSes, or this machine's for its own OS and for local container images.
+
+```bash
+dotnet pubwiz --os linux-arm64     # a Raspberry Pi over SFTP
+dotnet pubwiz --arch arm64         # Arm container images, or this machine's OS on arm64
+```
+
+When nothing is chosen and the target can't tell, `dotnet publish` runs without `-r`, as before. Blazor WebAssembly apps, Static Web Apps, MAUI apps and Dockerfile builds keep their own platform.
 
 ## CI and automation
 

@@ -6,10 +6,13 @@ namespace Pubwiz.Core.Presets;
 
 /// <summary>What was last published from a folder: the projects (full paths), their profiles and order, and the batch options.</summary>
 /// <param name="PublishedAt">When it was published.</param>
-public sealed record RecentRun(DateTimeOffset PublishedAt, IReadOnlyList<PresetProject> Projects, string? Configuration = null, int? Parallel = null)
+/// <param name="Os">The OS chosen to build for (see <see cref="PublishPreset.Os"/>).</param>
+/// <param name="Arch">The architecture chosen to build for (see <see cref="PublishPreset.Arch"/>).</param>
+public sealed record RecentRun(DateTimeOffset PublishedAt, IReadOnlyList<PresetProject> Projects, string? Configuration = null, int? Parallel = null,
+    string? Os = null, string? Arch = null)
 {
     /// <summary>The run as a preset, to resolve and publish it the same way.</summary>
-    public PublishPreset ToPreset() => new(Projects, Configuration, Parallel);
+    public PublishPreset ToPreset() => new(Projects, Configuration, Parallel, Os, Arch);
 }
 
 /// <summary>

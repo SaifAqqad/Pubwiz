@@ -26,7 +26,7 @@ public static class StagingPublish
             Configuration = request.EffectiveConfiguration,
             ProfileName = request.Profile.Name,
             TargetFramework = request.Profile[ProfileProperties.TargetFramework],
-            RuntimeIdentifier = request.Profile[ProfileProperties.RuntimeIdentifier],
+            RuntimeIdentifier = request.Platform.RuntimeIdentifier,
             Verbose = request.Verbose,
             Properties = new Dictionary<string, string>
             {

@@ -27,6 +27,9 @@ public sealed partial class StaticWebAppTarget(DotnetCli dotnet, AzCli az, Stati
     /// <summary>The deployment token is the "password" when the profile doesn't use az (e.g. in CI, from <c>PUBWIZ_PASSWORD</c>).</summary>
     public bool RequiresPassword(PublishProfile profile) => UsesDeploymentToken(profile);
 
+    /// <summary>The site runs in the browser.</summary>
+    public TargetPlatform GetPlatform(PublishProfile profile) => TargetPlatform.None;
+
     public string? GetSetupError(PublishProfile profile)
     {
         if (StaticSitesClientDownloader.Platform is null)

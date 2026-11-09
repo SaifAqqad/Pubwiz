@@ -38,6 +38,21 @@ public sealed class PublishCommand(
         [Description("Build configuration, overriding the profiles' (e.g. Release or Debug)")]
         public string? Configuration { get; init; }
 
+        [CommandOption("--os <OS>")]
+        [Description("The OS to build for when the target doesn't decide it (folders, zips, FTP, SFTP): win, linux or osx. Add the architecture to set both, e.g. linux-arm64. Default: this machine's; IIS builds for Windows, Azure apps and containers for theirs")]
+        public string? Os { get; init; }
+
+        [CommandOption("-a|--arch <ARCH>")]
+        [Description("The architecture to build for: x64, arm64, x86 or arm. Default: x64 for servers, Azure and other OSes; this machine's for its own OS")]
+        public string? Arch { get; init; }
+
+        /// <summary>The OS from <see cref="Os"/>; <c>null</c> when it wasn't given.</summary>
+        public PublishOs? ParsedOs => Os is not null && PublishPlatform.TryParsePlatform(Os, out var os, out _) ? os : null;
+
+        /// <summary>The architecture from <see cref="Arch"/> or <see cref="Os"/> (<c>linux-arm64</c>); <c>null</c> when neither gives one.</summary>
+        public string? ParsedArchitecture => PublishPlatform.ParseArchitecture(Arch)
+            ?? (Os is not null && PublishPlatform.TryParsePlatform(Os, out _, out var architecture) ? architecture : null);
+
         [CommandOption("--preset <NAME>")]
         [Description("Run a saved preset from pubwiz.json instead of the wizard")]
         public string? Preset { get; init; }
@@ -102,6 +117,22 @@ public sealed class PublishCommand(
                 return ValidationResult.Error("--log-lines must be at least 1");
             }
 
+            string? osArchitecture = null;
+            if (Os is not null && !PublishPlatform.TryParsePlatform(Os, out _, out osArchitecture))
+            {
+                return ValidationResult.Error($"--os must be win, linux or osx, optionally with the architecture (e.g. linux-arm64), not '{Os}'");
+            }
+
+            if (Arch is not null && PublishPlatform.ParseArchitecture(Arch) is null)
+            {
+                return ValidationResult.Error($"--arch must be {string.Join(", ", PublishPlatform.Architectures)}, not '{Arch}'");
+            }
+
+            if (osArchitecture is not null && Arch is not null && osArchitecture != PublishPlatform.ParseArchitecture(Arch))
+            {
+                return ValidationResult.Error($"--os {Os} and --arch {Arch} give different architectures; use one of them");
+            }
+
             if (Parallel is < 1)
             {
                 return ValidationResult.Error("--parallel must be at least 1");
@@ -142,7 +173,9 @@ public sealed class PublishCommand(
         if (interactive && requests.Count > 0)
         {
             var projects = requests.Select(r => new PresetProject(r.Project.FilePath, r.Profile.Name, r.Order)).ToList();
-            recentRuns.Save(GetStartPath(settings), new RecentRun(DateTimeOffset.Now, projects, settings.Configuration ?? batch.Configuration, batch.Parallel));
+            var os = batch.Os is { } chosen ? PublishPlatform.ToIdentifier(chosen) : null;
+            recentRuns.Save(GetStartPath(settings), new RecentRun(DateTimeOffset.Now, projects, settings.Configuration ?? batch.Configuration, batch.Parallel, os,
+                batch.Architecture));
         }
 
         results.WriteResults(jobs);
@@ -203,12 +236,17 @@ public sealed class PublishCommand(
         // The wizard asks before publishing itself, since cancelling there goes back to its project list.
         // It shows the git line above its project list.
         return await wizard.RunAsync(new WizardOptions(path, settings.IncludeAll, Confirm: !settings.Yes, Git: gitStatus, Parallel: settings.Parallel,
-            Recent: offer.Shown ? null : recent), cancellationToken);
+            Recent: offer.Shown ? null : recent, Os: settings.ParsedOs, Architecture: settings.ParsedArchitecture), cancellationToken);
 
         async Task<PublishBatch?> ConfirmAsync(PublishBatch batch)
         {
-            // --parallel wins over the preset's setting; applied here so the confirm question shows what will happen.
-            batch = batch with { Parallel = settings.Parallel ?? batch.Parallel };
+            // --parallel, --os and --arch win over the preset's settings; applied here so the confirm question shows what will happen.
+            batch = batch with
+            {
+                Parallel = settings.Parallel ?? batch.Parallel,
+                Os = settings.ParsedOs ?? batch.Os,
+                Architecture = settings.ParsedArchitecture ?? batch.Architecture
+            };
 
             // Whatever is known now: the confirm question doesn't wait for the fetch.
             if (await gitStatus.GetLatestAsync() is { } info)
@@ -238,6 +276,8 @@ public sealed class PublishCommand(
                 WhatIf = settings.WhatIf,
                 AllowUntrustedCertificate = ask ? await certificates.AskAsync(profile, cancellationToken) : null,
                 Configuration = settings.Configuration ?? batch.Configuration,
+                Os = batch.Os,
+                Architecture = batch.Architecture,
                 Verbose = settings.Verbose,
                 Password = runner.NeedsPassword(profile) ? await passwords.GetAsync(project, profile, GetPasswordPrompt(interactive, settings), cancellationToken) : null,
                 Git = await git.GetInfoAsync(project.Directory, cancellationToken: cancellationToken)
