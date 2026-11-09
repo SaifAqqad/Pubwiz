@@ -22,6 +22,12 @@ public interface IPublishTarget
     /// </summary>
     string? GetSetupError(PublishProfile profile) => null;
 
+    /// <summary>
+    /// The OS the target runs apps on, e.g. Windows for IIS; <see cref="TargetPlatform.Any"/> when it can't tell (a
+    /// folder, FTP), so <c>--os</c> or this machine decides. See <see cref="PublishPlatform"/>.
+    /// </summary>
+    TargetPlatform GetPlatform(PublishProfile profile) => TargetPlatform.Any;
+
     /// <summary>Whether the target can preview a publish without changing anything (<see cref="PublishRequest.WhatIf"/>).</summary>
     bool SupportsWhatIf => false;
 

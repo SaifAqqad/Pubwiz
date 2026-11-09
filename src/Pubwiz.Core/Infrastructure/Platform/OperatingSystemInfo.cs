@@ -18,7 +18,12 @@ public static class OperatingSystemInfo
     /// <summary>
     /// The runtime identifier of the current machine, e.g. <c>linux-x64</c>.
     /// </summary>
-    public static string Rid { get; } = $"{OsIdentifier}-{RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant()}";
+    public static string Rid => $"{OsIdentifier}-{Architecture}";
+
+    /// <summary>
+    /// The architecture part of a runtime identifier for this machine, e.g. <c>x64</c> or <c>arm64</c>.
+    /// </summary>
+    public static string Architecture { get; } = RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant();
 
     public static bool IsWindows => OperatingSystem.IsWindows();
 

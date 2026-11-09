@@ -18,6 +18,8 @@ public sealed class AzureWebJobTarget(DotnetCli dotnet, KuduClient kudu, KuduCre
 
     public bool RequiresPassword(PublishProfile profile) => !AzureProfile.UsesAzCli(profile);
 
+    public TargetPlatform GetPlatform(PublishProfile profile) => AzureProfile.GetPlatform(profile);
+
     public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request)
     {
         var profile = request.Profile;

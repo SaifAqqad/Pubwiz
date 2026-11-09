@@ -32,6 +32,15 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
     public bool RequiresPassword(PublishProfile profile) =>
         destination is not (PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball) && profile[ProfileProperties.UserName] is not null;
 
+    /// <summary>
+    /// SDK images are Linux images: built on x64 for registries and Azure, and on this machine's architecture for the
+    /// local Docker/Podman or a tarball (like the SDK does). A Dockerfile decides its own platform.
+    /// </summary>
+    public TargetPlatform GetPlatform(PublishProfile profile) =>
+        ContainerProfile.Read(profile, projectName: "app").Builder == ContainerBuilder.Dockerfile ? TargetPlatform.None
+        : destination is PublishTargetType.LocalContainer or PublishTargetType.ContainerTarball ? TargetPlatform.Of(PublishOs.Linux, architecture: null)
+        : TargetPlatform.Of(PublishOs.Linux);
+
     public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request)
     {
         var container = ContainerProfile.Read(request.Profile, request.Project.Name);
@@ -124,7 +133,7 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
             Configuration = request.EffectiveConfiguration,
             ProfileName = request.Profile.Name,
             TargetFramework = request.Profile[ProfileProperties.TargetFramework],
-            RuntimeIdentifier = request.Profile[ProfileProperties.RuntimeIdentifier],
+            RuntimeIdentifier = request.Platform.RuntimeIdentifier,
             Targets = ["PublishContainer"],
             Properties = properties,
             Verbose = request.Verbose

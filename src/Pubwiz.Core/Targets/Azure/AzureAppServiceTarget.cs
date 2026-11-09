@@ -21,6 +21,8 @@ public sealed class AzureAppServiceTarget(DotnetCli dotnet, KuduClient kudu, Kud
 
     public bool RequiresPassword(PublishProfile profile) => !AzureProfile.UsesAzCli(profile);
 
+    public TargetPlatform GetPlatform(PublishProfile profile) => AzureProfile.GetPlatform(profile);
+
     public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request)
     {
         var zipPath = StagingPublish.GetStagingDirectory(request) + ".zip";

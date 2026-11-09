@@ -1,4 +1,5 @@
 using Pubwiz.Core.Profiles;
+using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Targets.WebDeploy;
 
 namespace Pubwiz.Core.Targets.Azure;
@@ -26,6 +27,18 @@ public static class AzureProfile
 
     public static bool IsTriggeredWebJob(PublishProfile profile) =>
         string.Equals(profile[ProfileProperties.WebJobType], "Triggered", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Linux or Windows, from <c>IsLinux</c> (Visual Studio, Pubwiz) or <c>PubwizAzureLinux</c> (earlier Pubwiz
+    /// versions); <see cref="TargetPlatform.Any"/> when neither is set (e.g. imported .publishsettings).
+    /// </summary>
+    public static TargetPlatform GetPlatform(PublishProfile profile) =>
+        (profile[ProfileProperties.IsLinux] ?? profile[ProfileProperties.PubwizAzureLinux])?.Trim().ToLowerInvariant() switch
+        {
+            "true" => TargetPlatform.Of(PublishOs.Linux),
+            "false" => TargetPlatform.Of(PublishOs.Windows),
+            _ => TargetPlatform.Any
+        };
 
     /// <summary>Sign in with an az token when asked to, or when there are no publishing credentials.</summary>
     public static bool UsesAzCli(PublishProfile profile) =>

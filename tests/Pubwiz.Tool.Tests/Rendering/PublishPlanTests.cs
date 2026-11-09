@@ -77,7 +77,7 @@ public class PublishPlanTests
         console.Input.PushKey(ConsoleKey.Enter);
         var batch = new PublishBatch(Enumerable.Range(0, 6).Select(i => new PublishSelection(Project($"P{i}"), new PublishProfile("Prod")) { Order = 1 }).ToList());
 
-        var confirmed = new ConfirmPage(console, null!).Confirm(batch, "Cancel");
+        var confirmed = new ConfirmPage(console, null!, new PublishRunner([])).Confirm(batch, "Cancel");
 
         Assert.Equal(4, confirmed?.Parallel);
         Assert.Contains("4 at a time is recommended", console.Output);
@@ -90,10 +90,73 @@ public class PublishPlanTests
         console.Input.PushKey(ConsoleKey.Enter);
         var batch = new PublishBatch(Enumerable.Range(0, 3).Select(i => new PublishSelection(Project($"P{i}"), new PublishProfile("Prod")) { Order = 1 }).ToList());
 
-        var confirmed = new ConfirmPage(console, null!).Confirm(batch, "Cancel");
+        var confirmed = new ConfirmPage(console, null!, new PublishRunner([])).Confirm(batch, "Cancel");
 
         Assert.Null(confirmed?.Parallel);
         Assert.DoesNotContain("recommended", console.Output);
+    }
+
+    /// <summary>PushKey(ConsoleKey.DownArrow) also types "(" into a list's search box, which matches "(this machine)".</summary>
+    private static readonly ConsoleKeyInfo Down = new('\0', ConsoleKey.DownArrow, shift: false, alt: false, control: false);
+
+    [Fact]
+    public void Confirm_WhenTheTargetCantTell_OffersAnOsAndArchitecture()
+    {
+        var console = new TestConsole().Interactive();
+        console.Input.PushKey(Down); // Change the platform
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(Down); // Windows x64
+        console.Input.PushKey(Down); // Windows arm64
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter); // Publish now
+        var batch = new PublishBatch([new PublishSelection(Project("Api"), new PublishProfile("Prod"))]);
+
+        var confirmed = new ConfirmPage(console, null!, new PublishRunner([new PlatformTarget(TargetPlatform.Any)])).Confirm(batch, "Cancel");
+
+        Assert.Equal(PublishOs.Windows, confirmed?.Os);
+        Assert.Equal("arm64", confirmed?.Architecture);
+        Assert.Contains("(this machine)", console.Output);
+        Assert.Contains("Platform: Windows arm64", console.Output);
+    }
+
+    [Fact]
+    public void Confirm_WhenTheTargetDecidesTheOs_OffersOnlyTheArchitecture()
+    {
+        var console = new TestConsole().Interactive();
+        console.Input.PushKey(Down); // Change the platform
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(Down); // x64
+        console.Input.PushKey(Down); // arm64
+        console.Input.PushKey(ConsoleKey.Enter);
+        console.Input.PushKey(ConsoleKey.Enter); // Publish now
+        var batch = new PublishBatch([new PublishSelection(Project("Api"), new PublishProfile("Prod"))]);
+
+        var confirmed = new ConfirmPage(console, null!, new PublishRunner([new PlatformTarget(TargetPlatform.Of(PublishOs.Windows))])).Confirm(batch, "Cancel");
+
+        Assert.Null(confirmed?.Os);
+        Assert.Equal("arm64", confirmed?.Architecture);
+        Assert.Contains("Platform: Windows x64", console.Output);
+        Assert.Contains("Architecture", console.Output);
+        Assert.Contains("Platform: Windows arm64", console.Output);
+        Assert.DoesNotContain("Linux", console.Output);
+    }
+
+    [Fact]
+    public void Confirm_WithDifferentPlatforms_NamesTheProjects()
+    {
+        var console = new TestConsole().Interactive();
+        console.Input.PushKey(ConsoleKey.Enter);
+        var profile = new PublishProfile("Prod");
+        var batch = new PublishBatch([
+            new PublishSelection(Project("Api"), profile) { Order = 1 },
+            new PublishSelection(Project("Tool") with { Kind = ProjectKind.BlazorWasm }, profile) { Order = 1 }
+        ]);
+
+        new ConfirmPage(console, null!, new PublishRunner([new PlatformTarget(TargetPlatform.Of(PublishOs.Linux))])).Confirm(batch, "Cancel");
+
+        // Tool is Blazor WebAssembly, so only Api has a platform.
+        Assert.Contains("Platform: Linux x64 · Api", console.Output);
+        Assert.DoesNotContain("Tool", console.Output.Split("Platform:")[1]);
     }
 
     [Theory]
@@ -103,6 +166,20 @@ public class PublishPlanTests
     public void FormatElapsed_UsesWholeSeconds(double seconds, string expected)
     {
         Assert.Equal(expected, StatusIcons.FormatElapsed(TimeSpan.FromSeconds(seconds)));
+    }
+
+    /// <summary>Publishes every profile, for an OS (or not) like <paramref name="platform"/> says.</summary>
+    private sealed class PlatformTarget(TargetPlatform platform) : IPublishTarget
+    {
+        public Core.Targets.PublishTargetType Type => Core.Targets.PublishTargetType.Folder;
+
+        public bool CanPublish(PublishProfile profile) => true;
+
+        public bool RequiresPassword(PublishProfile profile) => false;
+
+        public TargetPlatform GetPlatform(PublishProfile profile) => platform;
+
+        public IReadOnlyList<PublishStep> CreateSteps(PublishRequest request) => [];
     }
 
     private static ProjectInfo Project(string name) =>
