@@ -32,11 +32,15 @@ public static class AzureProfile
     /// Linux or Windows, from <c>IsLinux</c> (Visual Studio, Pubwiz) or <c>PubwizAzureLinux</c> (earlier Pubwiz
     /// versions); <see cref="TargetPlatform.Any"/> when neither is set (e.g. imported .publishsettings).
     /// </summary>
+    /// <remarks>
+    /// Linux apps always run on x64. Windows apps run 32-bit unless the app's "64 Bit" platform setting is on, and
+    /// WebJobs run like their app, so Windows apps are built for any CPU (see <see cref="TargetPlatform.AnyArchitecture"/>).
+    /// </remarks>
     public static TargetPlatform GetPlatform(PublishProfile profile) =>
         (profile[ProfileProperties.IsLinux] ?? profile[ProfileProperties.PubwizAzureLinux])?.Trim().ToLowerInvariant() switch
         {
             "true" => TargetPlatform.Of(PublishOs.Linux),
-            "false" => TargetPlatform.Of(PublishOs.Windows),
+            "false" => TargetPlatform.OfAnyArchitecture(PublishOs.Windows),
             _ => TargetPlatform.Any
         };
 

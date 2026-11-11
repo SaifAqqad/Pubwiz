@@ -23,6 +23,14 @@ public enum PublishOs
 /// </param>
 public sealed record TargetPlatform(bool Applies, PublishOs? Os = null, string? Architecture = PublishPlatform.ServerArchitecture)
 {
+    /// <summary>
+    /// The server can run apps of more than one architecture and it can't be told which (a Windows App Service app runs
+    /// 32-bit unless its "64 Bit" platform setting is on). Framework-dependent apps are then built for any CPU (no
+    /// <c>-r</c>), so they run either way, unless an architecture is chosen; self-contained ones use
+    /// <see cref="Architecture"/>.
+    /// </summary>
+    public bool AnyArchitecture { get; init; }
+
     /// <summary>The target can't tell: the app is built for <c>--os</c> or the choice on the confirm page, else this machine.</summary>
     public static TargetPlatform Any { get; } = new(Applies: true);
 
@@ -31,6 +39,9 @@ public sealed record TargetPlatform(bool Applies, PublishOs? Os = null, string? 
 
     /// <summary>The target runs apps on <paramref name="os"/> (on x64 unless <paramref name="architecture"/> says otherwise).</summary>
     public static TargetPlatform Of(PublishOs os, string? architecture = PublishPlatform.ServerArchitecture) => new(Applies: true, os, architecture);
+
+    /// <summary>The target runs apps on <paramref name="os"/>, on an architecture it can't tell (see <see cref="AnyArchitecture"/>).</summary>
+    public static TargetPlatform OfAnyArchitecture(PublishOs os) => Of(os) with { AnyArchitecture = true };
 }
 
 /// <summary>Where a request's OS came from.</summary>
@@ -55,7 +66,10 @@ public enum PlatformSource
 /// <summary>The platform a request is published for.</summary>
 /// <param name="Source">Where the OS came from.</param>
 /// <param name="Os">The OS, or <c>null</c> when the platform doesn't apply or the profile's runtime has no known OS.</param>
-/// <param name="Architecture">e.g. <c>x64</c>; <c>null</c> when the platform doesn't apply or the profile's runtime has none.</param>
+/// <param name="Architecture">
+/// e.g. <c>x64</c>; <c>null</c> when the platform doesn't apply, the profile's runtime has none, or the app is built for
+/// any CPU (see <see cref="TargetPlatform.AnyArchitecture"/>).
+/// </param>
 /// <param name="RuntimeIdentifier">What's passed as <c>-r</c>, or <c>null</c> to let dotnet publish decide.</param>
 public sealed record ResolvedPlatform(PlatformSource Source, PublishOs? Os, string? Architecture, string? RuntimeIdentifier)
 {
@@ -70,6 +84,7 @@ public sealed record ResolvedPlatform(PlatformSource Source, PublishOs? Os, stri
     {
         PlatformSource.None => null,
         _ when Os is { } os && Architecture is { } architecture => $"{PublishPlatform.DisplayName(os)} {architecture}",
+        _ when Os is { } os && RuntimeIdentifier is null => $"{PublishPlatform.DisplayName(os)} any CPU",
         _ => RuntimeIdentifier
     };
 }
@@ -80,8 +95,8 @@ public sealed record ResolvedPlatform(PlatformSource Source, PublishOs? Os, stri
 /// <remarks>
 /// The OS is the profile's runtime when it has one, then the target's (IIS runs on Windows, an Azure app on Linux or
 /// Windows, containers on Linux), then the OS chosen with <c>--os</c> or on the confirm page, then this machine's.
-/// The architecture is the profile's, then the chosen one (<c>--arch</c>), then x64 for servers and other OSes, or
-/// this machine's for its own OS.
+/// The architecture is the profile's, then the chosen one (<c>--arch</c>), then any CPU for servers that run either
+/// (Windows App Service), x64 for other servers and OSes, or this machine's for its own OS.
 /// <para>
 /// Without this, <c>dotnet publish</c> builds for the machine it runs on: an app published from a Mac to IIS gets a
 /// macOS app host, and a self-contained one a macOS runtime.
@@ -119,6 +134,12 @@ public static class PublishPlatform
 
         if (target.Os is { } targetOs)
         {
+            // Without -r, dotnet publish builds a portable app, which runs on whichever architecture the server uses.
+            if (target.AnyArchitecture && chosenArchitecture is null && !IsSelfContained(profile))
+            {
+                return new ResolvedPlatform(PlatformSource.Target, targetOs, Architecture: null, RuntimeIdentifier: null);
+            }
+
             return Create(PlatformSource.Target, targetOs, chosenArchitecture ?? target.Architecture ?? OperatingSystemInfo.Architecture);
         }
 
@@ -138,6 +159,10 @@ public static class PublishPlatform
 
         static ResolvedPlatform Create(PlatformSource source, PublishOs os, string architecture) =>
             new(source, os, architecture, ToRuntimeIdentifier(os, architecture));
+
+        // A self-contained app ships its own runtime, so it needs an architecture.
+        static bool IsSelfContained(PublishProfile profile) =>
+            string.Equals(profile[ProfileProperties.SelfContained]?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>e.g. <c>linux-x64</c>; <paramref name="architecture"/> <c>null</c> is this machine's.</summary>
