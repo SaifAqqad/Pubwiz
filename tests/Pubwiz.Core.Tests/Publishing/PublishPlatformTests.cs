@@ -7,6 +7,7 @@ using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Publishing;
 using Pubwiz.Core.Publishing.Steps;
 using Pubwiz.Core.Targets.Azure;
+using Pubwiz.Core.Targets.Azure.Kudu;
 using Pubwiz.Core.Targets.Folder;
 using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.Core.Targets.WebDeploy;
@@ -157,6 +158,57 @@ public sealed class PublishPlatformTests : IDisposable
 
         Assert.True(platform.Applies);
         Assert.Equal(expected, platform.Os);
+    }
+
+    [Fact]
+    public void Resolve_BuildsForAnyCpuWhenTheServerRunsEither()
+    {
+        var platform = PublishPlatform.Resolve(Project(), new PublishProfile("Prod"), TargetPlatform.OfAnyArchitecture(PublishOs.Windows), chosenOs: PublishOs.Linux);
+
+        // No -r: the app runs on a 32-bit or a 64-bit server.
+        Assert.Equal(new ResolvedPlatform(PlatformSource.Target, PublishOs.Windows, null, null), platform);
+        Assert.Equal("Windows any CPU", platform.DisplayName);
+        Assert.True(platform.CanChooseArchitecture);
+    }
+
+    [Fact]
+    public void Resolve_UsesTheChosenArchitectureWhenTheServerRunsEither()
+    {
+        var platform = PublishPlatform.Resolve(Project(), new PublishProfile("Prod"), TargetPlatform.OfAnyArchitecture(PublishOs.Windows), chosenOs: null, chosenArchitecture: "x86");
+
+        Assert.Equal("win-x86", platform.RuntimeIdentifier);
+    }
+
+    [Fact]
+    public void Resolve_BuildsSelfContainedAppsForX64WhenTheServerRunsEither()
+    {
+        // A self-contained app needs a runtime identifier, so there's no any-CPU build of it.
+        var profile = new PublishProfile("Prod") { [ProfileProperties.SelfContained] = "true" };
+
+        var platform = PublishPlatform.Resolve(Project(), profile, TargetPlatform.OfAnyArchitecture(PublishOs.Windows), chosenOs: null);
+
+        Assert.Equal("win-x64", platform.RuntimeIdentifier);
+    }
+
+    [Theory]
+    [InlineData("false", null)]
+    [InlineData("true", "linux-x64")]
+    public void WebJobJob_BuildsForAnyCpuOnWindowsAndX64OnLinux(string isLinux, string? expectedRuntime)
+    {
+        // Windows apps run 32-bit unless their "64 Bit" setting is on, and their WebJobs run the same way.
+        var profile = new PublishProfile("WebJob")
+        {
+            [ProfileProperties.WebPublishMethod] = "OneDeploy",
+            [ProfileProperties.PublishUrl] = "https://contoso.scm.azurewebsites.net/",
+            [ProfileProperties.WebJobName] = "Processor",
+            [ProfileProperties.WebJobType] = "Continuous",
+            [ProfileProperties.IsLinux] = isLinux
+        };
+
+        var target = new AzureWebJobTarget(Dotnet, new KuduClient(new HttpClient()), new KuduCredentialsProvider(new AzCli(new ProcessRunner())));
+        var job = new PublishRunner([target]).CreateJob(new PublishRequest(Project(ProjectKind.Worker), profile));
+
+        Assert.Equal(expectedRuntime, BuildOptions(job).RuntimeIdentifier);
     }
 
     [Fact]

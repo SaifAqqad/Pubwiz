@@ -172,7 +172,7 @@ The **OS** is the first of these that applies:
 3. The OS you choose: `--os`, a preset's `"os"`, or the confirm page. Used for folders, zips, FTP and SFTP, and Azure profiles that don't say which OS the app runs on.
 4. This machine's.
 
-The **architecture** is the profile's, then the one you choose (`--arch`, a preset's `"arch"`, or the confirm page; it applies even when the target decides the OS, e.g. `--arch arm64` for images on Arm servers), then x64 for servers, Azure, registries and other OSes, or this machine's for its own OS and for local container images.
+The **architecture** is the profile's, then the one you choose (`--arch`, a preset's `"arch"`, or the confirm page; it applies even when the target decides the OS, e.g. `--arch arm64` for images on Arm servers), then x64 for servers, Azure Linux apps, registries and other OSes, or this machine's for its own OS and for local container images. Azure Windows apps and their WebJobs are built for any CPU (no `-r`), since they run 32-bit unless the app's "64 Bit" platform setting is on; self-contained ones get x64.
 
 ```bash
 dotnet pubwiz --os linux-arm64     # a Raspberry Pi over SFTP
