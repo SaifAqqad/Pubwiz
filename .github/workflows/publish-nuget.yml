@@ -16,7 +16,7 @@ jobs:
       id-token: write # lets the job request an OIDC token for nuget.org Trusted Publishing
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
