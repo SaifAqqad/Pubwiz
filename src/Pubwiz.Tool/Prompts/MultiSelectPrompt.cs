@@ -84,7 +84,11 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         // Actions have no text to search, so a search hides them.
         var searchTexts = items.Select(item => IsAction(item) ? string.Empty : string.Join(' ', columns(item))).ToList();
         var headerHeight = Header is null && HeaderUpdate is null ? 0 : 2;
-        var state = new MultiSelectState(searchTexts, items.Select(item => !IsAction(item) && IsSelectable(item)).ToList(), console.Profile.Height - ChromeHeight - headerHeight,
+
+        // ChromeHeight counts the hint as one line; on a narrow terminal it wraps onto more.
+        var extraHintLines = Hint is null ? 0 : (Markup.Remove(Hint).Length - 1) / Math.Max(console.Profile.Width, 1);
+        var pageSize = console.Profile.Height - ChromeHeight - headerHeight - extraHintLines;
+        var state = new MultiSelectState(searchTexts, items.Select(item => !IsAction(item) && IsSelectable(item)).ToList(), pageSize,
             hasExitRow: ExitLabel is not null, alwaysShowSelected: !SingleSelect);
         _header = Header;
 
@@ -235,11 +239,12 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     private IRenderable Render(MultiSelectState state, IAnsiConsole console)
     {
         var unicode = console.Profile.Capabilities.Unicode;
-        var columnCount = columns(items[0]).Count;
+        var width = console.Profile.Width;
 
         // The sections are separate grids with the same fixed column widths, so they line up, and the lines between
         // them (headings, "more", messages) are drawn outside the grids, so a long message can't stretch a column.
-        var widths = ColumnWidths(console, columnCount, unicode);
+        var pointerWidth = SingleSelect ? 1 : unicode ? 3 : 5; // "❯", "❯ ◉" or "> [x]"
+        var widths = ListColumns.Fit(ColumnWidths(console, unicode), available: width - pointerWidth - 1);
         var body = new List<IRenderable>();
         Grid? grid = null;
 
@@ -261,7 +266,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             for (var row = state.SelectedOffset; row < lastSelected; row++)
             {
                 var isCursor = state.Focus == MultiSelectSection.Selected && row == state.SelectedCursor;
-                AddRow(RenderItem(state.Selected[row], state, isCursor, unicode));
+                AddRow(RenderItem(state.Selected[row], state, isCursor, widths, unicode));
             }
         }
 
@@ -282,13 +287,13 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             if (row < state.VisibleItems.Count && IsAction(items[state.VisibleItems[row]]))
             {
                 grid = null;
-                body.Add(RenderAction(items[state.VisibleItems[row]], isCursor, widths[0], console.Profile.Width, unicode));
+                body.Add(RenderAction(items[state.VisibleItems[row]], isCursor, pointerWidth, width, unicode));
                 continue;
             }
 
             AddRow(row < state.VisibleItems.Count
-                ? RenderItem(state.VisibleItems[row], state, isCursor, unicode)
-                : RenderExitRow(columnCount, isCursor, unicode));
+                ? RenderItem(state.VisibleItems[row], state, isCursor, widths, unicode)
+                : RenderExitRow(isCursor, widths, unicode));
         }
 
         AddLine(lastRow < state.RowCount ? "[dim]↓ more[/]" : string.Empty);
@@ -300,7 +305,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             rows.Add(new Text(string.Empty));
         }
 
-        rows.AddRange([new Markup(title), RenderSearch(state), .. body, RenderKeys(state)]);
+        rows.AddRange([new Markup(title), RenderSearch(state), .. body, RenderKeys(state, width)]);
         if (Hint is not null)
         {
             rows.Add(new Markup($"[dim]{Hint}[/]"));
@@ -312,10 +317,14 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         {
             if (grid is null)
             {
+                // The pointer, then the visible columns with a gap between them (none after the last one).
                 grid = new Grid();
-                for (var i = 0; i < widths.Length; i++)
+                grid.AddColumn(new GridColumn().NoWrap().Width(pointerWidth).PadRight(1));
+
+                var visible = widths.Where(w => w > 0).ToList();
+                for (var i = 0; i < visible.Count; i++)
                 {
-                    grid.AddColumn(new GridColumn().NoWrap().Width(widths[i]).PadRight(i == 0 ? 1 : 3));
+                    grid.AddColumn(new GridColumn().NoWrap().Width(visible[i]).PadRight(i < visible.Count - 1 ? ListColumns.Gap : 0));
                 }
 
                 body.Add(grid);
@@ -324,48 +333,51 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             grid.AddRow(cells);
         }
 
-        // A line of markup lined up with the names (empty for a blank line); the next item row starts a new grid.
+        // A line of markup lined up with the names and cut to the width (empty for a blank line); the next item row starts a new grid.
         void AddLine(string markup)
         {
             grid = null;
-            body.Add(markup.Length == 0 ? Text.Empty : new Markup(new string(' ', widths[0] + 1) + markup));
+            var line = DisplayText.TruncateMarkup(console, new string(' ', pointerWidth + 1) + markup, width);
+            body.Add(markup.Length == 0 ? Text.Empty : new Markup(line));
         }
     }
 
     /// <summary>
-    /// The width of each grid column: the pointer and checkbox, then the widest text of each column over all the items
-    /// (and the exit row), so the columns don't move while searching or selecting.
+    /// The widest text of each column over all the items (and the exit row), so the columns don't move while searching
+    /// or selecting. <see cref="ListColumns.Fit"/> then makes them fit the terminal.
     /// </summary>
-    private int[] ColumnWidths(IAnsiConsole console, int columnCount, bool unicode)
+    private int[] ColumnWidths(IAnsiConsole console, bool unicode)
     {
         var options = RenderOptions.Create(console);
         int Measure(string text) => ((IRenderable)new Text(text)).Measure(options, int.MaxValue).Max;
 
-        var widths = new int[columnCount + 1];
-        widths[0] = SingleSelect ? 1 : unicode ? 3 : 5; // "❯", "❯ ◉" or "> [x]"
+        var widths = new int[columns(items[0]).Count];
         foreach (var item in items.Where(item => !IsAction(item)))
         {
             var cells = columns(item);
-            for (var i = 0; i < columnCount; i++)
+            for (var i = 0; i < widths.Length; i++)
             {
-                widths[i + 1] = Math.Max(widths[i + 1], Measure(cells[i]));
+                widths[i] = Math.Max(widths[i], Measure(cells[i]));
             }
         }
 
         if (ExitLabel is not null)
         {
             var icon = unicode ? ExitIcon.Unicode : ExitIcon.Ascii;
-            widths[1] = Math.Max(widths[1], Measure(SingleSelect ? $"{icon} {ExitLabel}" : ExitLabel));
+            widths[0] = Math.Max(widths[0], Measure(SingleSelect ? $"{icon} {ExitLabel}" : ExitLabel));
         }
 
-        return widths.Select(width => Math.Max(width, 1)).ToArray();
+        // Empty columns stay hidden; the first one is kept so the rows have something to show.
+        widths[0] = Math.Max(widths[0], 1);
+        return widths;
     }
 
     private static Markup RenderSearch(MultiSelectState state) => state.Search.Length == 0
         ? new Markup("[dim]  Type to search[/]")
         : new Markup($"  [bold]Search:[/] [{Widgets.PrimaryColorMarkup}]{state.Search.EscapeMarkup()}[/]");
 
-    private Markup[] RenderItem(int index, MultiSelectState state, bool isCursor, bool unicode)
+    /// <param name="widths">The fitted column widths: each text is cut to its column, and hidden columns (0) are left out.</param>
+    private Markup[] RenderItem(int index, MultiSelectState state, bool isCursor, int[] widths, bool unicode)
     {
         var selectable = state.IsSelectable(index);
 
@@ -382,8 +394,10 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         var detailStyle = !selectable ? "grey" : isCursor ? "default" : "dim";
 
         var pointer = isCursor ? $"[{Widgets.PrimaryColorMarkup} bold]{(unicode ? "❯" : ">")}[/]" : " ";
-        var cells = columns(items[index]).Select((text, column) =>
-            new Markup($"[{(column == 0 ? nameStyle : detailStyle)}]{HighlightSearch(text, state.Search)}[/]"));
+        var cells = columns(items[index])
+            .Select((text, column) => (Text: DisplayText.Truncate(text, widths[column]), Style: column == 0 ? nameStyle : detailStyle))
+            .Where((_, column) => widths[column] > 0)
+            .Select(cell => new Markup($"[{cell.Style}]{HighlightSearch(cell.Text, state.Search)}[/]"));
 
         if (SingleSelect)
         {
@@ -402,11 +416,11 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
     {
         var cells = columns(item);
         var pointer = isCursor ? $"[{Widgets.PrimaryColorMarkup} bold]{(unicode ? "❯" : ">")}[/]" : " ";
-        var label = cells[0];
-        var detail = cells.Count > 1 ? cells[1] : string.Empty;
 
-        // The pointer column, the space after it, the label and two spaces before the detail.
-        var room = consoleWidth - 1 - pointerWidth - 1 - label.Length - 2;
+        // The pointer, the space after the pointer column, the label and two spaces before the detail.
+        var label = DisplayText.Truncate(cells[0], consoleWidth - 1 - pointerWidth);
+        var detail = cells.Count > 1 ? cells[1] : string.Empty;
+        var room = consoleWidth - 1 - pointerWidth - label.Length - 2;
         detail = room > 3 ? DisplayText.Truncate(detail, room) : string.Empty;
 
         var labelStyle = isCursor ? Widgets.HighlightMarkup : $"{Widgets.PrimaryColorMarkup}";
@@ -414,21 +428,29 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
         return new Markup(detail.Length > 0 ? $"{line}  [dim]{detail.EscapeMarkup()}[/]" : line);
     }
 
-    private Markup[] RenderExitRow(int columnCount, bool isCursor, bool unicode)
+    private Markup[] RenderExitRow(bool isCursor, int[] widths, bool unicode)
     {
         var pointer = isCursor ? $"[{Widgets.PrimaryColorMarkup} bold]{(unicode ? "❯" : ">")}[/]" : " ";
         var style = isCursor ? Widgets.HighlightMarkup : "dim";
-        var icon = (unicode ? ExitIcon.Unicode : ExitIcon.Ascii).EscapeMarkup();
+        var icon = unicode ? ExitIcon.Unicode : ExitIcon.Ascii;
 
-        var label = new Markup($"[{style}]{ExitLabel!.EscapeMarkup()}[/]");
-        var empty = Enumerable.Range(0, columnCount - 1).Select(_ => new Markup(string.Empty));
-        return SingleSelect
-            ? [new Markup(pointer), new Markup($"[{style}]{icon} {ExitLabel.EscapeMarkup()}[/]"), .. empty]
-            : [new Markup($"{pointer} [{(isCursor ? Widgets.PrimaryColorMarkup : "dim")}]{icon}[/]"), label, .. empty];
+        // The label goes in the names column; the other visible columns are empty.
+        var empty = widths.Skip(1).Where(width => width > 0).Select(_ => new Markup(string.Empty));
+        if (SingleSelect)
+        {
+            var text = DisplayText.Truncate($"{icon} {ExitLabel}", widths[0]);
+            return [new Markup(pointer), new Markup($"[{style}]{text.EscapeMarkup()}[/]"), .. empty];
+        }
+
+        var label = DisplayText.Truncate(ExitLabel!, widths[0]);
+        return [new Markup($"{pointer} [{(isCursor ? Widgets.PrimaryColorMarkup : "dim")}]{icon.EscapeMarkup()}[/]"), new Markup($"[{style}]{label.EscapeMarkup()}[/]"), .. empty];
     }
 
-    /// <summary>The key hints, with the keys in bold: <c>↑/↓ move · space select · ...</c></summary>
-    private Markup RenderKeys(MultiSelectState state)
+    /// <summary>
+    /// The key hints, with the keys in bold: <c>↑/↓ move · space select · ...</c>. When they don't fit on one line, the
+    /// least needed ones are left out (ctrl+a, tab, then ↑/↓), so the line doesn't wrap.
+    /// </summary>
+    private Markup RenderKeys(MultiSelectState state, int width)
     {
         var escape = state.Search.Length > 0 ? "clear search" : state.HasExitRow && EscapeChoosesExitRow ? "exit" : SingleSelect ? "back" : "cancel";
         var inSelected = state.Focus == MultiSelectSection.Selected;
@@ -449,7 +471,7 @@ public sealed class MultiSelectPrompt<T>(string title, IReadOnlyList<T> items, F
             ("esc", escape)
         ];
 
-        return new Markup(string.Join(" [dim]·[/] ", keys.Select(k => $"[bold]{k.Key}[/] [dim]{k.Action}[/]")));
+        return new Markup(KeyHints.ToMarkup(keys, width, "ctrl+a", "tab", "↑/↓"));
     }
 
     /// <summary>Underlines the first match of the search in <paramref name="text"/> and escapes the rest.</summary>

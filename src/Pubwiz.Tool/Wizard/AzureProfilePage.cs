@@ -20,28 +20,31 @@ public enum AzureAppKind
 }
 
 /// <summary>
-/// Creates Azure App Service, Function App, WebJob and Static Web Apps profiles by picking an existing app from the subscription.
-/// Profiles sign in with az by default, so no password is stored anywhere.
+/// Creates Azure App Service, Function App, WebJob and Static Web Apps profiles by picking an existing app from the subscription
+/// (and, for apps with deployment slots, the slot). Profiles sign in with az by default, so no password is stored anywhere.
 /// </summary>
-public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session, AzCli az)
+public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session, AzCli az, AzureAppList appList)
 {
     public async Task<PublishProfile> CreateAsync(ProjectInfo project, AzureAppKind kind, CancellationToken cancellationToken)
     {
         var subscription = await session.EnsureReadyAsync(cancellationToken);
         var app = await ChooseAppAsync(kind, subscription, cancellationToken);
+        var slot = await DeploymentSlotPrompt.ChooseAsync(console, appList, app, cancellationToken);
 
         // Visual Studio writes OneDeploy for WebJobs and ZipDeploy for apps, and doesn't open the site after a WebJob.
+        // A slot is deployed to like an app, through its own Kudu site.
         var isWebJob = kind == AzureAppKind.WebJob;
-        var profile = new PublishProfile(isWebJob ? $"{app.Name} - WebJob" : $"{app.Name} - Zip Deploy");
+        var name = DeploymentSlotPrompt.ProfileName(app, slot);
+        var profile = new PublishProfile(isWebJob ? $"{name} - WebJob" : $"{name} - Zip Deploy");
         profile[ProfileProperties.WebPublishMethod] = isWebJob ? "OneDeploy" : "ZipDeploy";
         profile[ProfileProperties.PublishProvider] = ProfileProperties.AzureWebSiteProvider;
-        profile[ProfileProperties.PublishUrl] = app.ScmUrl.AbsoluteUri;
-        profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{app.DefaultHostName}";
+        profile[ProfileProperties.PublishUrl] = slot.ScmUrl.AbsoluteUri;
+        profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{slot.DefaultHostName}";
         profile[ProfileProperties.LaunchSiteAfterPublish] = isWebJob ? "false" : "true";
         profile[ProfileProperties.PubwizAzureAuthentication] = AzureProfile.AzCliAuthentication;
 
-        // The app as Visual Studio stores it; Pubwiz finds the app for az from the ResourceId too.
-        profile[ProfileProperties.ResourceId] = AzureResourceIds.WebApp(subscription.Id, app.ResourceGroup, app.Name);
+        // The app (or slot) as Visual Studio stores it; Pubwiz finds the app for az from the ResourceId too.
+        profile[ProfileProperties.ResourceId] = DeploymentSlotPrompt.ResourceId(subscription.Id, app, slot);
         profile[ProfileProperties.ResourceGroup] = app.ResourceGroup;
         profile[ProfileProperties.IsLinux] = app.IsLinux ? "true" : "false";
 
@@ -92,18 +95,18 @@ public sealed class AzureProfilePage(IAnsiConsole console, AzureSession session,
             _ => "App Service app"
         };
 
+        // The apps are loaded once per run, so the next project of a batch doesn't wait for them; Refresh loads them again.
         var what = kind == AzureAppKind.FunctionApp ? "Function Apps" : "App Service apps";
-        return await console.ChooseWithRefreshAsync(question, "Loading apps...", LoadMatchingAsync,
-            a => [a.Name, a.ResourceGroup, a.IsLinux ? "Linux" : "Windows", a.State ?? string.Empty],
+        return await console.ChooseWithRefreshAsync(question, "Loading apps...",
+            token => MatchingAsync(appList.GetAppsAsync(subscription.Id, token)),
+            a => [a.Name, DeploymentSlotPrompt.SlotCount(a), a.ResourceGroup, a.IsLinux ? "Linux" : "Windows", a.State ?? string.Empty],
             emptyMessage: $"No {what} were found in '{subscription.Name}'. Create one in the Azure portal or with az, then refresh.",
-            cancellationToken);
+            cancellationToken,
+            reload: token => MatchingAsync(appList.LoadAppsAsync(subscription.Id, token)));
 
-        async Task<IReadOnlyList<AzureWebApp>> LoadMatchingAsync(CancellationToken token)
-        {
-            // Container apps run an image, so a zip deploy wouldn't change what they run.
-            var apps = await az.ListWebAppsAsync(cancellationToken: token);
-            return apps.Where(a => !a.IsContainer && a.IsFunctionApp == (kind == AzureAppKind.FunctionApp)).ToList();
-        }
+        // Container apps run an image, so a zip deploy wouldn't change what they run.
+        async Task<IReadOnlyList<AzureWebApp>> MatchingAsync(Task<IReadOnlyList<AzureWebApp>> loading) =>
+            (await loading).Where(a => !a.IsContainer && a.IsFunctionApp == (kind == AzureAppKind.FunctionApp)).ToList();
     }
 
     private void AskWebJobSettings(ProjectInfo project, PublishProfile profile)

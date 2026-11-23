@@ -114,22 +114,27 @@ public sealed class OrderPrompt<T>(string title, IReadOnlyList<T> items, Func<T,
     private IRenderable Render(OrderState state, IAnsiConsole console)
     {
         var unicode = console.Profile.Capabilities.Unicode;
-        var columnCount = columns(items[0]).Count;
         var numberWidth = state.Count.ToString().Length;
+
+        // The pointer, the number (with a space on each side) and the bracket, each with a space after it; the text
+        // columns share the rest of the line, so a row never wraps.
+        var prefixWidth = 2 + (numberWidth + 3) + 2;
+        var widths = ListColumns.Fit(ColumnWidths(), available: console.Profile.Width - prefixWidth);
 
         var grid = new Grid();
         grid.AddColumn(new GridColumn().NoWrap().PadRight(1)); // pointer
         grid.AddColumn(new GridColumn().NoWrap().PadRight(1)); // number
         grid.AddColumn(new GridColumn().NoWrap().PadRight(1)); // bracket
-        for (var i = 0; i < columnCount; i++)
+        var visible = widths.Where(width => width > 0).ToList();
+        for (var i = 0; i < visible.Count; i++)
         {
-            grid.AddColumn(new GridColumn().NoWrap().PadRight(3));
+            grid.AddColumn(new GridColumn().NoWrap().Width(visible[i]).PadRight(i < visible.Count - 1 ? ListColumns.Gap : 0));
         }
 
         var lastRow = Math.Min(state.Offset + state.PageSize, state.Count);
         for (var row = state.Offset; row < lastRow; row++)
         {
-            grid.AddRow(RenderRow(state, row, numberWidth, unicode));
+            grid.AddRow(RenderRow(state, row, numberWidth, widths, unicode));
         }
 
         var steps = state.Steps;
@@ -145,10 +150,27 @@ public sealed class OrderPrompt<T>(string title, IReadOnlyList<T> items, Func<T,
             new Markup($"  [bold]{stepCount}:[/] {plan.EscapeMarkup()}"),
             PublishPlan.TooManyAtOnce(steps, Parallel) ? new Markup($"  {PublishPlan.TooManyAtOnceTip}") : Text.Empty,
             Text.Empty,
-            RenderKeys(state));
+            RenderKeys(state, console.Profile.Width));
     }
 
-    private IRenderable[] RenderRow(OrderState state, int row, int numberWidth, bool unicode)
+    /// <summary>The widest text of each column over all the items; <see cref="ListColumns.Fit"/> then makes them fit.</summary>
+    private int[] ColumnWidths()
+    {
+        var widths = new int[columns(items[0]).Count];
+        foreach (var cells in items.Select(columns))
+        {
+            for (var i = 0; i < widths.Length; i++)
+            {
+                widths[i] = Math.Max(widths[i], cells[i].Length);
+            }
+        }
+
+        widths[0] = Math.Max(widths[0], 1);
+        return widths;
+    }
+
+    /// <param name="widths">The fitted column widths: each text is cut to its column, and hidden columns (0) are left out.</param>
+    private IRenderable[] RenderRow(OrderState state, int row, int numberWidth, int[] widths, bool unicode)
     {
         var item = state.Rows[row];
         var isCursor = item == state.CursorItem;
@@ -166,13 +188,18 @@ public sealed class OrderPrompt<T>(string title, IReadOnlyList<T> items, Func<T,
         var numberCell = isCursor ? $"[{Widgets.HighlightMarkup}] {number} [/]" : $"[{Widgets.PrimaryColorMarkup}] {number} [/]";
         var bracket = $"[{Widgets.PrimaryColorMarkup} dim]{PublishPlan.Connector(row - stepStart, state.StepSize(item), unicode)}[/]";
 
-        var cells = columns(items[item]).Select((text, column) =>
-            new Markup(column == 0 ? $"[{(isCursor ? "bold" : "default")}]{text.EscapeMarkup()}[/]" : $"[{(isCursor ? "default" : "dim")}]{text.EscapeMarkup()}[/]"));
+        var cells = columns(items[item])
+            .Select((text, column) => (Text: DisplayText.Truncate(text, widths[column]).EscapeMarkup(), Column: column))
+            .Where(cell => widths[cell.Column] > 0)
+            .Select(cell => new Markup(cell.Column == 0
+                ? $"[{(isCursor ? "bold" : "default")}]{cell.Text}[/]"
+                : $"[{(isCursor ? "default" : "dim")}]{cell.Text}[/]"));
 
         return [new Markup(pointer), new Markup(numberCell), new Markup(bracket), .. cells];
     }
 
-    private static Markup RenderKeys(OrderState state)
+    /// <summary>The key hints; on a narrow terminal the shortcuts for all at once and one by one go first.</summary>
+    private static Markup RenderKeys(OrderState state, int width)
     {
         (string Key, string Action)[] keys =
         [
@@ -185,6 +212,6 @@ public sealed class OrderPrompt<T>(string title, IReadOnlyList<T> items, Func<T,
             ("esc", "back")
         ];
 
-        return new Markup(string.Join(" [dim]·[/] ", keys.Select(k => $"[bold]{k.Key}[/] [dim]{k.Action}[/]")));
+        return new Markup(KeyHints.ToMarkup(keys, width, "a", "o", "↑/↓"));
     }
 }

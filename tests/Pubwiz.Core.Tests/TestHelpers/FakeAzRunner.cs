@@ -9,14 +9,25 @@ namespace Pubwiz.Core.Tests.TestHelpers;
 /// </summary>
 internal sealed class FakeAzRunner : IProcessRunner
 {
-    private readonly List<(string Command, ProcessResult Result)> _answers = [];
+    private readonly List<(string Command, ProcessResult Result, bool Once)> _answers = [];
 
     /// <summary>The commands that ran, without "az", e.g. <c>account show -o json</c>.</summary>
     public List<string> Commands { get; } = [];
 
+    /// <summary>The contents of the files passed as <c>@path</c> arguments (e.g. <c>az rest --body @path</c>), read while the command ran.</summary>
+    public List<string> RequestBodies { get; } = [];
+
+    /// <summary>Answers every command that starts with <paramref name="command"/>.</summary>
     public FakeAzRunner Answer(string command, string output)
     {
-        _answers.Add((command, new ProcessResult(0, output, string.Empty)));
+        _answers.Add((command, new ProcessResult(0, output, string.Empty), Once: false));
+        return this;
+    }
+
+    /// <summary>Answers the next command that starts with <paramref name="command"/>, e.g. one page of results.</summary>
+    public FakeAzRunner AnswerOnce(string command, string output)
+    {
+        _answers.Add((command, new ProcessResult(0, output, string.Empty), Once: true));
         return this;
     }
 
@@ -26,9 +37,21 @@ internal sealed class FakeAzRunner : IProcessRunner
     {
         var command = string.Join(' ', spec.Arguments);
         Commands.Add(command);
+        RequestBodies.AddRange(spec.Arguments.Where(a => a.StartsWith('@') && File.Exists(a[1..])).Select(a => File.ReadAllText(a[1..])));
 
-        var answer = _answers.FirstOrDefault(a => command.StartsWith(a.Command, StringComparison.Ordinal));
-        return Task.FromResult(answer.Result ?? new ProcessResult(1, string.Empty, $"no answer for 'az {command}'"));
+        var index = _answers.FindIndex(a => command.StartsWith(a.Command, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            return Task.FromResult(new ProcessResult(1, string.Empty, $"no answer for 'az {command}'"));
+        }
+
+        var answer = _answers[index];
+        if (answer.Once)
+        {
+            _answers.RemoveAt(index);
+        }
+
+        return Task.FromResult(answer.Result);
     }
 
     public Task<int> RunInteractiveAsync(ProcessSpec spec, CancellationToken cancellationToken = default) => Task.FromResult(1);

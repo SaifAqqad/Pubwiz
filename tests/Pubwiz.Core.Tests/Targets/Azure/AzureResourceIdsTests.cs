@@ -14,6 +14,15 @@ public class AzureResourceIdsTests
     }
 
     [Fact]
+    public void WebAppSlot_CanBeParsedBackIntoTheAppAndSlot()
+    {
+        var resourceId = AzureResourceIds.WebApp("sub-1", "shop-rg", "shop-api", slot: "staging");
+
+        Assert.Equal("/subscriptions/sub-1/resourceGroups/shop-rg/providers/Microsoft.Web/sites/shop-api/slots/staging", resourceId);
+        Assert.Equal(new AzureAppReference("sub-1", "shop-rg", "shop-api", "staging"), AzureAppReference.TryParseResourceId(resourceId));
+    }
+
+    [Fact]
     public void GetResourceGroupAndName_ReadAnyResourceId()
     {
         var resourceId = AzureResourceIds.ContainerApp("sub-1", "shop-rg", "shop-api");

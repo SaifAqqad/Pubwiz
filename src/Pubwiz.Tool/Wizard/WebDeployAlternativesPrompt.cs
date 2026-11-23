@@ -32,7 +32,7 @@ public sealed class WebDeployAlternativesPrompt(IAnsiConsole console)
         var alternatives = WebDeployAlternatives.SuggestFor(endpoint).Select(type => new Choice.Alternative(type));
         var server = endpoint is null ? "the server" : endpoint.ServiceUrl.Host;
 
-        return console.Prompt(Questions.Menu<Choice>($"How do you want to publish to {server.EscapeMarkup()}?")
+        return console.Pick(Questions.Menu<Choice>($"How do you want to publish to {server.EscapeMarkup()}?")
             .AddChoices(alternatives)
             .AddChoices(new Choice.KeepWebDeploy(), new Choice.Back())
             .AddCancelResult(new Choice.Back())

@@ -26,7 +26,8 @@ public abstract record AzureCredentialsResult
 /// </summary>
 /// <remarks>
 /// The app is found from the profile's resource ID (Visual Studio profiles), the Pubwiz Azure properties, or else by
-/// matching its SCM host against the apps in the active subscription, then the others (e.g. imported .publishsettings).
+/// matching its SCM host against the apps in the active subscription, then the others (e.g. imported .publishsettings;
+/// a deployment slot's are matched by the site name they give it, see <see cref="AzureProfile.GetSlotSiteName"/>).
 /// Only a password for the profile's own user name is used, so user-level deployment credentials are still asked for.
 /// When the app has basic authentication turned off, no password works, so the az sign-in is used instead.
 /// </remarks>
@@ -128,6 +129,7 @@ public sealed class AzurePublishingCredentials(AzCli az)
         }
 
         var scmHost = AzureProfile.GetScmUrl(profile).Host;
+        var slotSite = AzureProfile.GetSlotSiteName(profile);
 
         // Imported .publishsettings: find the app with the same Kudu site.
         foreach (var subscription in subscriptions)
@@ -136,6 +138,12 @@ public sealed class AzurePublishingCredentials(AzCli az)
             if (apps.FirstOrDefault(a => string.Equals(a.ScmUrl.Host, scmHost, StringComparison.OrdinalIgnoreCase)) is { } match)
             {
                 return new AzureAppReference(subscription.Id, match.ResourceGroup, match.Name);
+            }
+
+            // Slots aren't in the list of apps, so a slot is found through its app's name.
+            if (slotSite is { } site && apps.FirstOrDefault(a => string.Equals(a.Name, site.App, StringComparison.OrdinalIgnoreCase)) is { } app)
+            {
+                return new AzureAppReference(subscription.Id, app.ResourceGroup, app.Name, site.Slot);
             }
         }
 

@@ -12,7 +12,7 @@ namespace Pubwiz.Tool.Wizard;
 /// Profiles use the property names of the SDK and Visual Studio, so <c>dotnet publish -t:PublishContainer</c>
 /// and Visual Studio understand them too.
 /// </summary>
-public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli containers, AzureSession azureSession, AzCli az)
+public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli containers, AzureSession azureSession, AzCli az, AzureAppList appList)
 {
     public async Task<PublishProfile> CreateAsync(ProjectInfo project, PublishTargetType destination, CancellationToken cancellationToken)
     {
@@ -155,7 +155,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
 
             console.Write(Widgets.Warning("Neither docker nor podman is running."));
             console.WriteLine();
-            var choice = console.Prompt(Questions.Menu<string>("[bold]What now?[/]")
+            var choice = console.Pick(Questions.Menu<string>("[bold]What now?[/]")
                 .AddChoices(checkAgain, otherTarget)
                 .UseConverter(text => text));
 
@@ -206,7 +206,7 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
     /// Asks for the App Service or Container App that runs the image. Like Visual Studio, the app is the profile's
     /// <c>ResourceId</c> and the registry its <c>ContainerResourceId</c>.
     /// </summary>
-    /// <returns>The chosen app's name.</returns>
+    /// <returns>The chosen app's name, with the deployment slot for an App Service slot, e.g. <c>contoso (staging)</c>.</returns>
     private async Task<string> ChooseAzureAppAsync(PublishProfile profile, PublishTargetType destination, ChosenRegistry registry, CancellationToken cancellationToken)
     {
         var subscription = await azureSession.EnsureReadyAsync(cancellationToken);
@@ -214,15 +214,18 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
 
         if (destination == PublishTargetType.AzureAppServiceContainer)
         {
-            var app = await console.ChooseWithRefreshAsync<AzureWebApp>("App Service app", "Loading apps...",
-                async token => (await az.ListWebAppsAsync(cancellationToken: token)).Where(a => a.IsContainer).ToList(),
-                a => [a.Name, a.ResourceGroup],
+            // The apps are loaded once per run (see AzureAppList); Refresh loads them again.
+            var app = await console.ChooseWithRefreshAsync("App Service app", "Loading apps...",
+                async token => ContainerApps(await appList.GetAppsAsync(subscription.Id, token)),
+                a => [a.Name, DeploymentSlotPrompt.SlotCount(a), a.ResourceGroup],
                 emptyMessage: $"No container App Service apps were found in '{subscription.Name}'. Create one, then refresh.",
-                cancellationToken);
-            (name, resourceGroup) = (app.Name, app.ResourceGroup);
-            resourceId = AzureResourceIds.WebApp(subscription.Id, resourceGroup, name);
+                cancellationToken,
+                reload: async token => ContainerApps(await appList.LoadAppsAsync(subscription.Id, token)));
+            var slot = await DeploymentSlotPrompt.ChooseAsync(console, appList, app, cancellationToken);
+            (name, resourceGroup) = (DeploymentSlotPrompt.ProfileName(app, slot), app.ResourceGroup);
+            resourceId = DeploymentSlotPrompt.ResourceId(subscription.Id, app, slot);
             profile[ProfileProperties.PubwizAzureContainerHost] = "AppService";
-            profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{app.DefaultHostName}";
+            profile[ProfileProperties.SiteUrlToLaunchAfterPublish] = $"https://{slot.DefaultHostName}";
         }
         else
         {
@@ -247,4 +250,6 @@ public sealed class ContainerProfilePage(IAnsiConsole console, ContainerCli cont
 
         return name;
     }
+
+    private static IReadOnlyList<AzureWebApp> ContainerApps(IReadOnlyList<AzureWebApp> apps) => apps.Where(a => a.IsContainer).ToList();
 }

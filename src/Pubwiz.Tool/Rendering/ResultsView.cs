@@ -53,7 +53,7 @@ public sealed class ResultsView(IAnsiConsole console)
 
         while (true)
         {
-            var choice = console.Prompt(Questions.Menu<MenuChoice>("What next?")
+            var choice = console.Pick(Questions.Menu<MenuChoice>("What next?")
                 .AddChoices(Enum.GetValues<MenuChoice>())
                 .AddCancelResult(MenuChoice.Exit)
                 .UseConverter(Describe));

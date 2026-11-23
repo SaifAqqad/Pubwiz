@@ -92,6 +92,23 @@ public sealed class AzureTargetTests : IDisposable
     }
 
     [Fact]
+    public void GetDeploymentSlot_ReadsTheResourceIdOrTheSlotSiteName()
+    {
+        var profile = Profile("ZipDeploy", "https://contoso-staging.scm.azurewebsites.net/");
+        Assert.Null(AzureProfile.GetDeploymentSlot(profile));
+
+        profile[ProfileProperties.UserName] = "$contoso__staging";
+        Assert.Equal("staging", AzureProfile.GetDeploymentSlot(profile));
+
+        // The ResourceId wins: here it's the production slot.
+        profile[ProfileProperties.ResourceId] = AzureResourceIds.WebApp("sub-1", "rg", "contoso");
+        Assert.Null(AzureProfile.GetDeploymentSlot(profile));
+
+        profile[ProfileProperties.ResourceId] = AzureResourceIds.WebApp("sub-1", "rg", "contoso", slot: "qa");
+        Assert.Equal("qa", AzureProfile.GetDeploymentSlot(profile));
+    }
+
+    [Fact]
     public void UsesAzCli_WhenThereAreNoPublishingCredentials()
     {
         var profile = Profile("ZipDeploy", "https://contoso.scm.azurewebsites.net/");

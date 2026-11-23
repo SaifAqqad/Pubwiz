@@ -44,6 +44,34 @@ public static class AzureProfile
             _ => TargetPlatform.Any
         };
 
+    /// <summary>
+    /// The deployment slot the profile publishes to, e.g. <c>staging</c>, or <c>null</c> for the production slot.
+    /// Read from the <c>ResourceId</c> (<c>.../sites/{app}/slots/{slot}</c>), or else from the site name of a slot's
+    /// imported .publishsettings (see <see cref="GetSlotSiteName"/>).
+    /// </summary>
+    public static string? GetDeploymentSlot(PublishProfile profile)
+    {
+        if (AzureAppReference.TryParseResourceId(profile[ProfileProperties.ResourceId]) is { } app)
+        {
+            return app.Slot;
+        }
+
+        return IsAppService(profile) ? GetSlotSiteName(profile)?.Slot : null;
+    }
+
+    /// <summary>
+    /// The app and slot of a deployment slot's .publishsettings, which name its site <c>contoso__staging</c> (the app,
+    /// two underscores, the slot) in <c>msdeploySite</c> and in the user name (<c>$contoso__staging</c>).
+    /// App names can't contain underscores, so the two can't be mixed up.
+    /// </summary>
+    /// <returns>The app and slot, or <c>null</c> when the profile isn't for a slot.</returns>
+    public static (string App, string Slot)? GetSlotSiteName(PublishProfile profile)
+    {
+        var site = profile[ProfileProperties.DeployIisAppPath] ?? profile[ProfileProperties.UserName]?.TrimStart('$');
+        var separator = site?.IndexOf("__", StringComparison.Ordinal) ?? -1;
+        return separator > 0 && separator + 2 < site!.Length ? (site[..separator], site[(separator + 2)..]) : null;
+    }
+
     /// <summary>Sign in with an az token when asked to, or when there are no publishing credentials.</summary>
     public static bool UsesAzCli(PublishProfile profile) =>
         string.Equals(profile[ProfileProperties.PubwizAzureAuthentication], AzCliAuthentication, StringComparison.OrdinalIgnoreCase)

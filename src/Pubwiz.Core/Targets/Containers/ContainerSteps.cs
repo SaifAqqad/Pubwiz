@@ -136,22 +136,23 @@ internal sealed class DockerSaveStep(ContainerCli containers, ContainerTool tool
     }
 }
 
-/// <summary>Points an App Service or Container App at the pushed image.</summary>
-internal sealed class AzureImageUpdateStep(AzCli az, ContainerProfile container, string resourceGroup, string appName) : PublishStep("Update Azure app")
+/// <summary>Points an App Service (or one of its deployment slots) or Container App at the pushed image.</summary>
+internal sealed class AzureImageUpdateStep(AzCli az, ContainerProfile container, AzureAppReference app) : PublishStep("Update Azure app")
 {
     public override async Task ExecuteAsync(PublishContext context, CancellationToken cancellationToken)
     {
         var image = container.ImageNames[0];
+        var appName = app.Slot is null ? app.Name : $"{app.Name}/{app.Slot}";
         context.ReportDetail($"{appName} → {image}");
         try
         {
             if (container.AzureHost == "AppService")
             {
-                await az.SetWebAppImageAsync(resourceGroup, appName, image, cancellationToken);
+                await az.SetWebAppImageAsync(app, image, cancellationToken);
             }
             else
             {
-                await az.UpdateContainerAppImageAsync(resourceGroup, appName, image, cancellationToken);
+                await az.UpdateContainerAppImageAsync(app.ResourceGroup, app.Name, image, cancellationToken);
             }
         }
         catch (AzCliException ex)

@@ -1,3 +1,5 @@
+using Pubwiz.Tool.Rendering;
+
 namespace Pubwiz.Tool.Prompts;
 
 /// <summary>
@@ -88,7 +90,7 @@ public static class Questions
         var items = choices.ToList();
 
         // Without a default, Spectre starts on the item equal to default(T): false for bools, the first value of an enum.
-        var answer = console.Prompt(Menu<T>($"[bold]{question.EscapeMarkup()}[/]")
+        var answer = console.Pick(Menu<T>($"[bold]{question.EscapeMarkup()}[/]")
             .AddChoices(items)
             .DefaultValue(items[0])
             .UseConverter(describe));
@@ -111,24 +113,32 @@ public static class Questions
     /// <param name="columns">The item's columns as plain text; the first one (the name) is searched first and written back as the answer.</param>
     /// <param name="emptyMessage">Why the list is empty and what to do about it (plain text).</param>
     /// <param name="cancellationToken">Cancels loading.</param>
+    /// <param name="reload">
+    /// How Refresh loads the items, when <paramref name="load"/> may return a list remembered from earlier; by default
+    /// <paramref name="load"/> is called again.
+    /// </param>
     public static async Task<T> ChooseWithRefreshAsync<T>(this IAnsiConsole console, string question, string loadingText,
         Func<CancellationToken, Task<IReadOnlyList<T>>> load, Func<T, IReadOnlyList<string>> columns, string emptyMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, Func<CancellationToken, Task<IReadOnlyList<T>>>? reload = null)
         where T : notnull
     {
         const string refresh = "↻ Refresh the list";
+        var loadItems = load;
         while (true)
         {
             var items = await console.Status()
                 .Spinner(Spinner.Known.Dots)
                 .SpinnerStyle(AnswerStyle)
-                .StartAsync(loadingText, _ => load(cancellationToken));
+                .StartAsync(loadingText, _ => loadItems(cancellationToken));
+
+            // Anything after this is a refresh.
+            loadItems = reload ?? load;
 
             if (items.Count == 0)
             {
                 console.Write(Widgets.Warning(emptyMessage));
                 console.WriteLine();
-                console.Prompt(Menu<string>($"[bold]{question.EscapeMarkup()}[/]").AddChoices(refresh).UseConverter(text => $"[dim]{text}[/]"));
+                console.Pick(Menu<string>($"[bold]{question.EscapeMarkup()}[/]").AddChoices(refresh).UseConverter(text => $"[dim]{text}[/]"));
                 continue;
             }
 
@@ -148,11 +158,33 @@ public static class Questions
         }
     }
 
+    /// <summary>
+    /// Shows a <see cref="Menu{T}"/> with each item cut to the terminal's width. Spectre wraps a long item onto a second
+    /// line, which pushes the end of the list off screen.
+    /// </summary>
+    /// <param name="console">The console.</param>
+    /// <param name="menu">The menu; its converter (how items are listed) is wrapped to cut them.</param>
+    /// <returns>The chosen item.</returns>
+    public static T Pick<T>(this IAnsiConsole console, SelectionPrompt<T> menu)
+        where T : notnull
+    {
+        var describe = menu.Converter ?? (item => item.ToString()!.EscapeMarkup());
+
+        // Room for the "> " pointer, the indent of items in a group, and the last column, which Spectre leaves empty.
+        menu.Converter = item => DisplayText.TruncateMarkup(console, describe(item), console.Profile.Width - 5);
+        return console.Prompt(menu);
+    }
+
     /// <summary>A list disappears once answered, so its answer is written the way text answers look.</summary>
-    internal static void WriteAnswer(IAnsiConsole console, string question, string answerMarkup)
+    /// <param name="console">The console.</param>
+    /// <param name="question">e.g. "Encryption".</param>
+    /// <param name="answerMarkup">The answer; written as plain text in the primary color.</param>
+    /// <param name="note">Plain text written dimmed after the answer, e.g. why there was nothing to choose.</param>
+    internal static void WriteAnswer(IAnsiConsole console, string question, string answerMarkup, string? note = null)
     {
         var separator = question.EndsWith('?') ? " " : ": ";
-        console.MarkupLine($"[bold]{question.EscapeMarkup()}[/]{separator}[{Widgets.PrimaryColorMarkup}]{Markup.Remove(answerMarkup).EscapeMarkup()}[/]");
+        var line = $"[bold]{question.EscapeMarkup()}[/]{separator}[{Widgets.PrimaryColorMarkup}]{Markup.Remove(answerMarkup).EscapeMarkup()}[/]";
+        console.MarkupLine(note is null ? line : $"{line} [dim]({note.EscapeMarkup()})[/]");
     }
 
     /// <summary>

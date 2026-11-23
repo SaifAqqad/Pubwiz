@@ -2,6 +2,7 @@ using Pubwiz.Core.Discovery;
 using Pubwiz.Core.Profiles;
 using Pubwiz.Core.Targets.ServerLogins;
 using Pubwiz.Core.Targets.WebDeploy;
+using Pubwiz.Tool.Rendering;
 
 namespace Pubwiz.Tool.Wizard;
 
@@ -67,7 +68,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
         if (chosen is ProfilePageResult.Chosen { Profile: var profile })
         {
             // The list disappears once answered, so the answer is written the way other answers look.
-            console.MarkupLine($"[bold]Profile:[/] [{Widgets.PrimaryColorMarkup}]{profile.Name.EscapeMarkup()}[/] [dim]({profile.Method})[/]");
+            console.MarkupLine($"[bold]Profile:[/] {ProfileText.ToMarkup(profile, Widgets.PrimaryColorMarkup)}");
         }
 
         return chosen;
@@ -79,7 +80,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
         {
             var profiles = PublishProfileStore.List(project.Directory);
             var canSavePreset = options.PresetFilePath is not null && profiles.Count > 0;
-            var choice = console.Prompt(BuildPrompt(project, profiles, canSavePreset, options));
+            var choice = console.Pick(BuildPrompt(project, profiles, canSavePreset, options));
 
             switch (choice)
             {
@@ -198,7 +199,7 @@ public sealed class ProfilePage(IAnsiConsole console, CreateProfilePage createPa
 
     private static string Describe(Choice choice) => choice switch
     {
-        Choice.Existing existing => $"{existing.Profile.Name.EscapeMarkup()} [dim]({existing.Profile.Method})[/]",
+        Choice.Existing existing => ProfileText.ToMarkup(existing.Profile),
         Choice.Create => "[green]+[/] Create a new profile",
         Choice.Import => "[blue]↓[/] Import a profile (.publishsettings or .pubxml)",
         Choice.SaveAsPreset => "[yellow]★[/] Save a profile as a preset",
