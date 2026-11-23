@@ -50,9 +50,14 @@ public sealed class AzureSession(IAnsiConsole console, AzCli az, IProcessRunner 
         }
 
         var exitCode = await Shell.RunInteractiveAsync(processRunner, option.Command, cancellationToken);
-        if (exitCode != 0 || !az.Refresh())
+        if (exitCode != 0)
         {
             throw new PrerequisiteMissingException("Azure (az)", $"The install command didn't finish (exit code {exitCode}). See {AzCliInstallGuide.DocsUrl}.");
+        }
+
+        if (!az.Refresh())
+        {
+            throw new PrerequisiteMissingException("Azure (az)", "The install command finished, but az can't be found yet. Open a new terminal and run this again.");
         }
 
         console.MarkupLine($"{Widgets.SuccessCheckMarkup} Azure CLI installed");

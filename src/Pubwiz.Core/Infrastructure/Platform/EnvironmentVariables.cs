@@ -36,6 +36,30 @@ public static class EnvironmentVariables
         }
     }
 
+    /// <summary>
+    /// On Windows, installers save <c>PATH</c> changes in the registry, and only programs started afterwards see them.
+    /// Adds the saved folders this process is missing to its <c>PATH</c>, so a tool installed just now can be found.
+    /// Does nothing on other systems.
+    /// </summary>
+    public static void ReloadSavedPath()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var current = Get("PATH")?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) ?? [];
+        var saved = new[] { EnvironmentVariableTarget.Machine, EnvironmentVariableTarget.User }
+            .Select(target => Environment.GetEnvironmentVariable("PATH", target))
+            .SelectMany(value => value?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) ?? []);
+
+        var missing = saved.Except(current, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (missing.Length > 0)
+        {
+            Environment.SetEnvironmentVariable("PATH", string.Join(Path.PathSeparator, current.Concat(missing)));
+        }
+    }
+
     private static string? Get(string name)
     {
         var value = Environment.GetEnvironmentVariable(name);

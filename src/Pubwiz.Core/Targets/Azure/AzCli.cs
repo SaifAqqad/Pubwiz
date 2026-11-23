@@ -35,6 +35,8 @@ public sealed class AzCli(IProcessRunner processRunner)
     /// <returns><c>true</c> when it's installed now.</returns>
     public bool Refresh()
     {
+        // The Windows installer adds az to the saved PATH, which this process doesn't see yet.
+        EnvironmentVariables.ReloadSavedPath();
         _executablePath = new Lazy<string?>(() => ExecutableLocator.FindInPath("az"));
         return IsInstalled;
     }
