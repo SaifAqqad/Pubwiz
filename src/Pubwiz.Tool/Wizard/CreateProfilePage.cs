@@ -178,7 +178,7 @@ public sealed class CreateProfilePage(
         }
 
         prompt.AddChoice(new Choice.Back());
-        return console.Prompt(prompt);
+        return console.Pick(prompt);
     }
 
     private static string Describe(Choice choice)

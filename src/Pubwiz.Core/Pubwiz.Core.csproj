@@ -7,6 +7,8 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Pubwiz.Core.Tests" />
+        <!-- For AzCli with a fake process runner. -->
+        <InternalsVisibleTo Include="Pubwiz.Tool.Tests" />
     </ItemGroup>
 
     <ItemGroup>

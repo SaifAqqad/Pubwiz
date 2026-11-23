@@ -1,3 +1,6 @@
+using Spectre.Console.Rendering;
+using System.Text;
+
 namespace Pubwiz.Tool.Rendering;
 
 /// <summary>
@@ -17,6 +20,41 @@ public static class DisplayText
         }
 
         return text.Length <= maxLength ? text : string.Concat(text.AsSpan(0, maxLength - 1), "…");
+    }
+
+    /// <summary>
+    /// Cuts a line of markup to <paramref name="maxLength"/> characters, ending with "…" when cut, and keeps its styles.
+    /// Used for list items, which must never wrap.
+    /// </summary>
+    /// <param name="console">The console the markup is shown on (for its color support).</param>
+    /// <param name="markup">One line of markup, e.g. <c>contoso [dim](ZipDeploy)[/]</c>.</param>
+    /// <param name="maxLength">The most characters to keep, "…" included.</param>
+    public static string TruncateMarkup(IAnsiConsole console, string markup, int maxLength)
+    {
+        if (Markup.Remove(markup).Length <= maxLength)
+        {
+            return markup;
+        }
+
+        // Spectre turns the markup into pieces of text with a style each; keep the pieces that fit and write them back as markup.
+        var segments = ((IRenderable)new Markup(markup)).Render(RenderOptions.Create(console), int.MaxValue);
+        var result = new StringBuilder();
+        var room = Math.Max(maxLength - 1, 0);
+        foreach (var segment in segments.Where(s => !s.IsLineBreak && !s.IsControlCode))
+        {
+            if (room == 0)
+            {
+                break;
+            }
+
+            var text = segment.Text.Length <= room ? segment.Text : segment.Text[..room];
+            room -= text.Length;
+
+            var style = segment.Style.ToMarkup();
+            result.Append(style.Length > 0 ? $"[{style}]{text.EscapeMarkup()}[/]" : text.EscapeMarkup());
+        }
+
+        return result.Append('…').ToString();
     }
 
     /// <summary>

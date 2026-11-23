@@ -1,4 +1,5 @@
 using Pubwiz.Tool.Rendering;
+using Spectre.Console.Testing;
 
 namespace Pubwiz.Tool.Tests.Rendering;
 
@@ -12,6 +13,29 @@ public class DisplayTextTests
     public void Truncate_CutsWithAnEllipsis(string text, int max, string expected)
     {
         Assert.Equal(expected, DisplayText.Truncate(text, max));
+    }
+
+    [Fact]
+    public void TruncateMarkup_KeepsShortMarkupAsItIs()
+    {
+        Assert.Equal("contoso [dim](ZipDeploy)[/]", DisplayText.TruncateMarkup(new TestConsole(), "contoso [dim](ZipDeploy)[/]", 40));
+    }
+
+    [Fact]
+    public void TruncateMarkup_CutsTheTextAndKeepsItsStyles()
+    {
+        var cut = DisplayText.TruncateMarkup(new TestConsole(), "contoso [dim](ZipDeploy)[/]", 12);
+
+        Assert.Equal("contoso (Zi…", Spectre.Console.Markup.Remove(cut));
+        Assert.Contains("[dim](Zi[/]", cut);
+    }
+
+    [Fact]
+    public void TruncateMarkup_KeepsEscapedBrackets()
+    {
+        var cut = DisplayText.TruncateMarkup(new TestConsole(), "[[x]] a long item name", 8);
+
+        Assert.Equal("[x] a l…", Spectre.Console.Markup.Remove(cut));
     }
 
     [Fact]

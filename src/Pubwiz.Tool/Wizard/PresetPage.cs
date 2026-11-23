@@ -96,7 +96,7 @@ public sealed class PresetPage(IAnsiConsole console, PresetResolver resolver)
             prompt.AddChoice(publishAgain);
         }
 
-        var choice = console.Prompt(prompt.AddChoices(file.Presets.Keys.Order()).AddChoices(chooseProjects));
+        var choice = console.Pick(prompt.AddChoices(file.Presets.Keys.Order()).AddChoices(chooseProjects));
         return choice switch
         {
             chooseProjects => new Offer(Shown: true, Batch: null),

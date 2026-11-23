@@ -153,7 +153,7 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets, Publis
     public PublishBatch ChooseOrder(PublishBatch batch)
     {
         console.WriteLine();
-        var prompt = new OrderPrompt<PublishSelection>($"[bold]{OrderQuestion}[/]", batch.Selections, s => [s.Project.Name, $"{s.Profile.Name} ({s.Profile.Method})"])
+        var prompt = new OrderPrompt<PublishSelection>($"[bold]{OrderQuestion}[/]", batch.Selections, s => [s.Project.Name, $"{s.Profile.Name} ({ProfileText.Details(s.Profile)})"])
         {
             Orders = batch.Steps,
             Parallel = batch.Parallel
@@ -285,7 +285,7 @@ public sealed class ConfirmPage(IAnsiConsole console, PresetPage presets, Publis
                     new Markup(i == 0 ? $"[{Widgets.PrimaryColorMarkup} bold]{step.Key}[/]" : string.Empty),
                     new Markup($"[{Widgets.PrimaryColorMarkup} dim]{PublishPlan.Connector(i, members.Count, unicode)}[/]"),
                     new Markup($"[bold]{project.Name.EscapeMarkup()}[/]"),
-                    new Markup($"[{Widgets.PrimaryColorMarkup}]{profile.Name.EscapeMarkup()}[/] [dim]({profile.Method})[/]"));
+                    new Markup(ProfileText.ToMarkup(profile, Widgets.PrimaryColorMarkup)));
             }
         }
 

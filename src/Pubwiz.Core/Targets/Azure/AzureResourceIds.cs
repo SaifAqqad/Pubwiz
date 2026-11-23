@@ -6,8 +6,13 @@ namespace Pubwiz.Core.Targets.Azure;
 /// </summary>
 public static class AzureResourceIds
 {
-    public static string WebApp(string subscriptionId, string resourceGroup, string name) =>
-        Create(subscriptionId, resourceGroup, "Microsoft.Web/sites", name);
+    /// <summary>An App Service app or Function App, or one of its deployment slots (<c>.../sites/{app}/slots/{slot}</c>).</summary>
+    /// <param name="subscriptionId">The subscription.</param>
+    /// <param name="resourceGroup">The app's resource group.</param>
+    /// <param name="name">The app's name.</param>
+    /// <param name="slot">The deployment slot, or <c>null</c> for the production slot (the app itself).</param>
+    public static string WebApp(string subscriptionId, string resourceGroup, string name, string? slot = null) =>
+        Create(subscriptionId, resourceGroup, "Microsoft.Web/sites", slot is null ? name : $"{name}/slots/{slot}");
 
     public static string ContainerApp(string subscriptionId, string resourceGroup, string name) =>
         Create(subscriptionId, resourceGroup, "Microsoft.App/containerApps", name);

@@ -78,8 +78,7 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
 
         if (container.AzureHost is not null)
         {
-            var (resourceGroup, appName) = GetAzureApp(request.Profile);
-            steps.Add(new AzureImageUpdateStep(az, container, resourceGroup, appName));
+            steps.Add(new AzureImageUpdateStep(az, container, GetAzureApp(request.Profile)));
         }
 
         steps.Add(archivePath is not null
@@ -92,15 +91,21 @@ public sealed class ContainerTarget(DotnetCli dotnet, ContainerCli containers, A
     /// The app an image is deployed to: Visual Studio's <c>ResourceId</c> and <c>ResourceGroup</c>, or the
     /// <c>PubwizAzure*</c> properties of profiles from earlier Pubwiz versions.
     /// </summary>
-    private static (string ResourceGroup, string AppName) GetAzureApp(PublishProfile profile)
+    /// <remarks>An App Service <c>ResourceId</c> can end with a deployment slot (<c>.../sites/{app}/slots/{slot}</c>).</remarks>
+    internal static AzureAppReference GetAzureApp(PublishProfile profile)
     {
         var resourceId = profile[ProfileProperties.ResourceId];
+        if (profile[ProfileProperties.PubwizAzureAppName] is null && AzureAppReference.TryParseResourceId(resourceId) is { } webApp)
+        {
+            return webApp;
+        }
+
         var resourceGroup = profile[ProfileProperties.PubwizAzureResourceGroup] ?? profile[ProfileProperties.ResourceGroup] ?? AzureResourceIds.GetResourceGroup(resourceId);
         var appName = profile[ProfileProperties.PubwizAzureAppName] ?? AzureResourceIds.GetName(resourceId);
 
         return resourceGroup is null || appName is null
             ? throw new ArgumentException($"The profile '{profile.Name}' has no {ProfileProperties.ResourceId} of the Azure app to update.")
-            : (resourceGroup, appName);
+            : new AzureAppReference(SubscriptionId: null, resourceGroup, appName);
     }
 
     /// <summary>

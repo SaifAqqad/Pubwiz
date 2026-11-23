@@ -108,6 +108,74 @@ public sealed class AzCli(IProcessRunner processRunner)
             .ToList();
     }
 
+    /// <summary>
+    /// App Service apps and Function Apps with their deployment slots, sorted by name, in one Azure Resource Graph query:
+    /// much faster than <see cref="ListWebAppsAsync"/> and then <see cref="ListDeploymentSlotsAsync"/> for each app.
+    /// </summary>
+    /// <remarks>
+    /// Resource Graph is updated with a short delay (usually under a minute), so an app or slot created moments ago may
+    /// be missing; <see cref="ListWebAppsAsync"/> and <see cref="ListDeploymentSlotsAsync"/> are always up to date.
+    /// </remarks>
+    public async Task<IReadOnlyList<AzureWebApp>> ListWebAppsWithSlotsAsync(string subscriptionId, CancellationToken cancellationToken = default)
+    {
+        var rows = await QueryResourceGraphAsync<WebAppsQuery.Row>(subscriptionId, WebAppsQuery.Query, cancellationToken);
+        return WebAppsQuery.ToWebApps(rows);
+    }
+
+    /// <summary>
+    /// Runs an Azure Resource Graph query (KQL) over one subscription, and reads every page of the results.
+    /// It goes through <c>az rest</c>, which signs the request in like any az command; <c>az graph</c> would need an extension.
+    /// </summary>
+    /// <typeparam name="T">A row of the results, with a property for each column.</typeparam>
+    internal async Task<IReadOnlyList<T>> QueryResourceGraphAsync<T>(string subscriptionId, string query, CancellationToken cancellationToken)
+    {
+        // The body goes in a file: on Windows az is a .cmd script, and cmd.exe would mangle the quotes and pipes of the JSON.
+        var bodyPath = Path.GetTempFileName();
+        try
+        {
+            var rows = new List<T>();
+            string? skipToken = null;
+            do
+            {
+                var request = new ResourceGraphRequest([subscriptionId], query, new ResourceGraphOptions(ResourceGraphRequest.PageSize, skipToken));
+                await File.WriteAllTextAsync(bodyPath, JsonSerializer.Serialize(request), cancellationToken);
+
+                var result = await RunAsync(["rest", "--method", "post", "--url", ResourceGraphRequest.Url, "--body", $"@{bodyPath}", "-o", "json"],
+                    onOutput: null, cancellationToken);
+                EnsureSucceeded(result, "az rest (Resource Graph)");
+
+                var page = Deserialize<ResourceGraphResponse<T>>(result.Output) ?? throw new AzCliException("Resource Graph returned no results.");
+                rows.AddRange(page.Data);
+                skipToken = page.SkipToken;
+            } while (skipToken is not null);
+
+            return rows;
+        }
+        finally
+        {
+            File.Delete(bodyPath);
+        }
+    }
+
+    /// <summary>The deployment slots of an App Service app or Function App, sorted by name; the production slot isn't one of them.</summary>
+    /// <remarks>
+    /// <c>az functionapp deployment slot list</c> runs the same code, but fails for Flex Consumption apps instead of
+    /// returning no slots, so the webapp command is used for both.
+    /// </remarks>
+    public async Task<IReadOnlyList<AzureDeploymentSlot>> ListDeploymentSlotsAsync(string resourceGroup, string appName, CancellationToken cancellationToken = default)
+    {
+        const string query = "[].{name:name, defaultHostName:defaultHostName, state:state}";
+        var result = await RunAsync(["webapp", "deployment", "slot", "list", "--resource-group", resourceGroup, "--name", appName, "--query", query, "-o", "json"],
+            onOutput: null, cancellationToken);
+        EnsureSucceeded(result, "az webapp deployment slot list");
+
+        // az lists a slot as "staging"; the resource's own name is "contoso/staging".
+        return (Deserialize<List<AzureDeploymentSlot>>(result.Output) ?? [])
+            .Select(slot => slot with { Name = slot.Name.Split('/')[^1] })
+            .OrderBy(slot => slot.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<AzureContainerRegistry>> ListContainerRegistriesAsync(CancellationToken cancellationToken = default)
     {
         var result = await RunAsync(["acr", "list", "--query", "[].{name:name, resourceGroup:resourceGroup, loginServer:loginServer}", "-o", "json"], onOutput: null, cancellationToken);
@@ -156,10 +224,24 @@ public sealed class AzCli(IProcessRunner processRunner)
         return result.Output.Trim();
     }
 
-    /// <summary>Points an App Service (container) app at a new image.</summary>
-    public async Task SetWebAppImageAsync(string resourceGroup, string appName, string image, CancellationToken cancellationToken = default)
+    /// <summary>Points an App Service (container) app, or one of its deployment slots, at a new image.</summary>
+    /// <param name="app">The app, with its slot (<c>null</c> for production).</param>
+    /// <param name="image">The image, e.g. <c>contoso.azurecr.io/api:latest</c>.</param>
+    /// <param name="cancellationToken">Cancels the az command.</param>
+    public async Task SetWebAppImageAsync(AzureAppReference app, string image, CancellationToken cancellationToken = default)
     {
-        var result = await RunAsync(["webapp", "config", "container", "set", "--resource-group", resourceGroup, "--name", appName, "--container-image-name", image], onOutput: null, cancellationToken);
+        List<string> arguments = ["webapp", "config", "container", "set", "--resource-group", app.ResourceGroup, "--name", app.Name, "--container-image-name", image];
+        if (app.Slot is not null)
+        {
+            arguments.AddRange(["--slot", app.Slot]);
+        }
+
+        if (app.SubscriptionId is not null)
+        {
+            arguments.AddRange(["--subscription", app.SubscriptionId]);
+        }
+
+        var result = await RunAsync(arguments, onOutput: null, cancellationToken);
         EnsureSucceeded(result, "az webapp config container set");
     }
 

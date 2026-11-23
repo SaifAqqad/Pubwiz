@@ -53,6 +53,26 @@ public class ContainerProfileTests
         Assert.Equal(expected, ContainerProfile.Read(profile, "app").Destination);
     }
 
+    [Fact]
+    public void GetAzureApp_ReadsTheDeploymentSlotFromTheResourceId()
+    {
+        var profile = Profile(
+            (ProfileProperties.PubwizAzureContainerHost, "AppService"),
+            (ProfileProperties.ResourceId, AzureResourceIds.WebApp("sub-1", "rg", "contoso", slot: "staging")));
+
+        Assert.Equal(new AzureAppReference("sub-1", "rg", "contoso", "staging"), ContainerTarget.GetAzureApp(profile));
+    }
+
+    [Fact]
+    public void GetAzureApp_ReadsContainerApps()
+    {
+        var profile = Profile(
+            (ProfileProperties.PubwizAzureContainerHost, "ContainerApp"),
+            (ProfileProperties.ResourceId, AzureResourceIds.ContainerApp("sub-1", "rg", "orders")));
+
+        Assert.Equal(new AzureAppReference(null, "rg", "orders"), ContainerTarget.GetAzureApp(profile));
+    }
+
     [Theory]
     [InlineData("Contoso.Api", "contoso-api")]
     [InlineData("Contoso.Shop_Api", "contoso-shop-api")]

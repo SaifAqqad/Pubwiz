@@ -48,6 +48,50 @@ public class AzurePublishingCredentialsTests
     }
 
     [Fact]
+    public async Task TryGetAsync_FindsTheSlotOfAnImportedSlotProfile()
+    {
+        // A slot's .publishsettings: the site is "contoso__staging", and slots aren't in the list of apps.
+        var profile = new PublishProfile("contoso-staging - Zip Deploy");
+        profile[ProfileProperties.WebPublishMethod] = "ZipDeploy";
+        profile[ProfileProperties.PublishProvider] = "AzureWebSite";
+        profile[ProfileProperties.PublishUrl] = "https://contoso-staging.scm.azurewebsites.net/";
+        profile[ProfileProperties.UserName] = "$contoso__staging";
+
+        var az = new FakeAzRunner()
+            .Answer("account show", Account)
+            .Answer("account list", $"[{Account}]")
+            .Answer("webapp list", """[{"name":"contoso","resourceGroup":"rg","kind":"app","defaultHostName":"contoso.azurewebsites.net"}]""")
+            .Answer("functionapp list", "[]")
+            .Answer("resource show", "true")
+            .Answer("webapp deployment list-publishing-profiles", """
+                [{ "profileName": "contoso-staging - Zip Deploy", "publishMethod": "ZipDeploy", "userName": "$contoso__staging", "userPWD": "slot-secret" }]
+                """);
+
+        var result = await new AzurePublishingCredentials(az.CreateAzCli()).TryGetAsync(profile, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new AzureCredentialsResult.Found("slot-secret", "contoso/staging"), result);
+        Assert.Contains(az.Commands, c => c.Contains("--parent sites/contoso/slots/staging"));
+        Assert.Contains(az.Commands, c => c.StartsWith("webapp deployment list-publishing-profiles") && c.Contains("--slot staging"));
+    }
+
+    [Theory]
+    [InlineData("contoso__staging", null, "contoso", "staging")]
+    [InlineData(null, "$contoso__staging", "contoso", "staging")]
+    [InlineData(null, "$contoso", null, null)]
+    [InlineData("contoso", null, null, null)]
+    public void GetSlotSiteName_SplitsTheAppAndSlot(string? site, string? userName, string? expectedApp, string? expectedSlot)
+    {
+        var profile = new PublishProfile("p");
+        profile[ProfileProperties.DeployIisAppPath] = site;
+        profile[ProfileProperties.UserName] = userName;
+
+        var result = AzureProfile.GetSlotSiteName(profile);
+
+        Assert.Equal(expectedApp, result?.App);
+        Assert.Equal(expectedSlot, result?.Slot);
+    }
+
+    [Fact]
     public async Task TryGetAsync_SignsInWithAzWhenBasicAuthIsOff()
     {
         // Azure has no usable password for these apps, so asking for one would be pointless.

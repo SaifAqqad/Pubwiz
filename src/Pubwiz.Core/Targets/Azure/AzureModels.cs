@@ -27,16 +27,52 @@ public sealed record AzureWebApp(
 
     public bool IsFunctionApp => Kind.Contains("functionapp", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// The app's deployment slots (production isn't one of them), or <c>null</c> when they weren't loaded:
+    /// <see cref="AzCli.ListWebAppsWithSlotsAsync"/> loads them, <see cref="AzCli.ListWebAppsAsync"/> doesn't.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<AzureDeploymentSlot>? Slots { get; init; }
+
     /// <summary>The Kudu site, e.g. <c>https://contoso.scm.azurewebsites.net/</c>.</summary>
-    public Uri ScmUrl
+    public Uri ScmUrl => GetScmUrl(DefaultHostName);
+
+    /// <summary>The Kudu site of an app or slot with this host name.</summary>
+    /// <param name="defaultHostName">e.g. <c>contoso.azurewebsites.net</c> or <c>contoso-staging.azurewebsites.net</c>.</param>
+    public static Uri GetScmUrl(string defaultHostName)
     {
-        get
-        {
-            // contoso.azurewebsites.net -> contoso.scm.azurewebsites.net (also for sovereign clouds)
-            var dot = DefaultHostName.IndexOf('.');
-            return new Uri($"https://{DefaultHostName[..dot]}.scm{DefaultHostName[dot..]}/");
-        }
+        // contoso.azurewebsites.net -> contoso.scm.azurewebsites.net (also for sovereign clouds)
+        var dot = defaultHostName.IndexOf('.');
+        return new Uri($"https://{defaultHostName[..dot]}.scm{defaultHostName[dot..]}/");
     }
+}
+
+/// <summary>
+/// A deployment slot of an App Service app or Function App (<c>az webapp deployment slot list</c>), or the app itself
+/// as the production slot (<see cref="Production"/>).
+/// </summary>
+/// <remarks>Each slot is a separate site with its own host name and Kudu site, so it's deployed to like an app.</remarks>
+/// <param name="Name">The slot's name, e.g. <c>staging</c>.</param>
+/// <param name="DefaultHostName">e.g. <c>contoso-staging.azurewebsites.net</c>.</param>
+/// <param name="State">e.g. <c>Running</c>.</param>
+public sealed record AzureDeploymentSlot(
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("defaultHostName")] string DefaultHostName,
+    [property: JsonPropertyName("state")] string? State)
+{
+    /// <summary>What Azure calls the app's own slot. No other slot can have this name.</summary>
+    public const string ProductionName = "production";
+
+    /// <summary>Whether this is the app itself rather than one of its slots.</summary>
+    [JsonIgnore]
+    public bool IsProduction { get; private init; }
+
+    /// <summary>The Kudu site, e.g. <c>https://contoso-staging.scm.azurewebsites.net/</c>.</summary>
+    public Uri ScmUrl => AzureWebApp.GetScmUrl(DefaultHostName);
+
+    /// <summary>The app itself, as its production slot.</summary>
+    public static AzureDeploymentSlot Production(AzureWebApp app) =>
+        new(ProductionName, app.DefaultHostName, app.State) { IsProduction = true };
 }
 
 /// <summary>One of an app's publishing profiles (<c>az webapp deployment list-publishing-profiles</c>).</summary>

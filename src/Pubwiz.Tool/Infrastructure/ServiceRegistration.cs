@@ -89,6 +89,7 @@ public static class ServiceRegistration
         services.AddSingleton<ContainerProfilePage>();
         services.AddSingleton<MauiProfilePage>();
         services.AddSingleton<AzureSession>();
+        services.AddSingleton<AzureAppList>();
         services.AddSingleton<PasswordProvider>();
         services.AddSingleton<CertificateTrustPrompt>();
         services.AddSingleton<PresetPage>();
